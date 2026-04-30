@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3 Primitives
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // UserStats Validation
+    function isValidUserStats(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.level is int && data.level >= 1 &&
+             data.experience is int && data.experience >= 0 &&
+             data.totalTasksCompleted is int && data.totalTasksCompleted >= 0 &&
+             data.currentStreak is int && data.currentStreak >= 0 &&
+             data.lastActiveDate is string && data.lastActiveDate.size() <= 100;
+    }
+
+    // Task Validation
+    function isValidTask(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.difficulty in ['easy', 'medium', 'hard'] &&
+             data.status in ['pending', 'completed'] &&
+             data.createdAt is string && data.createdAt.size() <= 100;
+    }
+
+    // Journal Validation
+    function isValidJournal(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.content is string && data.content.size() <= 10000 &&
+             data.createdAt is string && data.createdAt.size() <= 100;
+    }
+
+    // TimeBlock Validation
+    function isValidTimeBlock(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() <= 200 &&
+             data.type in ['task', 'event', 'break', 'routine'] &&
+             data.startTime is string && data.startTime.size() <= 100 &&
+             data.endTime is string && data.endTime.size() <= 100;
+    }
+
+    // UserSettings Validation
+    function isValidUserSettings(data) {
+      return data.difficultyMultiplier is number &&
+             data.goalTargets is map &&
+             data.ui is map &&
+             data.display is map &&
+             data.notifications is map;
+    }
+
+    // MotivationItem Validation
+    function isValidMotivationItem(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.type in ['music', 'quote', 'link', 'text'] &&
+             data.content is string && data.content.size() <= 2000 &&
+             data.createdAt is string && data.createdAt.size() <= 100;
+    }
+
+    // UserStats Collection
+    match /user_stats/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUserStats(incoming()) && incoming().userId == userId;
+      allow update: if isOwner(userId) && isValidUserStats(incoming()) && 
+                    incoming().userId == existing().userId;
+    }
+
+    // UserSettings Collection
+    match /user_settings/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Tasks Collection
+    match /tasks/{taskId} {
+      allow get: if isSignedIn() && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isVerified() && isValidTask(incoming()) && isOwner(incoming().userId);
+      allow update: if isVerified() && isOwner(existing().userId) && isValidTask(incoming()) && 
+                    incoming().userId == existing().userId;
+      allow delete: if isVerified() && isOwner(existing().userId);
+    }
+
+    // Journals Collection
+    match /journals/{journalId} {
+      allow get: if isSignedIn() && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isVerified() && isValidJournal(incoming()) && isOwner(incoming().userId);
+      allow update: if isVerified() && isOwner(existing().userId) && isValidJournal(incoming()) && 
+                    incoming().userId == existing().userId;
+      allow delete: if isVerified() && isOwner(existing().userId);
+    }
+
+    // TimeBlock Collection
+    match /time_blocks/{timeBlockId} {
+      allow get: if isSignedIn() && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isVerified() && isValidTimeBlock(incoming()) && isOwner(incoming().userId);
+      allow update: if isVerified() && isOwner(existing().userId) && isValidTimeBlock(incoming()) && 
+                    incoming().userId == existing().userId;
+      allow delete: if isVerified() && isOwner(existing().userId);
+    }
+
+    // MotivationItems Collection
+    match /motivation_items/{itemId} {
+      allow get: if isSignedIn() && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isVerified() && isValidMotivationItem(incoming()) && isOwner(incoming().userId);
+      allow update: if isVerified() && isOwner(existing().userId) && isValidMotivationItem(incoming()) && 
+                    incoming().userId == existing().userId;
+      allow delete: if isVerified() && isOwner(existing().userId);
+    }
+  }
+}

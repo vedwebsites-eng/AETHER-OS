@@ -1,0 +1,122 @@
+/**
+ * Defines the structure of the Firebase data models for Aether.
+ */
+{
+  "entities": {
+    "UserStats": {
+      "title": "User Stats",
+      "description": "Gamification statistics for a user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The UID of the user" },
+        "level": { "type": "integer", "description": "Current player level" },
+        "experience": { "type": "integer", "description": "Current experience points" },
+        "totalTasksCompleted": { "type": "integer", "description": "Counter for total tasks finished" },
+        "currentStreak": { "type": "integer", "description": "Daily active streak" },
+        "lastActiveDate": { "type": "string", "format": "date-time", "description": "Last timestamp of activity" }
+      },
+      "required": ["userId", "level", "experience", "totalTasksCompleted", "currentStreak", "lastActiveDate"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A gamified task item",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
+        "status": { "type": "string", "enum": ["pending", "completed"] },
+        "dueDate": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "category": { "type": "string" }
+      },
+      "required": ["userId", "title", "difficulty", "status", "createdAt"]
+    },
+    "Journal": {
+      "title": "Journal Entry",
+      "description": "A daily reflection entry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "mood": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "content", "createdAt"]
+    },
+    "TimeBlock": {
+      "title": "Time Block",
+      "description": "A scheduled block of time in a calendar",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "type": { "type": "string", "enum": ["task", "event", "break", "routine"] },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "color": { "type": "string" },
+        "notes": { "type": "string" },
+        "taskId": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "adherenceXP": { "type": "integer" }
+      },
+      "required": ["userId", "title", "type", "startTime", "endTime"]
+    },
+    "UserSettings": {
+      "title": "App Settings",
+      "description": "User specific application configuration",
+      "type": "object",
+      "properties": {
+        "difficultyMultiplier": { "type": "number" },
+        "goalTargets": { "type": "object" },
+        "ui": { "type": "object" },
+        "display": { "type": "object" },
+        "notifications": { "type": "object" },
+        "aiRoutine": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["difficultyMultiplier", "goalTargets", "ui", "display", "notifications", "aiRoutine"]
+    },
+    "MotivationItem": {
+      "title": "Motivation Stimuli",
+      "description": "User-added text, quotes, or links for motivation",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["music", "quote", "link", "text"] },
+        "content": { "type": "string" },
+        "title": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/user_stats/{userId}": {
+      "schema": "UserStats",
+      "description": "Store player RPG mechanics"
+    },
+    "/user_settings/{userId}": {
+      "schema": "UserSettings",
+      "description": "User specific configuration"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "To-do items"
+    },
+    "/journals/{journalId}": {
+      "schema": "Journal",
+      "description": "Personal reflections"
+    },
+    "/time_blocks/{timeBlockId}": {
+      "schema": "TimeBlock",
+      "description": "Calendar schedule items"
+    },
+    "/motivation_items/{itemId}": {
+      "schema": "MotivationItem",
+      "description": "Neural boost stimuli"
+    }
+  }
+}
