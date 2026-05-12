@@ -126,6 +126,35 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "date", "values", "balanceScore"]
+    },
+    "Habit": {
+      "title": "Habit",
+      "description": "A habit tracking protocol",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["health", "learning", "creative", "work", "personal", "routine"] },
+        "frequency": { "type": "string", "description": "e.g. 'daily' or 'Mon,Wed,Fri'" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "targetStreak": { "type": "integer" },
+        "color": { "type": "string" },
+        "isArchived": { "type": "boolean" }
+      },
+      "required": ["userId", "name", "category", "frequency", "createdAt"]
+    },
+    "HabitLog": {
+      "title": "HabitLog",
+      "description": "A completion log for a specific habit and date",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "habitId": { "type": "string" },
+        "date": { "type": "string", "description": "YYYY-MM-DD" },
+        "completed": { "type": "boolean" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "habitId", "date", "completed", "timestamp"]
     }
   },
   "firestore": {
@@ -156,6 +185,14 @@
     "/life_snapshots/{snapshotId}": {
       "schema": "LifeSnapshot",
       "description": "User life balance history"
+    },
+    "/habits/{habitId}": {
+      "schema": "Habit",
+      "description": "User habit definitions"
+    },
+    "/habit_logs/{logId}": {
+      "schema": "HabitLog",
+      "description": "User habit completion logs"
     }
   }
 }

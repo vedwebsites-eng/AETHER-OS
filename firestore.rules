@@ -94,6 +94,24 @@ service cloud.firestore {
              data.createdAt == request.time;
     }
 
+    // Habit Validation
+    function isValidHabit(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.category in ['health', 'learning', 'creative', 'work', 'personal', 'routine'] &&
+             data.frequency is string && data.frequency.size() <= 500 &&
+             data.createdAt is string && data.createdAt.size() <= 100;
+    }
+
+    // HabitLog Validation
+    function isValidHabitLog(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.habitId is string && data.habitId.size() <= 128 &&
+             data.date is string && data.date.size() == 10 &&
+             data.completed is bool &&
+             data.timestamp is string && data.timestamp.size() <= 100;
+    }
+
     // --- Collections ---
 
     // UserStats: Identified by userId
@@ -161,6 +179,24 @@ service cloud.firestore {
       allow read: if isOwner(resource.data.userId);
       allow create: if isVerified() && isValidLifeSnapshot(incoming()) && isOwner(incoming().userId);
       allow update, delete: if false;
+    }
+
+    // Habits
+    match /habits/{habitId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isVerified() && isValidHabit(incoming()) && isOwner(incoming().userId) && isValidId(habitId);
+      allow update: if isVerified() && isOwner(existing().userId) && isValidHabit(incoming()) && 
+                    incoming().userId == existing().userId;
+      allow delete: if isVerified() && isOwner(existing().userId);
+    }
+
+    // HabitLogs
+    match /habit_logs/{logId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isVerified() && isValidHabitLog(incoming()) && isOwner(incoming().userId) && isValidId(logId);
+      allow update: if isVerified() && isOwner(existing().userId) && isValidHabitLog(incoming()) && 
+                    incoming().userId == existing().userId;
+      allow delete: if isVerified() && isOwner(existing().userId);
     }
   }
 }

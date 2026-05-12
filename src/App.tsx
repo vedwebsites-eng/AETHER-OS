@@ -15,7 +15,7 @@ import {
   Smile, Frown, Meh, Star, BarChart, Activity, PieChart, Settings,
   Sparkles, Award, Volume2, Bell, TrendingUp, Clock, CalendarDays, Maximize2, Minimize2, Move, LayoutGrid, List,
   Bold, Italic, Underline as UnderlineIcon, ListOrdered, Heading1, Heading2, Link as LinkIcon, Eraser, Type, Palette,
-  ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download,
+  ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download, Briefcase,
   Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
   Mail, Lock, Users, Globe, Network, Cpu, Brain
 } from 'lucide-react';
@@ -30,7 +30,28 @@ import { ResponsiveContainer, BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip
 import { cn } from './lib/utils';
 
 // --- Types ---
-type AppTab = 'dashboard' | 'tasks' | 'lifeSync' | 'journal' | 'stats' | 'timetable' | 'shop' | 'settings';
+type AppTab = 'dashboard' | 'tasks' | 'lifeSync' | 'journal' | 'stats' | 'timetable' | 'routineMatrix' | 'shop' | 'settings';
+
+interface Habit {
+  id: string;
+  userId: string;
+  name: string;
+  category: 'health' | 'learning' | 'creative' | 'work' | 'personal' | 'routine';
+  frequency: string;
+  createdAt: string;
+  targetStreak: number;
+  color: string;
+  isArchived: boolean;
+}
+
+interface HabitLog {
+  id: string;
+  userId: string;
+  habitId: string;
+  date: string;
+  completed: boolean;
+  timestamp: string;
+}
 
 interface LifeSnapshot {
   id: string;
@@ -681,6 +702,9 @@ const ACHIEVEMENTS: Achievement[] = [
   // 4. Hidden/Surprise
   { id: 'first_fail', title: 'RECOVERY_INITIATED', description: 'Miss a task but complete it the next day.', xpReward: 100, icon: <Zap size={20} />, category: 'hidden', rarity: 'uncommon', requiredValue: 1 },
   { id: 'mood_swing', title: 'EMOTIONAL_DENSITY', description: 'Log mood 5 times in one day.', xpReward: 200, icon: <Smile size={20} />, category: 'hidden', rarity: 'rare', requiredValue: 5 },
+  { id: 'creature_of_habit', title: 'CREATURE_OF_HABIT', description: 'Maintain a 7-day streak for any habit.', xpReward: 50, icon: <Flame size={20} />, category: 'streak', rarity: 'uncommon', requiredValue: 7 },
+  { id: 'iron_discipline', title: 'IRON_DISCIPLINE', description: 'Maintain a 30-day streak for any habit.', xpReward: 250, icon: <Shield size={20} />, category: 'streak', rarity: 'rare', requiredValue: 30 },
+  { id: 'perfect_week', title: 'PERFECT_WEEK', description: '100% completion for all habits for 7 days.', xpReward: 500, icon: <Star size={20} />, category: 'skill', rarity: 'rare', requiredValue: 1 },
 ];
 
 const REFLECTION_PROMPTS = [
@@ -956,6 +980,8 @@ export default function App() {
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [motivationItems, setMotivationItems] = useState<MotivationItem[]>([]);
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [xpNotifications, setXpNotifications] = useState<XPNotification[]>([]);
@@ -1260,6 +1286,38 @@ export default function App() {
     return () => {
       unsub();
       motivUnsub();
+    };
+  }, [user]);
+
+  // Fetch Routine Matrix (Habits & Logs)
+  useEffect(() => {
+    if (!user) {
+      setHabits([]);
+      setHabitLogs([]);
+      return;
+    }
+
+    const habitsQ = query(
+      collection(db, 'habits'),
+      where('userId', '==', user.uid)
+    );
+    const unsubHabits = onSnapshot(habitsQ, (snapshot) => {
+      setHabits(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Habit)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'habits'));
+
+    const logsQ = query(
+      collection(db, 'habit_logs'),
+      where('userId', '==', user.uid),
+      orderBy('timestamp', 'desc'),
+      limit(2000) 
+    );
+    const unsubLogs = onSnapshot(logsQ, (snapshot) => {
+      setHabitLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HabitLog)));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'habit_logs'));
+
+    return () => {
+      unsubHabits();
+      unsubLogs();
     };
   }, [user]);
 
@@ -1570,6 +1628,37 @@ export default function App() {
           }
           if (ach.id === 'loyalist' && stats.experience >= 10000) condition = true;
           if (ach.id === 'god_mode' && newLevel >= 100 && stats.difficultyLevel === 'hard') condition = true;
+
+          // Routine Matrix Achievements
+          if (ach.id === 'creature_of_habit' || ach.id === 'iron_discipline') {
+            const required = ach.id === 'creature_of_habit' ? 7 : 30;
+            const anyStreak = habits.some(h => {
+              const logs = habitLogs.filter(l => l.habitId === h.id && l.completed).map(l => l.date).sort((a,b) => b.localeCompare(a));
+              if (logs.length < required) return false;
+              let streak = 0;
+              const todayStr = format(new Date(), 'yyyy-MM-dd');
+              const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+              if (logs[0] !== todayStr && logs[0] !== yesterdayStr) return false;
+              for (let i = 0; i < logs.length; i++) {
+                const expected = format(subDays(parseISO(logs[0]), i), 'yyyy-MM-dd');
+                if (logs.includes(expected)) streak++;
+                else break;
+              }
+              return streak >= required;
+            });
+            if (anyStreak) condition = true;
+          }
+          if (ach.id === 'perfect_week') {
+            const activeH = habits.filter(h => !h.isArchived);
+            if (activeH.length > 0) {
+              const last7Days = Array.from({length: 7}).map((_, i) => format(subDays(new Date(), i), 'yyyy-MM-dd'));
+              const allDone = last7Days.every(date => {
+                 const logsOnDate = habitLogs.filter(l => l.date === date && l.completed);
+                 return activeH.every(h => logsOnDate.some(l => l.habitId === h.id));
+              });
+              if (allDone) condition = true;
+            }
+          }
           if (ach.id === 'perfectionist') {
             const pendingCount = tasks.filter(t => t.status === 'pending').length;
             if (pendingCount === 0 && tasks.length > 0) condition = true;
@@ -1882,6 +1971,84 @@ export default function App() {
     }
   };
 
+  const addHabit = async (habitData: Omit<Habit, 'id' | 'userId' | 'createdAt' | 'isArchived'>) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'habits'), {
+        ...habitData,
+        userId: user.uid,
+        createdAt: new Date().toISOString(),
+        isArchived: false
+      });
+      setCompleteToast('HABIT_PROTOCOL_INITIALIZED');
+      setTimeout(() => setCompleteToast(null), 3000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'habits');
+    }
+  };
+
+  const deleteHabit = async (id: string) => {
+    try {
+      await updateDoc(doc(db, 'habits', id), { isArchived: true });
+      setCompleteToast('HABIT_ARCHIVED');
+      setTimeout(() => setCompleteToast(null), 3000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `habits/${id}`);
+    }
+  };
+
+  const toggleHabit = async (habit: Habit, date: string) => {
+    if (!user || !stats) return;
+    const existingLog = habitLogs.find(l => l.habitId === habit.id && l.date === date);
+
+    try {
+      if (existingLog) {
+        await deleteDoc(doc(db, 'habit_logs', existingLog.id));
+      } else {
+        await addDoc(collection(db, 'habit_logs'), {
+          userId: user.uid,
+          habitId: habit.id,
+          date,
+          completed: true,
+          timestamp: new Date().toISOString()
+        });
+
+        const multipliers: Record<string, number> = {
+          health: 1.2,
+          learning: 1.1,
+          creative: 1.15,
+          work: 1.0,
+          personal: 0.9,
+          routine: 0.7
+        };
+        const multiplier = multipliers[habit.category] || 1.0;
+        const totalXP = Math.round(25 * multiplier);
+        addXP(totalXP, `HABIT_DONE: ${habit.name.toUpperCase()}`);
+
+        const axisMap: Record<string, string> = {
+          health: 'GYM',
+          learning: 'STUDIES',
+          personal: 'LOVE',
+          routine: 'SLEEP'
+        };
+        const axis = axisMap[habit.category];
+        if (axis) {
+          const currentLifeValues = stats.lifeSync?.current || {
+            GYM: 10, DIET: 10, LOVE: 4, STUDIES: 10, FINANCE: 10, SLEEP: 10, SOCIAL: 10, MENTAL_HEALTH: 10
+          };
+          const newVal = Math.min(10, (currentLifeValues[axis] || 0) + 1);
+          if (newVal !== currentLifeValues[axis]) {
+             await updateDoc(doc(db, 'user_stats', user.uid), {
+               [`lifeSync.current.${axis}`]: newVal
+             });
+          }
+        }
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, 'habit_logs');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center relative overflow-hidden">
@@ -2024,6 +2191,12 @@ export default function App() {
           label="TEMPORAL_GRID" 
           badge="AI"
         />
+        <NavButton 
+          active={activeTab === 'routineMatrix'} 
+          onClick={() => handleTabChange('routineMatrix')} 
+          icon={<Cpu size={20} className="lg:w-6 lg:h-6" />} 
+          label="ROUTINE_MATRIX" 
+        />
         <NavButton active={activeTab === 'journal'} onClick={() => handleTabChange('journal')} icon={<Book size={20} className="lg:w-6 lg:h-6" />} label="NEURAL_ARCHIVE" />
         <NavButton 
           active={activeTab === 'lifeSync'} 
@@ -2161,6 +2334,16 @@ export default function App() {
                   setCompleteToast={setCompleteToast}
                   settings={settings}
                   onUpdateSettings={updateSettings}
+                />
+              )}
+              {activeTab === 'routineMatrix' && (
+                <RoutineMatrixView 
+                  habits={habits}
+                  habitLogs={habitLogs}
+                  user={user}
+                  onAddHabit={addHabit}
+                  onToggleHabit={toggleHabit}
+                  onDeleteHabit={deleteHabit}
                 />
               )}
               {activeTab === 'journal' && <JournalView journals={journals} user={user} onAddXP={addXP} stats={stats} />}
@@ -5452,6 +5635,502 @@ function TipTapEditor({
           readOnly ? "cursor-default" : "cursor-text"
         )} />
       </div>
+    </div>
+  );
+}
+
+function RoutineMatrixView({ 
+  habits, 
+  habitLogs, 
+  user, 
+  onAddHabit, 
+  onToggleHabit, 
+  onDeleteHabit 
+}: { 
+  habits: Habit[]; 
+  habitLogs: HabitLog[]; 
+  user: User; 
+  onAddHabit: (h: any) => Promise<void>; 
+  onToggleHabit: (h: Habit, date: string) => Promise<void>;
+  onDeleteHabit: (id: string) => Promise<void>;
+}) {
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null);
+  const [newHabit, setNewHabit] = useState({
+    name: '',
+    category: 'routine',
+    frequency: 'daily',
+    targetStreak: 30,
+    color: '#00D9FF'
+  });
+
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  
+  const activeHabits = habits.filter(h => !h.isArchived);
+
+  // Helper: Calculate streak for a habit
+  const calculateStreak = (habitId: string) => {
+    const logs = habitLogs
+      .filter(l => l.habitId === habitId && l.completed)
+      .map(l => l.date)
+      .sort((a, b) => b.localeCompare(a));
+    
+    if (logs.length === 0) return 0;
+    
+    let streak = 0;
+    let checkDate = new Date();
+    const todayStr = format(checkDate, 'yyyy-MM-dd');
+    const yesterdayStr = format(subDays(checkDate, 1), 'yyyy-MM-dd');
+    
+    if (logs[0] !== todayStr && logs[0] !== yesterdayStr) return 0;
+
+    let currentIdx = 0;
+    while (currentIdx < logs.length) {
+      const expected = format(subDays(new Date(logs[0]), streak), 'yyyy-MM-dd');
+      if (logs.find(l => l === expected)) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  };
+
+  // Helper: Best streak
+  const calculateBestStreak = (habitId: string) => {
+    const logs = habitLogs
+      .filter(l => l.habitId === habitId && l.completed)
+      .map(l => l.date)
+      .sort((a, b) => a.localeCompare(b));
+    
+    if (logs.length === 0) return 0;
+    
+    let best = 0;
+    let current = 1;
+    for (let i = 1; i < logs.length; i++) {
+      const prevDate = new Date(logs[i-1]);
+      const currDate = new Date(logs[i]);
+      const diff = (currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24);
+      
+      if (diff === 1) {
+        current++;
+      } else {
+        best = Math.max(best, current);
+        current = 1;
+      }
+    }
+    return Math.max(best, current);
+  };
+
+  // Heatmap Data (last 52 weeks)
+  const heatmapData = useMemo(() => {
+    const data = [];
+    const end = new Date();
+    const start = subDays(end, 364); // 52 weeks
+    
+    // Adjust start to Monday
+    const mondayStart = startOfWeek(start, { weekStartsOn: 1 });
+    const days = eachDayOfInterval({ start: mondayStart, end });
+
+    // Group logs by date
+    const logsByDate: Record<string, number> = {};
+    habitLogs.forEach(log => {
+      if (log.completed) {
+        logsByDate[log.date] = (logsByDate[log.date] || 0) + 1;
+      }
+    });
+
+    return days.map(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      return {
+        date: dateStr,
+        count: logsByDate[dateStr] || 0,
+        dayName: format(day, 'EEE'),
+        weekNum: format(day, 'w')
+      };
+    });
+  }, [habitLogs]);
+
+  const categories = [
+    { id: 'health', icon: <Activity size={14} />, mult: '1.2x', label: 'Health' },
+    { id: 'learning', icon: <Book size={14} />, mult: '1.1x', label: 'Learning' },
+    { id: 'creative', icon: <Palette size={14} />, mult: '1.15x', label: 'Creative' },
+    { id: 'work', icon: <Briefcase size={14} />, mult: '1.0x', label: 'Work' },
+    { id: 'personal', icon: <Users size={14} />, mult: '0.9x', label: 'Personal' },
+    { id: 'routine', icon: <Clock size={14} />, mult: '0.7x', label: 'Routine' },
+  ];
+
+  const getIntensity = (count: number) => {
+    if (count === 0) return 'bg-white/5';
+    if (count <= 2) return 'bg-cyan/20';
+    if (count <= 4) return 'bg-cyan/50';
+    return 'bg-cyan';
+  };
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+             <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">
+               <Cpu size={20} className="text-accent" />
+             </div>
+             <div>
+               <h2 className="text-2xl font-serif font-black italic text-white uppercase tracking-tighter">Routine_Matrix</h2>
+               <p className="text-[10px] font-mono text-text-m uppercase tracking-[0.2em] opacity-60">Neural_Habit_Synchronization_Unit</p>
+             </div>
+          </div>
+        </div>
+        <button 
+          onClick={() => setIsAddModalOpen(true)}
+          className="flex items-center gap-2 px-6 py-3 bg-accent text-white font-mono font-black uppercase text-xs rounded-xl accent-glow"
+        >
+          <Plus size={16} />
+          Initialize_New_Habit
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Panel - Habit List */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="text-xs font-mono font-black text-text-m uppercase tracking-widest">Active_Protocols</h3>
+            <span className="text-[10px] font-mono text-accent bg-accent/10 px-2 py-0.5 rounded border border-accent/20">
+              {activeHabits.length} LOADED
+            </span>
+          </div>
+
+          <div className="space-y-4">
+            {activeHabits.length === 0 ? (
+              <div className="glass p-12 rounded-3xl border border-white/5 flex flex-col items-center justify-center text-center gap-4 opacity-40">
+                <div className="w-16 h-16 rounded-full border border-dashed border-white/20 flex items-center justify-center">
+                  <Database size={24} />
+                </div>
+                <div>
+                  <p className="text-xs font-mono font-black uppercase mb-1">NO_HABITS_DETECTED</p>
+                  <p className="text-[10px] font-mono opacity-60 italic">"CREATE_FIRST_HABIT_TO_BEGIN_SYNC"</p>
+                </div>
+              </div>
+            ) : (
+              activeHabits.map(habit => {
+                const isDoneToday = habitLogs.some(l => l.habitId === habit.id && l.date === todayStr);
+                const streak = calculateStreak(habit.id);
+                const catInfo = categories.find(c => c.id === habit.category);
+                
+                return (
+                  <motion.div 
+                    key={habit.id}
+                    layoutId={habit.id}
+                    className="glass rounded-2xl border border-white/5 bg-white/2 overflow-hidden group hover:border-cyan/30 transition-all cursor-pointer"
+                  >
+                    <div className="p-4 flex items-center justify-between">
+                      <div className="flex items-center gap-4 flex-1" onClick={() => setSelectedHabit(habit)}>
+                        <div 
+                          className="w-10 h-10 rounded-lg flex items-center justify-center border transition-all"
+                          style={{ 
+                            backgroundColor: `${habit.color}10`,
+                            borderColor: `${habit.color}30`,
+                            color: habit.color 
+                          }}
+                        >
+                          {catInfo?.icon}
+                        </div>
+                        <div className="space-y-0.5 overflow-hidden">
+                          <h4 className="text-sm font-serif font-black text-white italic uppercase truncate">{habit.name}</h4>
+                          <div className="flex items-center gap-2">
+                             <div className="flex items-center gap-1">
+                               <Flame size={10} className={streak > 0 ? "text-orange-500" : "text-text-s"} />
+                               <span className="text-[10px] font-mono font-black text-text-p">{streak > 0 ? streak : '0'}_DAYS</span>
+                             </div>
+                             <span className="text-[8px] font-mono text-text-m opacity-40 uppercase tracking-tighter">{habit.frequency}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onToggleHabit(habit, todayStr);
+                        }}
+                        className={cn(
+                          "w-12 h-12 rounded-xl flex items-center justify-center border transition-all",
+                          isDoneToday 
+                            ? "bg-cyan border-cyan text-black shadow-[0_0_15px_rgba(0,217,255,0.4)]" 
+                            : "bg-white/5 border-white/10 text-white/20 hover:border-cyan/40 hover:text-cyan/40"
+                        )}
+                      >
+                        <CheckCircle2 size={24} />
+                      </button>
+                    </div>
+                  </motion.div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Right Panel - Heatmap */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="glass p-8 rounded-3xl border border-white/5 bg-white/2 relative overflow-hidden">
+             <div className="absolute top-0 right-0 w-64 h-64 bg-cyan/5 rounded-full -translate-y-32 translate-x-32 blur-3xl" />
+             
+             <div className="flex justify-between items-center mb-8 relative z-10">
+               <div>
+                 <h3 className="text-xs font-mono font-black text-white uppercase tracking-widest">Global_Consistency_Map</h3>
+                 <p className="text-[10px] font-mono text-text-m uppercase opacity-50">52_Week_Neural_Engagement_Grid</p>
+               </div>
+               <div className="flex gap-2">
+                 <div className="flex items-center gap-1.5">
+                   <div className="w-2 h-2 rounded-sm bg-white/5 border border-white/10" />
+                   <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">0</span>
+                 </div>
+                 <div className="flex items-center gap-1.5">
+                   <div className="w-2 h-2 rounded-sm bg-cyan/20 border border-cyan/20" />
+                   <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">1-2</span>
+                 </div>
+                 <div className="flex items-center gap-1.5">
+                   <div className="w-2 h-2 rounded-sm bg-cyan/50 border border-cyan/50" />
+                   <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">3-4</span>
+                 </div>
+                 <div className="flex items-center gap-1.5">
+                   <div className="w-2 h-2 rounded-sm bg-cyan border border-cyan" />
+                   <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">5+</span>
+                 </div>
+               </div>
+             </div>
+
+             <div className="relative z-10">
+                <div className="flex gap-1 overflow-x-auto pb-4 no-scrollbar">
+                  {/* Grid Labels: Days */}
+                  <div className="flex flex-col justify-around text-[8px] font-mono text-text-m opacity-30 pr-2 uppercase pb-2">
+                    <span>Mon</span>
+                    <span className="opacity-0">Tue</span>
+                    <span>Wed</span>
+                    <span className="opacity-0">Thu</span>
+                    <span>Fri</span>
+                    <span className="opacity-0">Sat</span>
+                    <span>Sun</span>
+                  </div>
+
+                  {/* Grid Columns (Weeks) */}
+                  <div className="flex gap-1">
+                    {Array.from({ length: 52 }).map((_, weekIdx) => (
+                      <div key={weekIdx} className="flex flex-col gap-1">
+                        {Array.from({ length: 7 }).map((_, dayIdx) => {
+                          const dataIdx = weekIdx * 7 + dayIdx;
+                          const dayData = heatmapData[dataIdx];
+                          if (!dayData) return <div key={dayIdx} className="w-3 h-3 rounded-sm bg-transparent" />;
+                          
+                          return (
+                            <div 
+                              key={dayIdx}
+                              title={`${dayData.date} - ${dayData.count} habits completed`}
+                              className={cn(
+                                "w-3 h-3 rounded-sm border border-black/5 flex items-center justify-center text-[6px] font-mono transition-transform hover:scale-125 cursor-help",
+                                getIntensity(dayData.count)
+                              )}
+                            />
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="mt-4 flex justify-between text-[8px] font-mono text-text-m opacity-30 uppercase">
+                  <span>LAST_SYNC: 52_WEEKS_AGO</span>
+                  <span>SYNC_TARGET: PRESENT_DAY</span>
+                </div>
+             </div>
+          </div>
+
+          {/* Habit Details View */}
+          <AnimatePresence mode="wait">
+            {selectedHabit && (
+              <motion.div 
+                key={selectedHabit.id}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="glass p-8 rounded-3xl border border-white/10 bg-white/5 relative overflow-hidden"
+              >
+                <button 
+                  onClick={() => setSelectedHabit(null)}
+                  className="absolute top-4 right-4 text-text-m hover:text-white transition-colors"
+                >
+                  <X size={20} />
+                </button>
+
+                <div className="flex items-start gap-6 mb-8">
+                   <div 
+                     className="w-16 h-16 rounded-2xl flex items-center justify-center border-2"
+                     style={{ 
+                       backgroundColor: `${selectedHabit.color}20`,
+                       borderColor: `${selectedHabit.color}40`,
+                       color: selectedHabit.color 
+                     }}
+                   >
+                     {categories.find(c => c.id === selectedHabit.category)?.icon}
+                   </div>
+                   <div className="space-y-2">
+                     <h3 className="text-2xl font-serif font-black italic text-white uppercase">{selectedHabit.name}</h3>
+                     <div className="flex flex-wrap gap-3">
+                       <span className="text-[10px] font-mono text-white bg-white/10 px-2 py-0.5 rounded border border-white/10 uppercase">
+                          {selectedHabit.category}
+                       </span>
+                       <span className="text-[10px] font-mono text-cyan bg-cyan/10 px-2 py-0.5 rounded border border-cyan/20 uppercase">
+                          {selectedHabit.frequency}
+                       </span>
+                       <span className="text-[10px] font-mono text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded border border-orange-400/20 uppercase">
+                          Target: {selectedHabit.targetStreak} Days
+                       </span>
+                     </div>
+                   </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="glass p-4 rounded-xl border border-white/5 bg-white/2 text-center space-y-1">
+                    <p className="text-[8px] font-mono text-text-m uppercase opacity-50">Current_Streak</p>
+                    <p className="text-xl font-mono font-black text-white">{calculateStreak(selectedHabit.id)}_DAYS</p>
+                  </div>
+                  <div className="glass p-4 rounded-xl border border-white/5 bg-white/2 text-center space-y-1">
+                    <p className="text-[8px] font-mono text-text-m uppercase opacity-50">Best_Sync_Streak</p>
+                    <p className="text-xl font-mono font-black text-accent">{calculateBestStreak(selectedHabit.id)}_DAYS</p>
+                  </div>
+                  <div className="glass p-4 rounded-xl border border-white/5 bg-white/2 text-center space-y-1">
+                    <p className="text-[8px] font-mono text-text-m uppercase opacity-50">Est_Completion_Rate</p>
+                    <p className="text-xl font-mono font-black text-cyan">
+                      {Math.round((habitLogs.filter(l => l.habitId === selectedHabit.id && l.completed).length / Math.max(1, differenceInMinutes(new Date(), parseISO(selectedHabit.createdAt)) / (24*60))) * 100)}%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-8 flex justify-end gap-4">
+                  <button 
+                    onClick={() => onDeleteHabit(selectedHabit.id)}
+                    className="flex items-center gap-2 px-4 py-2 bg-danger/10 text-danger font-mono font-black uppercase text-[10px] rounded-lg border border-danger/20 hover:bg-danger/20 transition-all"
+                  >
+                    <Trash2 size={14} />
+                    Archive_Protocol
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Add Habit Modal */}
+      <AnimatePresence>
+        {isAddModalOpen && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-background/90 backdrop-blur-xl">
+             <motion.div 
+               initial={{ opacity: 0, scale: 0.95 }}
+               animate={{ opacity: 1, scale: 1 }}
+               exit={{ opacity: 0, scale: 0.95 }}
+               className="w-full max-w-lg glass p-8 rounded-[2rem] border border-white/10 shadow-2xl relative"
+             >
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="p-3 bg-cyan/10 rounded-xl border border-cyan/20">
+                    <Plus size={20} className="text-cyan" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-serif font-black italic text-white uppercase">Initialize_New_Protocol</h2>
+                    <p className="text-[10px] font-mono text-text-m uppercase opacity-50">Configuring_Sync_Parameters</p>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono font-black text-text-m uppercase ml-1">Habit_Identity</label>
+                    <input 
+                      type="text"
+                      placeholder="ENTER_PROTOCOL_NAME..."
+                      value={newHabit.name}
+                      onChange={e => setNewHabit({...newHabit, name: e.target.value})}
+                      className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-xl focus:border-cyan/50 focus:ring-0 text-white font-mono transition-all outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-mono font-black text-text-m uppercase ml-1">Category_Link</label>
+                      <select 
+                        value={newHabit.category}
+                        onChange={e => setNewHabit({...newHabit, category: e.target.value as any})}
+                        className="w-full px-6 py-4 bg-black/40 border border-white/10 rounded-xl focus:border-cyan/50 text-white font-mono text-sm outline-none appearance-none"
+                      >
+                        {categories.map(cat => (
+                          <option key={cat.id} value={cat.id}>{cat.label.toUpperCase()}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-mono font-black text-text-m uppercase ml-1">Sync_Frequency</label>
+                      <select 
+                        value={newHabit.frequency}
+                        onChange={e => setNewHabit({...newHabit, frequency: e.target.value})}
+                        className="w-full px-6 py-4 bg-black/40 border border-white/10 rounded-xl focus:border-cyan/50 text-white font-mono text-sm outline-none appearance-none"
+                      >
+                        <option value="daily">DAILY</option>
+                        <option value="Mon,Wed,Fri">MON_WED_FRI</option>
+                        <option value="Tue,Thu">TUE_THU</option>
+                        <option value="weekend">WEEKENDS</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-mono font-black text-text-m uppercase ml-1">Target_Streak</label>
+                      <input 
+                        type="number"
+                        value={newHabit.targetStreak}
+                        onChange={e => setNewHabit({...newHabit, targetStreak: parseInt(e.target.value)})}
+                        className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-xl focus:border-cyan/50 text-white font-mono outline-none"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-mono font-black text-text-m uppercase ml-1">Color_Hex</label>
+                      <div className="flex gap-2">
+                         {['#00D9FF', '#FF4500', '#7C3AED', '#10B981', '#F59E0B'].map(c => (
+                           <button 
+                             key={c}
+                             onClick={() => setNewHabit({...newHabit, color: c})}
+                             className={cn(
+                               "w-8 h-10 rounded-lg transition-all",
+                               newHabit.color === c ? "scale-110 border-2 border-white" : "opacity-40"
+                             )}
+                             style={{ backgroundColor: c }}
+                           />
+                         ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 pt-4">
+                    <button 
+                      onClick={() => setIsAddModalOpen(false)}
+                      className="flex-1 py-4 glass border border-white/10 text-white font-mono font-black uppercase rounded-xl hover:bg-white/5"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={() => {
+                        onAddHabit(newHabit);
+                        setIsAddModalOpen(false);
+                      }}
+                      className="flex-1 py-4 bg-accent text-white font-mono font-black uppercase rounded-xl accent-glow"
+                    >
+                      ENGAGE_PROTOCOL
+                    </button>
+                  </div>
+                </div>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
