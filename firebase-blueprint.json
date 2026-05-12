@@ -1,55 +1,80 @@
-/**
- * Defines the structure of the Firebase data models for Aether.
- */
 {
   "entities": {
+    "Task": {
+      "title": "Task",
+      "description": "A productivity task in the system",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "status": { "type": "string", "enum": ["pending", "completed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "category": { "type": "string", "enum": ["health", "learning", "creative", "work", "personal", "routine"] },
+        "estimate": { "type": "integer" },
+        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
+        "customXP": { "type": "integer" },
+        "isChallenging": { "type": "boolean" },
+        "isSpeedRun": { "type": "boolean" },
+        "scheduledStart": { "type": "string", "format": "date-time" },
+        "scheduledEnd": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "adherenceStatus": { "type": "string", "enum": ["ontime", "late", "partial", "missed"] }
+      },
+      "required": ["userId", "title", "createdAt", "status"]
+    },
     "UserStats": {
-      "title": "User Stats",
+      "title": "UserStats",
       "description": "Gamification statistics for a user",
       "type": "object",
       "properties": {
-        "userId": { "type": "string", "description": "The UID of the user" },
-        "level": { "type": "integer", "description": "Current player level" },
-        "experience": { "type": "integer", "description": "Current experience points" },
-        "totalTasksCompleted": { "type": "integer", "description": "Counter for total tasks finished" },
-        "currentStreak": { "type": "integer", "description": "Daily active streak" },
-        "lastActiveDate": { "type": "string", "format": "date-time", "description": "Last timestamp of activity" }
+        "userId": { "type": "string" },
+        "level": { "type": "integer" },
+        "experience": { "type": "integer" },
+        "coins": { "type": "integer" },
+        "unlockedFeatures": { "type": "array" },
+        "totalTasksCompleted": { "type": "integer" },
+        "currentStreak": { "type": "integer" },
+        "lastActiveDate": { "type": "string", "format": "date-time" },
+        "difficultyLevel": { "type": "string", "enum": ["easy", "normal", "hard"] },
+        "unlockedAchievements": { "type": "array" },
+        "unlockedItems": { "type": "array" },
+        "totalWordsWritten": { "type": "integer" },
+        "journalStreak": { "type": "integer" },
+        "lastJournalDate": { "type": "string" },
+        "reflectionPromptsAnswered": { "type": "integer" },
+        "scheduleMasteryLevel": { "type": "integer" },
+        "scheduledTasksCount": { "type": "integer" },
+        "punctualStreak": { "type": "integer" },
+        "pomodoroSessions": { "type": "integer" },
+        "pomodoroToday": { "type": "integer" },
+        "dailyBriefing": { "type": "object" },
+        "dailyChallenge": { "type": "object" },
+        "unlockedPerks": { "type": "array" },
+        "activityLog": { "type": "array" },
+        "streakHistory": { "type": "array" },
+        "adherenceHistory": { "type": "array" },
+        "lifeSync": { "type": "object" }
       },
-      "required": ["userId", "level", "experience", "totalTasksCompleted", "currentStreak", "lastActiveDate"]
+      "required": ["userId", "level", "experience"]
     },
-    "Task": {
-      "title": "Task",
-      "description": "A gamified task item",
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "Application settings for a user",
       "type": "object",
       "properties": {
-        "userId": { "type": "string" },
-        "title": { "type": "string" },
-        "description": { "type": "string" },
-        "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
-        "status": { "type": "string", "enum": ["pending", "completed"] },
-        "dueDate": { "type": "string", "format": "date-time" },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "updatedAt": { "type": "string", "format": "date-time" },
-        "category": { "type": "string" }
+        "difficultyMultiplier": { "type": "number" },
+        "goalTargets": { "type": "object" },
+        "ui": { "type": "object" },
+        "display": { "type": "object" },
+        "notifications": { "type": "object" },
+        "aiRoutine": { "type": "array" }
       },
-      "required": ["userId", "title", "difficulty", "status", "createdAt"]
-    },
-    "Journal": {
-      "title": "Journal Entry",
-      "description": "A daily reflection entry",
-      "type": "object",
-      "properties": {
-        "userId": { "type": "string" },
-        "title": { "type": "string" },
-        "content": { "type": "string" },
-        "mood": { "type": "string" },
-        "createdAt": { "type": "string", "format": "date-time" }
-      },
-      "required": ["userId", "content", "createdAt"]
+      "required": ["difficultyMultiplier", "goalTargets", "ui", "display", "notifications"]
     },
     "TimeBlock": {
-      "title": "Time Block",
-      "description": "A scheduled block of time in a calendar",
+      "title": "TimeBlock",
+      "description": "A scheduled block of time in the timetable",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
@@ -58,30 +83,27 @@
         "startTime": { "type": "string", "format": "date-time" },
         "endTime": { "type": "string", "format": "date-time" },
         "color": { "type": "string" },
-        "notes": { "type": "string" },
         "taskId": { "type": "string" },
-        "completed": { "type": "boolean" },
-        "adherenceXP": { "type": "integer" }
+        "completed": { "type": "boolean" }
       },
-      "required": ["userId", "title", "type", "startTime", "endTime"]
+      "required": ["userId", "title", "startTime", "endTime"]
     },
-    "UserSettings": {
-      "title": "App Settings",
-      "description": "User specific application configuration",
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "A daily journal entry",
       "type": "object",
       "properties": {
-        "difficultyMultiplier": { "type": "number" },
-        "goalTargets": { "type": "object" },
-        "ui": { "type": "object" },
-        "display": { "type": "object" },
-        "notifications": { "type": "object" },
-        "aiRoutine": { "type": "array", "items": { "type": "string" } }
+        "userId": { "type": "string" },
+        "content": { "type": "string" },
+        "mood": { "type": "string", "enum": ["sad", "worried", "neutral", "happy", "ecstatic"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "wordCount": { "type": "integer" }
       },
-      "required": ["difficultyMultiplier", "goalTargets", "ui", "display", "notifications", "aiRoutine"]
+      "required": ["userId", "content", "createdAt"]
     },
     "MotivationItem": {
-      "title": "Motivation Stimuli",
-      "description": "User-added text, quotes, or links for motivation",
+      "title": "MotivationItem",
+      "description": "A motivational resource saved by the user",
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
@@ -91,32 +113,49 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "type", "content", "createdAt"]
+    },
+    "LifeSnapshot": {
+      "title": "LifeSnapshot",
+      "description": "A snapshot of life balance scores",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string" },
+        "values": { "type": "object" },
+        "balanceScore": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "date", "values", "balanceScore"]
     }
   },
   "firestore": {
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "User tasks"
+    },
     "/user_stats/{userId}": {
       "schema": "UserStats",
-      "description": "Store player RPG mechanics"
+      "description": "User gamification statistics"
     },
     "/user_settings/{userId}": {
       "schema": "UserSettings",
-      "description": "User specific configuration"
+      "description": "User preferences and settings"
     },
-    "/tasks/{taskId}": {
-      "schema": "Task",
-      "description": "To-do items"
+    "/time_blocks/{blockId}": {
+      "schema": "TimeBlock",
+      "description": "User timetable blocks"
     },
     "/journals/{journalId}": {
-      "schema": "Journal",
-      "description": "Personal reflections"
-    },
-    "/time_blocks/{timeBlockId}": {
-      "schema": "TimeBlock",
-      "description": "Calendar schedule items"
+      "schema": "JournalEntry",
+      "description": "User journal entries"
     },
     "/motivation_items/{itemId}": {
       "schema": "MotivationItem",
-      "description": "Neural boost stimuli"
+      "description": "User motivation repository"
+    },
+    "/life_snapshots/{snapshotId}": {
+      "schema": "LifeSnapshot",
+      "description": "User life balance history"
     }
   }
 }

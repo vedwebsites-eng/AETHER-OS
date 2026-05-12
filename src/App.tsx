@@ -1,19 +1,23 @@
 import { GoogleGenAI, Type as GenAIType } from "@google/genai";
-import { useState, useEffect } from 'react';
-import { auth, signInWithGoogle, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
+import React, { useState, useEffect, useMemo } from 'react';
+import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFirestoreError, OperationType } from './lib/firebase';
 import { onAuthStateChanged, User, signOut, updateProfile } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit } from 'firebase/firestore';
+import { analyzeJournalEntry, breakdownBossTask, generateDailyBriefing, generateLifeInsight, analyzeLifeBalance } from './services/geminiService';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { 
   Plus, CheckCircle2, Circle, Trophy, Book, Calendar, 
-  BarChart3, LogOut, LogIn, HardDrive, Zap, 
+  BarChart3, LogOut, LogIn, HardDrive, Zap, Database,
   Target, Flame, ChevronRight, X, Trash2, Edit3, 
   Smile, Frown, Meh, Star, BarChart, Activity, PieChart, Settings,
   Sparkles, Award, Volume2, Bell, TrendingUp, Clock, CalendarDays, Maximize2, Minimize2, Move, LayoutGrid, List,
   Bold, Italic, Underline as UnderlineIcon, ListOrdered, Heading1, Heading2, Link as LinkIcon, Eraser, Type, Palette,
   ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download,
-  Music, Youtube, Instagram, Quote, HelpCircle
+  Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
+  Mail, Lock, Users, Globe, Network, Cpu, Brain
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -21,12 +25,20 @@ import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import { Color } from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addDays, isPast, isFuture, parseISO, startOfDay, addHours, differenceInMinutes, isWithinInterval, subDays, startOfYesterday } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addDays, isPast, isFuture, parseISO, startOfDay, addHours, addMinutes, differenceInMinutes, isWithinInterval, subDays, startOfYesterday } from 'date-fns';
 import { ResponsiveContainer, BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip, CartesianGrid, Cell, PieChart as RePieChart, Pie } from 'recharts';
 import { cn } from './lib/utils';
 
 // --- Types ---
-type AppTab = 'dashboard' | 'tasks' | 'journal' | 'stats' | 'timetable' | 'shop' | 'settings';
+type AppTab = 'dashboard' | 'tasks' | 'lifeSync' | 'journal' | 'stats' | 'timetable' | 'shop' | 'settings';
+
+interface LifeSnapshot {
+  id: string;
+  userId: string;
+  date: string;
+  values: Record<string, number>;
+  balanceScore: number;
+}
 
 interface ActivityEntry {
   id: string;
@@ -152,6 +164,7 @@ interface UserStats {
   difficultyLevel: 'easy' | 'normal' | 'hard';
   unlockedAchievements: string[];
   unlockedItems: string[];
+  unlockedPerks: string[]; // IDEA 1
   activityLog?: ActivityEntry[];
   totalWordsWritten?: number;
   streakHistory?: string[];
@@ -162,12 +175,23 @@ interface UserStats {
   scheduleMasteryLevel?: number;
   scheduledTasksCount?: number;
   punctualStreak?: number;
+  pomodoroSessions?: number;
+  pomodoroToday?: number;
   dailyChallenge?: {
     id: string;
     progress: number;
     goal: number;
     completed: boolean;
     lastGenerated: string;
+  };
+  dailyBriefing?: {
+    content: string;
+    lastGenerated: string;
+  };
+  lifeSync?: {
+    current: Record<string, number>;
+    lastSaved?: string;
+    syncMode?: 'manual' | 'ai';
   };
 }
 
@@ -186,6 +210,426 @@ const DAILY_CHALLENGES: DailyChallengeTemplate[] = [
   { id: 'streak_keep', label: 'MAINTAIN_STREAK', goal: 1, xpReward: 50, type: 'streak' },
   { id: 'perfect_day', label: 'PERFECT_DAY_100', goal: 1, xpReward: 200, type: 'perfect_day' },
 ];
+
+const LIFE_CATEGORIES = [
+  { id: 'GYM', label: 'GYM', color: '#ef4444' }, 
+  { id: 'DIET', label: 'DIET', color: '#f97316' }, 
+  { id: 'LOVE', label: 'LOVE', color: '#ec4899' }, 
+  { id: 'STUDIES', label: 'STUDIES', color: '#6366f1' }, 
+  { id: 'FINANCE', label: 'FINANCE', color: '#22c55e' }, 
+  { id: 'SLEEP', label: 'SLEEP', color: '#3b82f6' }, 
+  { id: 'SOCIAL', label: 'SOCIAL', color: '#f59e0b' }, 
+  { id: 'MENTAL_HEALTH', label: 'MENTAL HEALTH', color: '#14b8a6' }, 
+];
+
+function RadarChart({ values }: { values: Record<string, number> }) {
+  const size = 300;
+  const center = size / 2;
+  const radius = (size / 2) * 0.75;
+  const levels = 5;
+  const categories = LIFE_CATEGORIES;
+
+  const points = categories.map((cat, i) => {
+    const angle = (Math.PI * 2 * i) / categories.length - Math.PI / 2;
+    const value = values[cat.id] || 1;
+    const r = (value / 10) * radius;
+    return {
+      x: center + r * Math.cos(angle),
+      y: center + r * Math.sin(angle),
+      angle
+    };
+  });
+
+  const polygonPath = points.map(p => `${p.x},${p.y}`).join(' ');
+
+  return (
+    <div className="w-full aspect-square relative flex items-center justify-center p-2">
+      <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full max-w-[400px] overflow-visible">
+        {/* Grid lines (Octagon rings) */}
+        {[...Array(levels)].map((_, i) => {
+          const r = ((i + 1) / levels) * radius;
+          const gridPoints = categories.map((_, j) => {
+            const angle = (Math.PI * 2 * j) / categories.length - Math.PI / 2;
+            return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
+          }).join(' ');
+          return (
+            <polygon 
+              key={i} 
+              points={gridPoints} 
+              fill="none" 
+              stroke="currentColor" 
+              className="text-white/5" 
+              strokeWidth="1" 
+            />
+          );
+        })}
+
+        {/* Axes */}
+        {categories.map((cat, i) => {
+          const angle = (Math.PI * 2 * i) / categories.length - Math.PI / 2;
+          return (
+            <line
+              key={cat.id}
+              x1={center}
+              y1={center}
+              x2={center + radius * Math.cos(angle)}
+              y2={center + radius * Math.sin(angle)}
+              stroke="currentColor"
+              className="text-white/5"
+              strokeWidth="1"
+            />
+          );
+        })}
+
+        {/* Filled polygon */}
+        <motion.polygon
+          animate={{ points: polygonPath }}
+          transition={{ duration: 0.5, ease: "circOut" }}
+          fill="rgba(99, 102, 241, 0.3)" // indigo-500 semi-transparent
+          stroke="#6366f1"
+          strokeWidth="2"
+        />
+
+        {/* Labels and Color Dots */}
+        {categories.map((cat, i) => {
+          const angle = (Math.PI * 2 * i) / categories.length - Math.PI / 2;
+          const labelDist = radius + 25;
+          const x = center + labelDist * Math.cos(angle);
+          const y = center + labelDist * Math.sin(angle);
+          
+          return (
+            <g key={cat.id}>
+              <circle 
+                cx={center + radius * Math.cos(angle)} 
+                cy={center + radius * Math.sin(angle)} 
+                r="3" 
+                fill={cat.color} 
+              />
+              <text
+                x={x}
+                y={y}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                className="text-[9px] font-mono font-bold uppercase tracking-widest"
+                fill={cat.color}
+              >
+                {cat.label}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: { stats: UserStats | null, user: User, onAddXP: any, tasks: Task[], journals: JournalEntry[], addToTerminal: any }) {
+  const [syncMode, setSyncMode] = useState<'manual' | 'ai'>(stats?.lifeSync?.syncMode || 'manual');
+  const [values, setValues] = useState<Record<string, number>>(
+    stats?.lifeSync?.current || {
+      GYM: 10, DIET: 10, LOVE: 4, STUDIES: 10, FINANCE: 10, SLEEP: 10, SOCIAL: 10, MENTAL_HEALTH: 10
+    }
+  );
+  const [history, setHistory] = useState<LifeSnapshot[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isSyncingAI, setIsSyncingAI] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      const q = query(
+        collection(db, 'life_snapshots'),
+        where('userId', '==', user.uid),
+        orderBy('date', 'desc'),
+        limit(7)
+      );
+      return onSnapshot(q, (snapshot) => {
+        setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LifeSnapshot)));
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'life_snapshots'));
+    }
+  }, [user]);
+
+  const balanceScore = Number((Object.values(values).reduce((a, b) => a + b, 0) / 8).toFixed(1));
+  
+  const sortedCategories = [...LIFE_CATEGORIES].sort((a, b) => values[a.id] - values[b.id]);
+  const needsFocus = sortedCategories[0];
+  const strongest = sortedCategories[sortedCategories.length - 1];
+
+  const handleSliderChange = (id: string, val: number) => {
+    if (syncMode === 'ai') return; // Prevent manual change in AI mode
+    setValues(prev => ({ ...prev, [id]: val }));
+  };
+
+  const saveSnapshot = async () => {
+    setIsSaving(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await addDoc(collection(db, 'life_snapshots'), {
+        userId: user.uid,
+        date: today,
+        values,
+        balanceScore,
+        createdAt: serverTimestamp()
+      });
+      await updateDoc(doc(db, 'user_stats', user.uid), {
+        'lifeSync.current': values,
+        'lifeSync.lastSaved': today,
+        'lifeSync.syncMode': syncMode
+      });
+      onAddXP(75, 'LIFE_SYNC_LOG');
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#6366f1', '#ec4899', '#22c55e']
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAiSync = async () => {
+    setIsSyncingAI(true);
+    try {
+      const aiValues = await analyzeLifeBalance(tasks, journals, stats);
+      setValues(aiValues);
+      addToTerminal("LIFE_SYNC_AI: RECALIBRATION_COMPLETE", "success");
+    } catch (e) {
+      console.error(e);
+      addToTerminal("LIFE_SYNC_AI: SYNC_FAILED", "error");
+    } finally {
+      setIsSyncingAI(false);
+    }
+  };
+
+  const getAiPlan = async () => {
+    setIsAiLoading(true);
+    try {
+      const plan = await generateLifeInsight(needsFocus.label, values);
+      setAiInsight(plan);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const alreadySavedToday = stats?.lifeSync?.lastSaved === new Date().toISOString().split('T')[0];
+
+  return (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-4xl font-serif font-black text-text-p uppercase tracking-[0.1em] italic text-glow-white">LIFE_SYNC</h1>
+          <p className="text-[10px] font-mono text-text-m uppercase tracking-[0.5em] opacity-40">Holistic_State_Alignment // Reality_Interface</p>
+        </div>
+        
+        {/* Sync Mode Selector */}
+        <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 self-start md:self-center">
+          <button 
+            onClick={() => setSyncMode('manual')}
+            className={cn(
+              "px-4 py-2 rounded-lg text-[10px] font-mono font-black uppercase tracking-widest transition-all",
+              syncMode === 'manual' ? "bg-white/10 text-text-p shadow-xl" : "text-text-m opacity-50 hover:opacity-100"
+            )}
+          >
+            MANUAL_SETTING
+          </button>
+          <button 
+            onClick={() => setSyncMode('ai')}
+            className={cn(
+              "px-4 py-2 rounded-lg text-[10px] font-mono font-black uppercase tracking-widest transition-all flex items-center gap-2",
+              syncMode === 'ai' ? "bg-indigo-500/20 text-indigo-400 shadow-xl" : "text-text-m opacity-50 hover:opacity-100"
+            )}
+          >
+            <Sparkles size={12} className={syncMode === 'ai' ? "animate-pulse" : ""} />
+            AI_GENERATED
+          </button>
+        </div>
+      </div>
+
+      {/* Top Stats Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="glass p-6 rounded-2xl border border-white/5 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <Activity size={40} className="text-indigo-400" />
+          </div>
+          <p className="text-[10px] font-mono font-black text-text-m uppercase tracking-widest mb-1">BALANCE_SCORE</p>
+          <div className="text-4xl font-serif font-black text-indigo-400 italic">{balanceScore}</div>
+          <div className="mt-2 h-1 w-full bg-white/5 rounded-full overflow-hidden">
+             <motion.div 
+               animate={{ width: `${(balanceScore / 10) * 100}%` }}
+               className="h-full bg-indigo-500"
+             />
+          </div>
+        </div>
+
+        <div className="glass p-6 rounded-2xl border border-white/5 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <Zap size={40} className={cn("", needsFocus.id === 'GYM' ? "text-red-400" : "text-white/40")} />
+          </div>
+          <p className="text-[10px] font-mono font-black text-text-m uppercase tracking-widest mb-1">NEEDS_FOCUS</p>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: needsFocus.color }} />
+            <div className="text-2xl font-serif font-black uppercase italic" style={{ color: needsFocus.color }}>{needsFocus.label}</div>
+          </div>
+        </div>
+
+        <div className="glass p-6 rounded-2xl border border-white/5 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+            <Trophy size={40} style={{ color: strongest.color }} />
+          </div>
+          <p className="text-[10px] font-mono font-black text-text-m uppercase tracking-widest mb-1">STRONGEST_NODE</p>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: strongest.color }} />
+            <div className="text-2xl font-serif font-black uppercase italic" style={{ color: strongest.color }}>{strongest.label}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+        {/* Left: Radar Chart */}
+        <div className="glass p-8 lg:p-12 rounded-[2rem] border border-white/5 flex flex-col items-center justify-center min-h-[400px]">
+          <RadarChart values={values} />
+          
+          <div className="mt-12 w-full max-w-sm space-y-4">
+            <div className="flex items-center justify-between">
+               <p className="text-[10px] font-mono text-text-m uppercase tracking-widest">HISTORY — LAST 7 SNAPSHOTS</p>
+            </div>
+            <div className="flex gap-3">
+              {[...Array(7)].map((_, i) => {
+                const saved = i < history.length;
+                return (
+                  <div 
+                    key={i}
+                    className={cn(
+                      "w-4 h-4 rounded-sm border transition-all",
+                      saved ? "bg-indigo-500 border-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.5)]" : "border-white/10 bg-white/5"
+                    )}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Sliders */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-xs font-mono font-black uppercase tracking-[0.3em] text-text-m">RATE EACH AREA (1–10)</h3>
+            <span className="text-[10px] font-mono text-success bg-success/5 border border-success/20 px-2 py-1 rounded">+75 XP REWARD</span>
+          </div>
+
+          <div className="space-y-6 glass p-8 rounded-2xl border border-white/5 relative overflow-hidden">
+            {syncMode === 'ai' && (
+              <div className="absolute inset-0 z-10 bg-background/40 backdrop-blur-[2px] flex items-center justify-center p-6 text-center">
+                <div className="max-w-[200px] space-y-4">
+                   <Brain size={32} className="mx-auto text-indigo-400 mb-2 animate-pulse" />
+                   <p className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">AI_SYNC_PROTOCOL_ACTIVE</p>
+                   <p className="text-[8px] font-mono lowercase tracking-[0.2em] text-text-m opacity-60">system analyzing tasks, logs, and behavior patterns to calculate balance nodes.</p>
+                   <button 
+                    onClick={handleAiSync}
+                    disabled={isSyncingAI}
+                    className="w-full py-2 bg-indigo-500 text-white rounded-lg text-[9px] font-mono font-black uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center justify-center gap-2"
+                   >
+                     {isSyncingAI ? "RECALIBRATING..." : <><Activity size={10} /> RE-SYNC NOW</>}
+                   </button>
+                </div>
+              </div>
+            )}
+            {LIFE_CATEGORIES.map(cat => (
+              <div key={cat.id} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                    <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">{cat.label}</span>
+                  </div>
+                  <span className="text-xs font-mono font-black" style={{ color: cat.color }}>{values[cat.id] || 10}</span>
+                </div>
+                <input 
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="0.5"
+                  value={values[cat.id] || 10}
+                  onChange={(e) => handleSliderChange(cat.id, parseFloat(e.target.value))}
+                  disabled={syncMode === 'ai'}
+                  className={cn(
+                    "w-full h-1.5 bg-white/5 rounded-full appearance-none accent-indigo-500",
+                    syncMode === 'manual' ? "cursor-pointer" : "cursor-not-allowed opacity-30"
+                  )}
+                  style={{
+                    accentColor: cat.color
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+            <button 
+              onClick={saveSnapshot}
+              disabled={isSaving || alreadySavedToday}
+              className={cn(
+                "w-full py-4 rounded-xl border font-mono text-xs font-black uppercase tracking-widest transition-all",
+                alreadySavedToday 
+                  ? "border-white/5 text-text-m opacity-50 cursor-not-allowed" 
+                  : "border-white/20 text-text-p hover:bg-white/5 hover:border-white/40 active:scale-95"
+              )}
+            >
+              {isSaving ? "SYNCING..." : alreadySavedToday ? "LOGGED_FOR_TODAY" : "SAVE_TODAY_SNAPSHOT"}
+            </button>
+            <button 
+              onClick={getAiPlan}
+              className="w-full py-4 rounded-xl border border-indigo-500/30 text-indigo-400 font-mono text-xs font-black uppercase tracking-widest hover:bg-indigo-500/10 transition-all flex items-center justify-center gap-2 active:scale-95"
+            >
+              {isAiLoading ? "ANALYZING..." : (
+                <>GET AI IMPROVEMENT PLAN <Maximize2 size={12} /></>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {aiInsight && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <div className="glass max-w-lg w-full p-8 rounded-3xl border border-indigo-500/30 relative overflow-hidden">
+               <div className="absolute top-0 right-0 p-4">
+                 <button onClick={() => setAiInsight(null)} className="text-text-m hover:text-text-p transition-colors">
+                   <X size={20} />
+                 </button>
+               </div>
+               <div className="flex items-center gap-3 mb-6">
+                 <Brain className="text-indigo-400" />
+                 <span className="text-xs font-mono font-black text-indigo-400 uppercase tracking-widest">AETHER_OS // IMPROVEMENT_PROTOCOL</span>
+               </div>
+               <div className="space-y-4">
+                 <div className="p-6 bg-white/5 rounded-xl border border-white/10 italic text-lg leading-relaxed font-serif text-text-p">
+                   "{aiInsight}"
+                 </div>
+                 <button 
+                   onClick={() => setAiInsight(null)}
+                   className="w-full py-4 bg-indigo-500 text-white rounded-xl font-mono text-xs font-black uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-[0_0_20px_rgba(99,102,241,0.4)]"
+                 >
+                   ACKNOWLEDGE_PROTOCOL
+                 </button>
+               </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 interface Achievement {
   id: string;
@@ -310,6 +754,13 @@ interface XPNotification {
   source: string;
 }
 
+interface SubTask {
+  id: string;
+  title: string;
+  completed: boolean;
+  duration?: number;
+}
+
 interface Task {
   id: string;
   userId: string;
@@ -323,10 +774,37 @@ interface Task {
   customXP?: number;
   isChallenging?: boolean;
   isSpeedRun?: boolean;
+  isBoss?: boolean; // IDEA 2
+  subTasks?: SubTask[];
   scheduledStart?: string; // ISO
   scheduledEnd?: string; // ISO
   completedAt?: string; // ISO
   adherenceStatus?: 'ontime' | 'late' | 'partial' | 'missed';
+}
+
+interface Perk {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ReactNode;
+  cost: number;
+  type: 'xp' | 'coins' | 'utility';
+  value: number;
+}
+
+const PERKS: Perk[] = [
+  { id: 'neural_efficiency', name: 'NEURAL_EFFICIENCY', description: 'Gain +10% XP from all completed synchronization protocols.', icon: <Zap size={18} />, cost: 500, type: 'xp', value: 0.1 },
+  { id: 'coin_miner', name: 'DATA_MINER', description: 'Increase Credit yield from tasks by 15%.', icon: <Cpu size={18} />, cost: 750, type: 'coins', value: 0.15 },
+  { id: 'focus_shield', name: 'FOCUS_SHIELD', description: 'Reduces the XP penalty for late task completion by 50%.', icon: <Shield size={18} />, cost: 1000, type: 'utility', value: 0.5 },
+  { id: 'adrenaline_rush', name: 'ADRENALINE_RUSH', description: 'Increases speed-run bonuses by 50%.', icon: <Zap size={18} />, cost: 1200, type: 'xp', value: 0.5 },
+  { id: 'deep_archive', name: 'DEEP_ARCHIVE', description: 'Each journal entry rewards 25% more XP.', icon: <Book size={18} />, cost: 800, type: 'xp', value: 0.25 },
+];
+
+interface CognitiveSignature {
+  emotionalState: string;
+  keyTheme: string;
+  alignmentScore: number;
+  insight: string;
 }
 
 interface JournalEntry {
@@ -339,6 +817,7 @@ interface JournalEntry {
   wordCount: number;
   promptId?: string;
   isReflection?: boolean;
+  cognitiveSignature?: CognitiveSignature;
 }
 
 interface MotivationItem {
@@ -393,6 +872,8 @@ const XP_MAP = {
   ADHERENCE_80: 75,
   ADHERENCE_100: 150,
   SPEED_BONUS_MULT: 1.25,
+  POMODORO_SESSION_COMPLETE: 25,
+  FOCUS_CYCLE_MASTER_BONUS: 50
 };
 
 const calculateTaskXP = (task: Task, currentStreak: number = 0) => {
@@ -403,9 +884,10 @@ const calculateTaskXP = (task: Task, currentStreak: number = 0) => {
   const catMult = XP_MAP.CATEGORY[task.category as keyof typeof XP_MAP.CATEGORY] || 1;
   const challengeMult = task.isChallenging ? XP_MAP.CHALLENGING_BONUS : 1;
   const speedMult = task.isSpeedRun ? XP_MAP.SPEED_RUN_BONUS : 1;
+  const bossMult = task.isBoss ? 5 : 1;
   const streakBonus = currentStreak * XP_MAP.STREAK_BONUS_PER_DAY;
 
-  return Math.round((base * timeMult * catMult * challengeMult * speedMult) + streakBonus);
+  return Math.round((base * timeMult * catMult * challengeMult * speedMult * bossMult) + streakBonus);
 };
 
 const MULTIPLIERS = {
@@ -468,20 +950,74 @@ const PREMIUM_BEZIER = [0.16, 1, 0.3, 1] as any;
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authChoice, setAuthChoice] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [motivationItems, setMotivationItems] = useState<MotivationItem[]>([]);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'tasks' | 'journal' | 'stats' | 'timetable' | 'shop' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [xpNotifications, setXpNotifications] = useState<XPNotification[]>([]);
   const [levelUpLevel, setLevelUpLevel] = useState<number | null>(null);
   const [celebratingAchievement, setCelebratingAchievement] = useState<Achievement | null>(null);
   const [completeToast, setCompleteToast] = useState<string | null>(null);
   const [isMotivationPortalOpen, setIsMotivationPortalOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [terminalLogs, setTerminalLogs] = useState<{ id: string; msg: string; type: 'info' | 'warn' | 'error' | 'success'; time: string }[]>([]);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [isNodeRecalibrating, setIsNodeRecalibrating] = useState(false);
+
+  const addToTerminal = (msg: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
+    const id = Math.random().toString(36).substr(2, 9);
+    const time = new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setTerminalLogs(prev => [{ id, msg, type, time }, ...prev].slice(0, 50));
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen(prev => !prev);
+      }
+      if (e.key === 'Escape') {
+        setIsCommandPaletteOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (user) {
+      addToTerminal(`SYSTEM_BOOT_SEQUENCE_COMPLETE: NODE_${user.uid.slice(0, 8)} CONNECTED`, 'success');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user && stats) {
+      const today = new Date().toISOString().split('T')[0];
+      const briefingLastGenerated = stats.dailyBriefing?.lastGenerated;
+
+      if (!briefingLastGenerated || briefingLastGenerated !== today) {
+        const fetchBriefing = async () => {
+          try {
+            const activeTasks = tasks.filter(t => t.status === 'pending');
+            const content = await generateDailyBriefing(stats, activeTasks);
+            await updateDoc(doc(db, 'user_stats', user.uid), {
+              dailyBriefing: {
+                content,
+                lastGenerated: today
+              }
+            });
+          } catch (e) {
+            console.error("Briefing Generation Failed", e);
+          }
+        };
+        fetchBriefing();
+      }
+    }
+  }, [user, stats, tasks]);
 
   const handleTabChange = (tab: AppTab) => {
     setIsNodeRecalibrating(true);
@@ -630,6 +1166,7 @@ export default function App() {
           difficultyLevel: 'normal',
           unlockedAchievements: [],
           unlockedItems: [],
+          unlockedPerks: [],
           totalWordsWritten: 0,
           streakHistory: [],
           journalStreak: 0,
@@ -639,6 +1176,8 @@ export default function App() {
           scheduleMasteryLevel: 0,
           scheduledTasksCount: 0,
           punctualStreak: 0,
+          pomodoroSessions: 0,
+          pomodoroToday: 0,
           activityLog: []
         };
         setDoc(docRef, initialStats).catch(e => handleFirestoreError(e, OperationType.CREATE, `user_stats/${user.uid}`));
@@ -756,11 +1295,15 @@ export default function App() {
           if (newStreak === 30) newExperience += 500;
           if (newStreak === 100) newExperience += 1000;
 
+          const streakId = Date.now();
           setXpNotifications(prev => [...prev, { 
-            id: Date.now(), 
+            id: streakId, 
             amount: dailyBonus, 
             source: `STREAK_BONUS: DAY_${newStreak}` 
           }]);
+          setTimeout(() => {
+            setXpNotifications(prev => prev.filter(n => n.id !== streakId));
+          }, 5000);
         } else {
           // Streak broken
           newStreak = 1;
@@ -782,6 +1325,7 @@ export default function App() {
           lastActiveDate: now.toISOString(),
           experience: newExperience,
           dailyChallenge: challengeUpdate,
+          pomodoroToday: 0,
           streakHistory: [...(stats.streakHistory || []), today]
         });
       } catch (e) {
@@ -841,6 +1385,20 @@ export default function App() {
       const multiplier = settings?.difficultyMultiplier ?? MULTIPLIERS[stats.difficultyLevel || 'normal'] ?? 1.0;
       let finalAmount = Math.round(amount * multiplier);
 
+      // Apply Neural Efficiency perk (+10% XP)
+      if (stats.unlockedPerks?.includes('neural_efficiency')) {
+        finalAmount = Math.round(finalAmount * 1.1);
+      }
+
+      // Apply Deep Archive perk (+25% XP for journals)
+      const isJournal = source === 'NEURAL_INGEST_COMPLETE';
+      if (isJournal && stats.unlockedPerks?.includes('deep_archive')) {
+        finalAmount = Math.round(finalAmount * 1.25);
+      }
+
+      const logMsg = `XP_ACQUIRED: +${finalAmount} FROM ${source}`;
+      addToTerminal(logMsg, 'success');
+
       // Update daily challenge progress
       let challengeUpdate = stats.dailyChallenge ? { ...stats.dailyChallenge } : null;
       if (challengeUpdate && !challengeUpdate.completed) {
@@ -873,11 +1431,15 @@ export default function App() {
           challengeUpdate.completed = true;
           const reward = DAILY_CHALLENGES.find(c => c.id === challengeUpdate.id)?.xpReward || 0;
           finalAmount += reward;
+          const challengeId = Date.now() + 1;
           setXpNotifications(prev => [...prev, { 
-            id: Date.now() + 1, 
+            id: challengeId, 
             amount: reward, 
             source: `CHALLENGE_COMPLETE: ${challengeUpdate.id}` 
           }]);
+          setTimeout(() => {
+            setXpNotifications(prev => prev.filter(n => n.id !== challengeId));
+          }, 5000);
         }
       }
 
@@ -886,7 +1448,7 @@ export default function App() {
       setXpNotifications(prev => [...prev, { id, amount: finalAmount, source }]);
       setTimeout(() => {
         setXpNotifications(prev => prev.filter(n => n.id !== id));
-      }, 2000);
+      }, 5000);
 
       const newExp = stats.experience + finalAmount;
       const { level: newLevel } = getLevelFromXP(newExp);
@@ -914,7 +1476,11 @@ export default function App() {
       // CR for every task protocol
       const isTask = source?.includes('TASK') || source?.includes('NEURAL_LINK_ESTABLISHED') || source?.includes('TEMPORAL');
       if (isTask) {
-        bonusCoins += 1;
+        let coinAmount = meta?.isBoss ? 25 : 5;
+        if (stats.unlockedPerks?.includes('coin_miner')) {
+          coinAmount = Math.round(coinAmount * 1.15);
+        }
+        bonusCoins += coinAmount;
       }
 
       // Activity logging
@@ -1026,7 +1592,7 @@ export default function App() {
 
             const achId = Date.now() + Math.random();
             setXpNotifications(prev => [...prev, { id: achId, amount: ach.xpReward, source: `ACHIEVEMENT_UNLOCKED: ${ach.title}` }]);
-            setTimeout(() => setXpNotifications(prev => prev.filter(n => n.id !== achId)), 4000);
+            setTimeout(() => setXpNotifications(prev => prev.filter(n => n.id !== achId)), 5000);
           }
         }
       });
@@ -1064,28 +1630,102 @@ export default function App() {
   const addTimeBlock = async (block: Omit<TimeBlock, 'id' | 'userId'>) => {
     if (!user) return;
     try {
-      await addDoc(collection(db, 'time_blocks'), {
-        ...block,
-        userId: user.uid,
-      });
+      if (block.type === 'task') {
+        // Find if a task with similar title already exists and is pending, to avoid duplicates? 
+        // For now, just create a new task that is scheduled.
+        await addDoc(collection(db, 'tasks'), {
+          userId: user.uid,
+          title: block.title,
+          priority: 'medium',
+          status: 'pending',
+          category: 'learning',
+          estimate: differenceInMinutes(parseISO(block.endTime), parseISO(block.startTime)),
+          difficulty: 'medium',
+          scheduledStart: block.startTime,
+          scheduledEnd: block.endTime,
+          createdAt: new Date().toISOString()
+        });
+      } else {
+        await addDoc(collection(db, 'time_blocks'), {
+          ...block,
+          userId: user.uid,
+        });
+      }
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'time_blocks');
     }
   };
 
-  const deleteTimeBlock = async (id: string) => {
+  const deleteTimeBlock = async (id: string, source: 'task' | 'block' = 'block') => {
     try {
-      await deleteDoc(doc(db, 'time_blocks', id));
+      if (source === 'task') {
+        await updateDoc(doc(db, 'tasks', id), {
+          scheduledStart: null,
+          scheduledEnd: null
+        });
+      } else {
+        await deleteDoc(doc(db, 'time_blocks', id));
+      }
     } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, `time_blocks/${id}`);
+      handleFirestoreError(e, OperationType.DELETE, `${source === 'task' ? 'tasks' : 'time_blocks'}/${id}`);
     }
   };
 
-  const updateTimeBlock = async (id: string, updates: Partial<TimeBlock>) => {
+  const handlePurchasePerk = async (perkId: string) => {
+    if (!user || !stats) return;
+    const perk = PERKS.find(perk => perk.id === perkId);
+    if (!perk) return;
+
+    if ((stats.coins || 0) < perk.cost) return;
+    if (stats.unlockedPerks?.includes(perkId)) return;
+
     try {
-      await updateDoc(doc(db, 'time_blocks', id), updates);
+      const statsRef = doc(db, 'user_stats', user.uid);
+      await updateDoc(statsRef, {
+        coins: (stats.coins || 0) - perk.cost,
+        unlockedPerks: [...(stats.unlockedPerks || []), perkId]
+      });
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#00D9FF', '#22C55E', '#FFFFFF']
+      });
     } catch (e) {
-      handleFirestoreError(e, OperationType.UPDATE, `time_blocks/${id}`);
+      handleFirestoreError(e, OperationType.UPDATE, `user_stats/${user.uid}`);
+    }
+  };
+
+  const updateTimeBlock = async (id: string, updates: Partial<TimeBlock>, source: 'task' | 'block' = 'block') => {
+    try {
+      if (source === 'task' || (updates.type === 'task' && source === 'block')) {
+        // If it was a block and now is a task, this is complex. 
+        // For simplicity, if source is task, update task.
+        if (source === 'task') {
+          await updateDoc(doc(db, 'tasks', id), {
+            title: updates.title,
+            scheduledStart: updates.startTime,
+            scheduledEnd: updates.endTime,
+            status: updates.completed ? 'completed' : 'pending'
+          });
+        } else {
+          // It's a block but type became task? User probably wants to sync it.
+          // In a real app we'd migrate it. For now just update block.
+          await updateDoc(doc(db, 'time_blocks', id), updates);
+        }
+      } else {
+        await updateDoc(doc(db, 'time_blocks', id), updates);
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `${source === 'task' ? 'tasks' : 'time_blocks'}/${id}`);
+    }
+  };
+
+  const updateTask = async (id: string, updates: Partial<Task>) => {
+    try {
+      await updateDoc(doc(db, 'tasks', id), updates);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `tasks/${id}`);
     }
   };
 
@@ -1104,15 +1744,31 @@ export default function App() {
         const finalStart = new Date(startTime.getTime() + block.startMinute * 60000);
         const finalEnd = new Date(finalStart.getTime() + block.duration * 60000);
         
-        const newBlockRef = doc(collection(db, 'time_blocks'));
-        batch.set(newBlockRef, {
-          userId: user.uid,
-          title: block.title,
-          type: block.type,
-          startTime: finalStart.toISOString(),
-          endTime: finalEnd.toISOString(),
-          completed: false
-        });
+        if (block.type === 'task') {
+          const newTaskRef = doc(collection(db, 'tasks'));
+          batch.set(newTaskRef, {
+            userId: user.uid,
+            title: block.title,
+            priority: 'medium',
+            status: 'pending',
+            category: 'learning',
+            estimate: block.duration,
+            difficulty: 'medium',
+            scheduledStart: finalStart.toISOString(),
+            scheduledEnd: finalEnd.toISOString(),
+            createdAt: new Date().toISOString()
+          });
+        } else {
+          const newBlockRef = doc(collection(db, 'time_blocks'));
+          batch.set(newBlockRef, {
+            userId: user.uid,
+            title: block.title,
+            type: block.type,
+            startTime: finalStart.toISOString(),
+            endTime: finalEnd.toISOString(),
+            completed: false
+          });
+        }
       });
 
       await batch.commit();
@@ -1160,7 +1816,12 @@ export default function App() {
         const startTime = task.scheduledStart ? new Date(task.scheduledStart) : new Date(task.createdAt);
         const actualMinutes = (now.getTime() - startTime.getTime()) / (60 * 1000);
         if (actualMinutes < task.estimate * 0.75) {
-          speedBonus = Math.round(calculateTaskXP(task, stats.currentStreak) * (XP_MAP.SPEED_BONUS_MULT - 1));
+          const baseBonus = calculateTaskXP(task, stats.currentStreak) * (XP_MAP.SPEED_BONUS_MULT - 1);
+          let speedMult = 1.0;
+          if (stats.unlockedPerks?.includes('adrenaline_rush')) {
+             speedMult = 1.5;
+          }
+          speedBonus = Math.round(baseBonus * speedMult);
         }
       }
 
@@ -1169,11 +1830,14 @@ export default function App() {
       const batch = writeBatch(db);
       
       const taskRef = doc(db, 'tasks', task.id);
-      batch.update(taskRef, { 
+      const updateData: any = { 
         status: 'completed',
-        completedAt: now.toISOString(),
-        adherenceStatus: adherenceStatus
-      });
+        completedAt: now.toISOString()
+      };
+      if (adherenceStatus) {
+        updateData.adherenceStatus = adherenceStatus;
+      }
+      batch.update(taskRef, updateData);
 
       const updates: any = {
         totalTasksCompleted: (stats.totalTasksCompleted || 0) + 1
@@ -1198,7 +1862,17 @@ export default function App() {
 
       // Award XP separately as it has its own complex multi-field logic
       let earnedXP = calculateTaskXP(task, stats.currentStreak) + schedulingBonus + speedBonus;
-      await addXP(earnedXP, source);
+      
+      // Apply XP Decay for late tasks (-30% by default)
+      if (adherenceStatus === 'late') {
+        let decayMult = 0.7;
+        if (stats.unlockedPerks?.includes('focus_shield')) {
+          decayMult = 0.85; // Penalty reduced by 50%
+        }
+        earnedXP = Math.round(earnedXP * decayMult);
+      }
+
+      await addXP(earnedXP, source, { isBoss: task.isBoss });
 
       if (todayScheduledCompleted === 5) {
         await addXP(50, 'DAILY_TEMPORAL_MASTERY_REACHED');
@@ -1277,7 +1951,15 @@ export default function App() {
   }
 
   if (!user) {
-    return <LandingPage onLogin={signInWithGoogle} />;
+    if (!authChoice) {
+      return <LandingPage onEnter={() => setAuthChoice(true)} />;
+    }
+    return (
+      <AuthorizationPage 
+        onBack={() => setAuthChoice(false)} 
+        onGoogleLogin={signInWithGoogle} 
+      />
+    );
   }
 
   return (
@@ -1332,27 +2014,33 @@ export default function App() {
       </button>
 
       {/* Sidebar / Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 lg:left-0 lg:top-0 lg:bottom-0 lg:w-20 glass border-t lg:border-t-0 lg:border-r border-border-subtle z-50 flex lg:flex-col items-center justify-around lg:justify-center gap-8 py-4 lg:py-8 premium-transition">
-        <NavButton active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<HardDrive size={24} />} label="CORE_COMMAND" />
-        <NavButton active={activeTab === 'tasks'} onClick={() => handleTabChange('tasks')} icon={<CheckCircle2 size={24} />} label="ACTIVE_STACK" />
+      <nav className="fixed bottom-0 left-0 right-0 lg:left-0 lg:top-0 lg:bottom-0 lg:w-20 glass border-t lg:border-t-0 lg:border-r border-border-subtle z-50 flex lg:flex-col items-center justify-start lg:justify-center gap-2 lg:gap-8 min-h-[72px] lg:h-auto py-2 lg:py-8 px-4 lg:px-0 overflow-x-auto lg:overflow-x-hidden no-scrollbar premium-transition">
+        <NavButton active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<HardDrive size={20} className="lg:w-6 lg:h-6" />} label="CORE_COMMAND" />
+        <NavButton active={activeTab === 'tasks'} onClick={() => handleTabChange('tasks')} icon={<CheckCircle2 size={20} className="lg:w-6 lg:h-6" />} label="DAILY_SYNC" />
         <NavButton 
           active={activeTab === 'timetable'} 
           onClick={() => handleTabChange('timetable')} 
-          icon={<Calendar size={24} />} 
+          icon={<Calendar size={20} className="lg:w-6 lg:h-6" />} 
           label="TEMPORAL_GRID" 
           badge="AI"
         />
-        <NavButton active={activeTab === 'journal'} onClick={() => handleTabChange('journal')} icon={<Book size={24} />} label="NEURAL_ARCHIVE" />
+        <NavButton active={activeTab === 'journal'} onClick={() => handleTabChange('journal')} icon={<Book size={20} className="lg:w-6 lg:h-6" />} label="NEURAL_ARCHIVE" />
+        <NavButton 
+          active={activeTab === 'lifeSync'} 
+          onClick={() => handleTabChange('lifeSync')} 
+          icon={<Network size={20} className="lg:w-6 lg:h-6" />} 
+          label="LIFE_SYNC" 
+        />
         <NavButton 
           active={activeTab === 'stats'} 
           onClick={() => handleTabChange('stats')} 
-          icon={<TrendingUp size={24} />} 
+          icon={<TrendingUp size={20} className="lg:w-6 lg:h-6" />} 
           label="NEURAL_EVOLUTION" 
         />
         <NavButton 
           active={activeTab === 'shop'} 
           onClick={() => handleTabChange('shop')} 
-          icon={<ShoppingBag size={24} />} 
+          icon={<ShoppingBag size={20} className="lg:w-6 lg:h-6" />} 
           label="MARKETPLACE" 
           locked={!(stats?.level && stats.level >= 20)}
           unlockLevel={20}
@@ -1360,52 +2048,51 @@ export default function App() {
         <NavButton 
           active={activeTab === 'settings'} 
           onClick={() => handleTabChange('settings')} 
-          icon={<Settings size={24} />} 
+          icon={<Settings size={20} className="lg:w-6 lg:h-6" />} 
           label="CONFIG_OS" 
         />
         
         <button 
           onClick={() => signOut(auth)}
-          className="p-3 text-text-m hover:text-danger transition-colors lg:mt-auto group"
+          className="p-3 text-text-m hover:text-danger transition-colors lg:mt-auto group shrink-0"
         >
-          <LogOut size={24} className="group-hover:scale-110 transition-transform" />
+          <LogOut size={20} className="lg:w-6 lg:h-6 group-hover:scale-110 transition-transform" />
           <span className="sr-only">TERMINATE_SESSION</span>
         </button>
       </nav>
 
-      <main className="pb-24 lg:pb-8 lg:pl-28 pt-8 px-4 max-w-7xl mx-auto">
+      <main className="pb-32 lg:pb-8 lg:pl-28 pt-4 lg:pt-8 px-4 max-w-7xl mx-auto">
         {activeTab !== 'dashboard' && (
-          <header className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6 glass p-6 rounded-xl border border-border-subtle premium-transition">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-gradient-to-br from-accent to-cyan flex items-center justify-center font-bold text-2xl accent-glow text-white shadow-[0_0_30px_rgba(255,69,0,0.3)]">
+          <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 lg:mb-12 gap-4 lg:gap-6 glass p-4 lg:p-6 rounded-xl border border-border-subtle premium-transition">
+            <div className="flex items-center gap-3 lg:gap-4">
+              <div className="w-12 h-12 lg:w-16 lg:h-16 shrink-0 rounded-full bg-gradient-to-br from-accent to-cyan flex items-center justify-center font-bold text-lg lg:text-2xl accent-glow text-white shadow-[0_0_20px_rgba(255,69,0,0.2)]">
                 {user.displayName?.[0] || 'A'}
               </div>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[9px] font-mono text-cyan uppercase tracking-widest border border-cyan/30 px-2 py-0.5 rounded bg-cyan/5">USER_AUTH_LEVEL_01</span>
-                  <span className="text-[9px] font-mono text-accent uppercase tracking-widest border border-accent/30 px-2 py-0.5 rounded bg-accent/5">SYS_NODE_{user.uid.slice(0, 4)}</span>
-                  <span className="text-[9px] font-mono text-success uppercase tracking-widest border border-success/30 px-2 py-0.5 rounded bg-success/5 border-dashed animate-pulse">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                  <span className="text-[8px] lg:text-[9px] font-mono text-cyan uppercase tracking-widest border border-cyan/20 px-1.5 py-0.5 rounded bg-cyan/5">AUTH_01</span>
+                  <span className="text-[8px] lg:text-[9px] font-mono text-accent uppercase tracking-widest border border-accent/20 px-1.5 py-0.5 rounded bg-accent/5">NODE_{user.uid.slice(0, 4)}</span>
+                  <span className="text-[8px] lg:text-[9px] font-mono text-success uppercase tracking-widest border border-success/20 px-1.5 py-0.5 rounded bg-success/5 border-dashed animate-pulse">
                     {getTitleForLevel(stats?.level || 1)}
                   </span>
                 </div>
-                <h1 className="text-3xl font-serif font-black uppercase tracking-widest text-text-p flex items-center gap-2">
-                  {user.displayName || 'OPERATOR'} <span className="text-cyan text-glow-cyan ml-2 text-sm font-mono tracking-tighter">CLASS_{stats?.level || 1}</span>
+                <h1 className="text-xl lg:text-3xl font-serif font-black uppercase tracking-widest text-text-p flex items-center gap-2 truncate">
+                  {user.displayName || 'OPERATOR'} <span className="text-cyan text-glow-cyan ml-1 text-[10px] lg:text-sm font-mono tracking-tighter shrink-0">LVL_{stats?.level || 1}</span>
                 </h1>
                 {stats && (() => {
                   const { progress, totalForLevel } = getLevelFromXP(stats.experience);
                   return (
-                    <div className="flex items-center gap-4 mt-2">
-                      <div className="w-64 h-1.5 bg-background-nested rounded-full overflow-hidden border border-white/5 relative">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1.5">
+                      <div className="w-full sm:w-48 lg:w-64 h-1 bg-background-nested rounded-full overflow-hidden border border-white/5 relative">
                         <motion.div 
                           initial={{ width: 0 }}
                           animate={{ width: `${(progress / totalForLevel) * 100}%` }}
                           transition={{ duration: 1, ease: PREMIUM_BEZIER }}
                           className="h-full bg-accent accent-glow shadow-[0_0_10px_rgba(255,69,0,0.4)]"
                         />
-                        <div className="absolute inset-0 bg-scanlines opacity-20 pointer-events-none" />
                       </div>
-                      <span className="text-[10px] text-text-s uppercase tracking-tighter font-mono whitespace-nowrap">
-                        {Math.floor(progress)} / {totalForLevel} XP TO_NEXT_NODE
+                      <span className="text-[8px] lg:text-[10px] text-text-s uppercase tracking-tighter font-mono whitespace-nowrap opacity-60">
+                        {Math.floor(progress)}/{totalForLevel} XP
                       </span>
                     </div>
                   );
@@ -1414,39 +2101,21 @@ export default function App() {
             </div>
             
             {stats && (
-              <div className="grid grid-cols-3 gap-6 md:gap-8">
-                <div className="text-center group relative cursor-help">
-                  <p className="text-[10px] text-text-m uppercase font-bold tracking-widest font-mono">Streak</p>
-                  <div className="text-xl font-serif font-bold text-warning flex items-center justify-center gap-1 group-hover:drop-shadow-[0_0_8px_rgba(255,165,0,0.5)] transition-all">
-                    <Flame size={20} className={cn(stats.currentStreak > 0 ? "text-orange-500 animate-pulse" : "text-text-s opacity-30")} />
+              <div className="flex items-center justify-between md:justify-end gap-3 sm:gap-6 lg:gap-8 border-t md:border-t-0 border-white/5 pt-3 md:pt-0">
+                <div className="text-center group relative cursor-help flex flex-col items-center">
+                  <p className="text-[8px] lg:text-[10px] text-text-m uppercase font-bold tracking-widest font-mono opacity-40">Streak</p>
+                  <div className="text-sm lg:text-xl font-serif font-bold text-warning flex items-center justify-center gap-1 group-hover:drop-shadow-[0_0_8px_rgba(255,165,0,0.5)] transition-all">
+                    <Flame size={14} className={cn("lg:w-5 lg:h-5", stats.currentStreak > 0 ? "text-orange-500 animate-pulse" : "text-text-s opacity-30")} />
                     <span>{stats.currentStreak}</span>
                   </div>
-                  {/* Tooltip for milestones */}
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-40 p-3 glass rounded-xl border border-white/10 opacity-0 group-hover:opacity-100 transition-all z-50 pointer-events-none shadow-2xl backdrop-blur-xl scale-95 group-hover:scale-100 origin-top">
-                    <div className="space-y-2">
-                      <p className="text-[9px] font-mono text-text-p uppercase tracking-tighter border-b border-white/5 pb-1 mb-1">Milestones</p>
-                      <div className="flex justify-between items-center text-[8px] font-mono text-text-s uppercase">
-                        <span>Day 7</span>
-                        <span className="text-success">+200 XP</span>
-                      </div>
-                      <div className="flex justify-between items-center text-[8px] font-mono text-text-s uppercase">
-                        <span>Day 30</span>
-                        <span className="text-success">+500 XP</span>
-                      </div>
-                      <div className="flex justify-between items-center text-[8px] font-mono text-text-s uppercase">
-                        <span>Day 100</span>
-                        <span className="text-success">+1000 XP</span>
-                      </div>
-                    </div>
-                  </div>
                 </div>
-                <div className="text-center group">
-                  <p className="text-[10px] text-text-m uppercase font-bold tracking-widest font-mono">Active</p>
-                  <p className="text-xl font-serif font-bold text-accent animate-text-glow">{tasks.filter(t => t.status === 'pending').length}</p>
+                <div className="text-center group flex flex-col items-center">
+                  <p className="text-[8px] lg:text-[10px] text-text-m uppercase font-bold tracking-widest font-mono opacity-40">Active</p>
+                  <p className="text-sm lg:text-xl font-serif font-bold text-accent animate-text-glow">{tasks.filter(t => t.status === 'pending').length}</p>
                 </div>
-                <div className="text-center group">
-                  <p className="text-[10px] text-text-m uppercase font-bold tracking-widest font-mono">Sync</p>
-                  <p className="text-xl font-serif font-bold text-cyan text-glow-cyan">94%</p>
+                <div className="text-center group flex flex-col items-center">
+                  <p className="text-[8px] lg:text-[10px] text-text-m uppercase font-bold tracking-widest font-mono opacity-40">Sync</p>
+                  <p className="text-sm lg:text-xl font-serif font-bold text-cyan text-glow-cyan">94%</p>
                 </div>
               </div>
             )}
@@ -1487,6 +2156,7 @@ export default function App() {
                   addTimeBlock={addTimeBlock}
                   deleteTimeBlock={deleteTimeBlock}
                   updateTimeBlock={updateTimeBlock}
+                  updateTask={updateTask}
                   applyTemplate={applyTemplate}
                   setCompleteToast={setCompleteToast}
                   settings={settings}
@@ -1494,7 +2164,8 @@ export default function App() {
                 />
               )}
               {activeTab === 'journal' && <JournalView journals={journals} user={user} onAddXP={addXP} stats={stats} />}
-              {activeTab === 'stats' && <StatsView stats={stats} user={user} tasks={tasks} journals={journals} timeBlocks={timeBlocks} />}
+              {activeTab === 'lifeSync' && <LifeSyncView stats={stats} user={user} onAddXP={addXP} tasks={tasks} journals={journals} addToTerminal={addToTerminal} />}
+              {activeTab === 'stats' && <StatsView stats={stats} user={user} tasks={tasks} journals={journals} timeBlocks={timeBlocks} onPurchasePerk={handlePurchasePerk} />}
               {activeTab === 'shop' && <ShopView stats={stats} user={user} onPurchase={handlePurchase} />}
               {activeTab === 'settings' && <SettingsView settings={settings} stats={stats} user={user} onUpdate={updateSettings} />}
             </motion.div>
@@ -1584,6 +2255,13 @@ export default function App() {
         )}
       </AnimatePresence>
       <FloatingXPRenderer notifications={xpNotifications} />
+      <CommandPalette 
+        isOpen={isCommandPaletteOpen} 
+        onClose={() => setIsCommandPaletteOpen(false)} 
+        onNavigate={handleTabChange}
+        activeTab={activeTab}
+      />
+      <SystemTerminal logs={terminalLogs} />
     </div>
   );
 }
@@ -1759,31 +2437,404 @@ function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge }:
   );
 }
 
-function LandingPage({ onLogin }: { onLogin: () => void }) {
+function AuthorizationPage({ onBack, onGoogleLogin }: { onBack: () => void; onGoogleLogin: () => void }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'signin' | 'signup' | 'login'>('login');
+
+  const handleAuth = async (targetMode: 'signin' | 'signup' | 'login') => {
+    if (!email || !password) {
+      setError("EMAIL_AND_PASSWORD_REQUIRED");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      if (targetMode === 'signup') {
+        await registerWithEmail(email, password);
+      } else {
+        // Both 'login' and 'signin' use the same backend function for email/pass
+        await loginWithEmail(email, password);
+      }
+    } catch (err: any) {
+      console.error("Auth Error:", err);
+      let msg = err.message || "AUTH_FAILED";
+      if (err.code === 'auth/user-not-found') msg = "USER_NOT_FOUND_SIGN_UP_INSTEAD";
+      if (err.code === 'auth/wrong-password') msg = "INVALID_CREDENTIALS";
+      if (err.code === 'auth/email-already-in-use') msg = "EMAIL_ALREADY_REGISTERED";
+      if (err.code === 'auth/invalid-email') msg = "INVALID_EMAIL_FORMAT";
+      setError(msg.replace('Firebase: ', '').split('(')[0].trim());
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 bg-scanlines relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,69,0,0.05),transparent_70%)]" />
+      <div className="absolute inset-0 cyber-grid opacity-10 pointer-events-none" />
+      
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="max-w-2xl"
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="max-w-md w-full glass p-10 rounded-[3rem] border border-white/10 shadow-2xl relative z-10 overflow-hidden"
       >
-        <div className="inline-block p-6 bg-accent/10 border border-accent mb-8 accent-glow">
-          <Zap className="text-accent" size={48} />
+        <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none group-hover:rotate-12 transition-transform">
+          <Shield size={120} className="text-accent" />
         </div>
-        <h1 className="text-6xl md:text-8xl font-bold uppercase tracking-tighter mb-4 animate-text-glow text-text-p">
-          AETHER <span className="text-cyan">OS</span>
-        </h1>
-        <p className="text-xl md:text-2xl text-text-s font-mono mb-12 tracking-widest">
-          LIVE YOUR LIFE. EARN YOUR EXP.
-        </p>
+
         <button 
-          onClick={onLogin}
-          className="bg-accent hover:bg-red-600 text-white font-bold py-4 px-12 flex items-center gap-3 transition-all transform hover:scale-105 accent-glow rounded-lg"
+          onClick={onBack}
+          className="mb-8 text-text-s/60 hover:text-accent transition-colors flex items-center gap-2 text-[10px] uppercase font-mono tracking-widest group"
         >
-          <LogIn size={20} />
-          INITIATE PROTOCOL
+          <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center group-hover:border-accent group-hover:scale-110 transition-all">
+            <ChevronRight className="rotate-180" size={12} />
+          </div>
+          Abort_Session
         </button>
+
+        <div className="text-center mb-10">
+          <motion.div 
+            animate={{ 
+              scale: [1, 1.05, 1],
+              opacity: [0.8, 1, 0.8]
+            }}
+            transition={{ repeat: Infinity, duration: 4 }}
+            className="inline-block p-4 bg-accent/5 border border-accent/20 mb-6 rounded-2xl relative shadow-[0_0_20px_rgba(255,69,0,0.1)]"
+          >
+            <ShieldCheck className="text-accent" size={32} />
+          </motion.div>
+          <h2 className="text-3xl font-serif font-black text-white italic uppercase tracking-tighter">AUTHORIZATION</h2>
+          <p className="text-[10px] font-mono text-text-m opacity-50 mt-2 uppercase tracking-[0.3em] leading-relaxed">
+            Neural_Link_Validation_Required
+          </p>
+        </div>
+
+        {error && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="mb-8 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-500 font-mono text-[10px] uppercase tracking-widest leading-relaxed flex items-start gap-3"
+          >
+            <Zap size={14} className="shrink-0 mt-0.5" />
+            <div>
+              <span className="font-black">CRITICAL_EXCEPTION:</span> {error}
+            </div>
+          </motion.div>
+        )}
+
+        <div className="space-y-6">
+          <div className="space-y-2">
+            <label className="text-[10px] font-mono text-text-m uppercase tracking-widest ml-1 opacity-50">NODE_IDENTIFIER</label>
+            <div className="relative group">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-text-s/40 group-focus-within:text-accent transition-colors" size={16} />
+              <input 
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="USER@AETHER.NETWORK"
+                className="w-full bg-white/2 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm font-mono text-white focus:outline-none focus:border-accent/50 focus:bg-white/5 transition-all placeholder:text-text-s/20"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-mono text-text-m uppercase tracking-widest ml-1 opacity-50">ACCESS_PASSKEY</label>
+            <div className="relative group">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-text-s/40 group-focus-within:text-accent transition-colors" size={16} />
+              <input 
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full bg-white/2 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm font-mono text-white focus:outline-none focus:border-accent/50 focus:bg-white/5 transition-all placeholder:text-text-s/20"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 pt-4">
+            <button 
+              onClick={() => handleAuth('login')}
+              disabled={loading}
+              className="w-full bg-accent hover:bg-danger text-white font-mono font-black py-5 rounded-2xl shadow-[0_0_20px_rgba(255,69,0,0.2)] hover:shadow-[0_0_30px_rgba(255,69,0,0.4)] transition-all active:scale-[0.98] disabled:opacity-50 text-sm tracking-[0.2em] uppercase"
+            >
+              {loading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
+                  AUTHENTICATING...
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2">
+                  <LogIn size={18} /> INITIALIZE_SYNC
+                </div>
+              )}
+            </button>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                onClick={() => handleAuth('signup')}
+                disabled={loading}
+                className="py-4 glass border border-white/5 bg-white/2 hover:bg-white/5 text-white font-mono font-black rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 text-[10px] tracking-[0.2em] uppercase"
+              >
+                NEW_NODE
+              </button>
+              <button 
+                onClick={() => handleAuth('signin')}
+                disabled={loading}
+                className="py-4 glass border border-white/5 bg-white/2 hover:bg-white/5 text-white font-mono font-black rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 text-[10px] tracking-[0.2em] uppercase"
+              >
+                PASSCODE_RECOVERY
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 my-8">
+            <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-white/10" />
+            <span className="text-[9px] font-mono text-text-s/30 uppercase tracking-[0.3em]">SECURE_OAUTH</span>
+            <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-white/10" />
+          </div>
+
+          <button 
+            onClick={onGoogleLogin}
+            disabled={loading}
+            className="w-full bg-white text-black font-mono font-black py-4 rounded-2xl flex items-center justify-center gap-4 hover:bg-gray-200 transition-all active:scale-[0.98] disabled:opacity-50 text-xs tracking-[0.1em] shadow-xl"
+          >
+            <svg viewBox="0 0 24 24" className="w-5 h-5">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+            </svg>
+            LOGIN_WITH_GOOGLE_CORE
+          </button>
+        </div>
       </motion.div>
+      
+      <div className="absolute bottom-10 left-0 right-0 flex justify-between px-12 opacity-20 pointer-events-none">
+        <div className="space-y-1">
+          <p className="text-[8px] font-mono text-white uppercase tracking-widest">System_Security: AES_256</p>
+          <p className="text-[8px] font-mono text-white uppercase tracking-widest">Protocol_Checksum: OK</p>
+        </div>
+        <div className="text-right space-y-1">
+          <p className="text-[8px] font-mono text-white uppercase tracking-widest">Node_IP_Masked</p>
+          <p className="text-[8px] font-mono text-white uppercase tracking-widest">Session_Isolation: ACTIVE</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LandingPage({ onEnter }: { onEnter: () => void }) {
+  const [dbStatus, setDbStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [isInitializing, setIsInitializing] = useState(false);
+
+  useEffect(() => {
+    const checkDb = async () => {
+      try {
+        const testDoc = doc(db, 'system', 'health');
+        await getDocFromServer(testDoc);
+        setDbStatus('online');
+      } catch (err: any) {
+        console.warn("DB Health Check Failed:", err.message);
+        if (err.message.includes('offline')) {
+          setDbStatus('offline');
+        } else {
+          // If it's permission denied, it's still "online" (server responded)
+          setDbStatus('online');
+        }
+      }
+    };
+    checkDb();
+  }, []);
+
+  const handleEnter = () => {
+    setIsInitializing(true);
+    setTimeout(onEnter, 2000);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#040406] flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
+      {/* Background Ambience - Black, Blue, and hints of Red */}
+      <div className="absolute inset-x-0 top-0 h-full w-full z-0 pointer-events-none">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(30,58,138,0.15),transparent_50%),radial-gradient(circle_at_80%_70%,rgba(153,27,27,0.1),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(15,23,42,0.3)_0%,transparent_70%)]" />
+        <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+      </div>
+
+      <div className="absolute inset-0 cyber-grid opacity-5 pointer-events-none" />
+      <div className="absolute inset-0 bg-scanlines opacity-[0.02] pointer-events-none" />
+      
+      <motion.div 
+        key="landing-content"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
+        className="max-w-5xl relative z-10 flex flex-col items-center"
+      >
+        {/* Logo Section placeholder */}
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, duration: 1 }}
+          className="mb-14 relative"
+        >
+          <div className="w-32 h-32 md:w-40 md:h-40 rounded-[2.5rem] bg-gradient-to-br from-white/10 to-transparent border border-white/10 flex items-center justify-center backdrop-blur-xl group cursor-pointer overflow-hidden shadow-2xl">
+            <div className="absolute inset-0 bg-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+            
+            {/* Logo Placeholder - Will be replaced by User's Logo */}
+            <div className="relative z-10 flex flex-col items-center gap-2">
+              <HardDrive size={64} className="text-white/80 group-hover:text-accent transition-all duration-700 group-hover:scale-110" />
+              <span className="text-[8px] font-mono tracking-[0.5em] text-white/20 uppercase">AETHER_CORE</span>
+            </div>
+
+            <motion.div 
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 20, ease: "linear" }}
+              className="absolute -inset-4 border border-accent/20 rounded-full border-dashed opacity-20"
+            />
+          </div>
+          
+          <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full backdrop-blur-md">
+            <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            <span className="text-[8px] font-mono text-white/40 tracking-widest uppercase">System_Active</span>
+          </div>
+        </motion.div>
+
+        <div className="space-y-6 mb-20">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="flex items-center justify-center gap-8 opacity-40"
+          >
+            <div className="h-[1px] w-24 bg-gradient-to-r from-transparent to-white" />
+            <span className="text-[9px] font-mono text-white uppercase tracking-[1em] font-black">NEURAL_OPERATING_SYSTEM</span>
+            <div className="h-[1px] w-24 bg-gradient-to-l from-transparent to-white" />
+          </motion.div>
+          
+          <h1 className="text-8xl md:text-[14rem] font-serif font-black uppercase tracking-tighter leading-[0.75] text-white flex flex-col">
+            <motion.span 
+              initial={{ opacity: 0, x: -50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.6, duration: 1 }}
+              className="relative"
+            >
+              AETHER
+            </motion.span>
+            <motion.span 
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.8, duration: 1 }}
+              className="text-accent italic translate-x-4 md:translate-x-8"
+            >
+              OS
+            </motion.span>
+          </h1>
+          
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1, duration: 1 }}
+            className="text-lg md:text-2xl text-white/40 font-mono tracking-[0.6em] uppercase max-w-2xl mx-auto pt-8 border-t border-white/5"
+          >
+            Precision / Protocol / Productivity
+          </motion.p>
+        </div>
+
+        <div className="flex flex-col items-center gap-12 w-full max-w-md">
+          {!isInitializing ? (
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.2, duration: 0.8 }}
+              className="w-full space-y-12"
+            >
+              <div className="flex flex-col md:flex-row items-center justify-center gap-10">
+                <div className="flex flex-col items-start gap-1">
+                  <span className="text-[9px] font-mono text-white/30 uppercase tracking-widest">Network_Stability</span>
+                  <div className="flex items-center gap-3">
+                    <div className={`h-2 w-2 rounded-full ${dbStatus === 'online' ? 'bg-success shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-danger animate-pulse'}`} />
+                    <span className="text-xs font-mono text-white/80 uppercase tracking-widest">{dbStatus === 'online' ? 'Verified' : 'Establishing...'}</span>
+                  </div>
+                </div>
+                
+                <div className="hidden md:block h-8 w-[1px] bg-white/10" />
+
+                <div className="flex flex-col items-start gap-1">
+                  <span className="text-[9px] font-mono text-white/30 uppercase tracking-widest">Encryption_Level</span>
+                  <div className="flex items-center gap-3">
+                    <ShieldCheck className="text-cyan w-4 h-4" />
+                    <span className="text-xs font-mono text-white/80 uppercase tracking-widest">AES_512_X</span>
+                  </div>
+                </div>
+              </div>
+
+              <motion.button 
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleEnter}
+                disabled={dbStatus === 'checking'}
+                className="w-full group relative overflow-hidden bg-white py-8 rounded-[1.5rem] transition-all shadow-[0_40px_80px_rgba(0,0,0,0.4)]"
+              >
+                <div className="absolute inset-0 bg-accent translate-y-full group-hover:translate-y-0 transition-transform duration-700 ease-[0.16, 1, 0.3, 1]" />
+                <div className="relative z-10 flex items-center justify-center gap-4 text-black group-hover:text-white transition-colors duration-700">
+                  <span className="text-sm font-mono font-black tracking-[0.5em] uppercase">INITIALIZE_BOOT_SEQUENCE</span>
+                  <ChevronRight className="w-5 h-5 group-hover:translate-x-2 transition-transform duration-700" />
+                </div>
+              </motion.button>
+
+              <div className="flex justify-between w-full opacity-20 px-2">
+                <p className="text-[9px] font-mono uppercase tracking-[0.2em]">Build: 4.8.0-STABLE</p>
+                <p className="text-[9px] font-mono uppercase tracking-[0.2em]">User: VED_G</p>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="space-y-10 w-full"
+            >
+              <div className="relative w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: 2, ease: "easeInOut" }}
+                  className="h-full bg-accent shadow-[0_0_25px_rgba(255,69,0,0.6)]"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-8 text-[10px] font-mono text-white/30 uppercase text-left tracking-widest leading-relaxed">
+                <div className="space-y-2">
+                  <p className="flex justify-between"><span className="text-white/10">[0.002]</span> MOUNTING_FS</p>
+                  <p className="flex justify-between"><span className="text-white/10">[0.045]</span> LOADING_NEURAL_MAP</p>
+                  <p className="flex justify-between"><span className="text-white/10">[0.120]</span> ESTABLISHING_AUTH</p>
+                </div>
+                <motion.p 
+                  animate={{ opacity: [0.2, 1, 0.2] }}
+                  transition={{ repeat: Infinity, duration: 0.8 }}
+                  className="text-right text-accent font-black self-end"
+                >
+                  DECRYPTING...
+                </motion.p>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      </motion.div>
+
+      {/* Decorative Ornaments */}
+      <div className="absolute top-20 left-20 hidden lg:block opacity-10 pointer-events-none">
+        <div className="p-8 border-l border-t border-white/40 w-40 h-40" />
+      </div>
+      <div className="absolute bottom-20 right-20 hidden lg:block opacity-10 pointer-events-none">
+        <div className="p-8 border-r border-b border-white/40 w-40 h-40 text-right font-mono text-[10px] uppercase flex flex-col justify-end gap-2 tracking-[0.5em]">
+          <span>GRID_LOCKED</span>
+          <span>40.7128° N, 74.0060° W</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1797,6 +2848,182 @@ function CardDecoration() {
       <div className="absolute bottom-0 right-0 w-2 h-2 border-b border-r border-white/20" />
       <div className="absolute inset-0 bg-scanlines opacity-[0.03] pointer-events-none" />
     </>
+  );
+}
+
+function NeuralCore({ stats }: { stats: UserStats | null }) {
+  const { progress, totalForLevel } = getLevelFromXP(stats?.experience || 0);
+  const percent = (progress / totalForLevel) * 100;
+
+  return (
+    <div className="absolute left-[-20px] top-[-20px] w-48 h-48 pointer-events-none opacity-20">
+      <motion.div 
+        animate={{ 
+          rotate: 360,
+          scale: [1, 1.1, 1],
+        }}
+        transition={{ 
+          rotate: { repeat: Infinity, duration: 20, ease: "linear" },
+          scale: { repeat: Infinity, duration: 4, ease: "easeInOut" }
+        }}
+        className="w-full h-full relative"
+      >
+        <div className="absolute inset-0 border-2 border-accent/20 rounded-full border-dashed" />
+        <motion.div 
+          animate={{ opacity: [0.2, 0.4, 0.2] }}
+          transition={{ repeat: Infinity, duration: 2 }}
+          className="absolute inset-[25%] border border-cyan/40 rounded-full bg-cyan/5 shadow-[0_0_30px_rgba(0,217,255,0.1)]"
+        />
+        <div className="absolute inset-0">
+          {[0, 1, 2, 3].map(i => (
+            <motion.div 
+              key={i}
+              className="absolute w-1 h-1 bg-accent rounded-full"
+              style={{ 
+                top: '50%', 
+                left: '50%', 
+                transform: `rotate(${i * 90}deg) translateY(-80px)` 
+              }}
+            />
+          ))}
+        </div>
+      </motion.div>
+      <div className="absolute inset-0 flex items-center justify-center translate-y-4">
+         <span className="text-[10px] font-mono text-cyan/40 font-black">{Math.floor(percent)}%</span>
+      </div>
+    </div>
+  );
+}
+
+function CommandPalette({ isOpen, onClose, onNavigate, activeTab }: { isOpen: boolean; onClose: () => void; onNavigate: (tab: any) => void; activeTab: string }) {
+  const [search, setSearch] = useState('');
+  const commands = [
+    { id: 'dash', label: 'GO_TO_CORE', icon: <HardDrive size={18} />, tab: 'dashboard' },
+    { id: 'tasks', label: 'GO_TO_STACK', icon: <CheckCircle2 size={18} />, tab: 'tasks' },
+    { id: 'time', label: 'GO_TO_GRID', icon: <Calendar size={18} />, tab: 'timetable' },
+    { id: 'journal', label: 'GO_TO_ARCHIVE', icon: <Book size={18} />, tab: 'journal' },
+    { id: 'stats', label: 'GO_TO_EVOLUTION', icon: <TrendingUp size={18} />, tab: 'stats' },
+    { id: 'shop', label: 'GO_TO_MARKET', icon: <ShoppingBag size={18} />, tab: 'shop' },
+    { id: 'settings', label: 'GO_TO_CONFIG', icon: <Settings size={18} />, tab: 'settings' },
+  ];
+
+  const filtered = commands.filter(c => c.label.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+            className="w-full max-w-lg glass rounded-2xl border border-white/20 overflow-hidden shadow-2xl relative z-10"
+          >
+            <div className="p-4 border-b border-white/10 flex items-center gap-4 bg-white/5">
+              <Command className="text-accent" size={24} />
+              <input 
+                autoFocus
+                placeholder="EXECUTE_COMMAND..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="flex-1 bg-transparent border-none text-white font-mono outline-none text-lg"
+              />
+              <kbd className="text-[10px] font-mono bg-white/10 px-2 py-1 rounded text-text-m">ESC</kbd>
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-2 no-scrollbar">
+              {filtered.map(cmd => (
+                <button
+                  key={cmd.id}
+                  onClick={() => { onNavigate(cmd.tab); onClose(); }}
+                  className={cn(
+                    "w-full flex items-center justify-between p-4 rounded-xl transition-all group",
+                    activeTab === cmd.tab ? "bg-accent/20 border border-accent/40" : "hover:bg-white/5"
+                  )}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={cn("p-2 rounded-lg bg-white/5", activeTab === cmd.tab ? "text-accent" : "text-text-m")}>
+                      {cmd.icon}
+                    </div>
+                    <span className={cn("font-mono text-sm uppercase tracking-widest", activeTab === cmd.tab ? "text-white font-black" : "text-text-m")}>
+                      {cmd.label}
+                    </span>
+                  </div>
+                  <ChevronRight size={16} className="text-text-s opacity-0 group-hover:opacity-100" />
+                </button>
+              ))}
+              {filtered.length === 0 && (
+                <div className="p-12 text-center opacity-20">
+                  <p className="font-mono text-xs uppercase tracking-widest">COMMAND_NOT_FOUND</p>
+                </div>
+              )}
+            </div>
+            <div className="p-3 bg-black/40 border-t border-white/5 flex justify-between items-center px-6">
+              <span className="text-[8px] font-mono text-text-m uppercase opacity-40 italic">AETHER_RECALIBRATION_OS v2.1.0</span>
+              <div className="flex gap-4">
+                <span className="text-[8px] font-mono text-text-m uppercase">↑↓ NAVIGATE</span>
+                <span className="text-[8px] font-mono text-text-m uppercase">↵ EXECUTE</span>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function SystemTerminal({ logs }: { logs: any[] }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <div className={cn(
+      "fixed bottom-24 lg:bottom-8 right-8 z-[60] transition-all duration-500",
+      isExpanded ? "w-80 h-96" : "w-12 h-12"
+    )}>
+      <motion.div 
+        layout
+        className={cn(
+          "h-full w-full glass rounded-2xl border border-white/10 overflow-hidden flex flex-col shadow-2xl backdrop-blur-2xl",
+          isExpanded ? "bg-black/90" : "bg-black/40 hover:scale-110 cursor-pointer"
+        )}
+      >
+        {!isExpanded ? (
+          <button onClick={() => setIsExpanded(true)} className="h-full w-full flex items-center justify-center text-accent">
+            <Terminal size={20} />
+          </button>
+        ) : (
+          <>
+            <div className="p-3 border-b border-white/5 flex items-center justify-between bg-white/5">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                <span className="text-[9px] font-mono font-black text-white uppercase tracking-widest">LOGS_NODE_ARCHIVE</span>
+              </div>
+              <button onClick={() => setIsExpanded(false)} className="text-text-m hover:text-white"><X size={14} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 font-mono text-[9px] space-y-2 no-scrollbar selection:bg-accent/30">
+              {logs.map(log => (
+                <div key={log.id} className="flex gap-3 animate-in fade-in slide-in-from-left-2 transition-all">
+                  <span className="opacity-30 shrink-0">[{log.time}]</span>
+                  <span className={cn(
+                    "truncate",
+                    log.type === 'success' ? 'text-success' : 
+                    log.type === 'warn' ? 'text-warning' : 
+                    log.type === 'error' ? 'text-accent font-black' : 'text-text-m'
+                  )}>
+                    {log.msg}
+                  </span>
+                </div>
+              ))}
+              {logs.length === 0 && (
+                <div className="opacity-10 py-20 text-center uppercase tracking-widest text-[8px]">
+                  IDLE_LISTENING...
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </motion.div>
+    </div>
   );
 }
 
@@ -1914,49 +3141,50 @@ function ProfileCard({ stats, user }: { stats: UserStats | null, user: User }) {
   const estimatedDays = Math.ceil(xpNeeded / Math.max(todayXP, 100));
 
   return (
-    <div className="glass p-8 rounded-2xl border-l-8 border-accent relative overflow-hidden group premium-transition">
+    <div className="glass p-4 sm:p-8 rounded-2xl border-l-[6px] sm:border-l-8 border-accent relative overflow-hidden group premium-transition">
+      <NeuralCore stats={stats} />
       <CardDecoration />
-      <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
+      <div className="flex flex-col md:flex-row items-center gap-4 sm:gap-8 relative z-10 sm:pl-24 transition-all sm:group-hover:pl-28">
         <div className="relative">
-          <div className="w-24 h-24 rounded-full border-4 border-accent p-1 bg-background-nested overflow-hidden">
+          <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full border-4 border-accent p-1 bg-background-nested overflow-hidden focus-within:ring-2 ring-accent transition-all">
             <img src={user.photoURL || ''} alt="" className="w-full h-full rounded-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" referrerPolicy="no-referrer" />
           </div>
           <motion.div 
             animate={{ scale: [1, 1.2, 1] }}
             transition={{ repeat: Infinity, duration: 2 }}
-            className="absolute -bottom-2 -right-2 bg-accent text-white font-mono text-[10px] font-black w-8 h-8 rounded-full flex items-center justify-center shadow-lg shadow-accent/40"
+            className="absolute -bottom-1 -right-1 sm:-bottom-2 sm:-right-2 bg-accent text-white font-mono text-[8px] sm:text-[10px] font-black w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center shadow-lg shadow-accent/40"
           >
             {stats.level}
           </motion.div>
         </div>
 
-        <div className="flex-1 space-y-4 text-center md:text-left">
+        <div className="flex-1 space-y-3 sm:space-y-4 text-center md:text-left min-w-0 w-full">
           <div className="space-y-1">
-            <h2 className="text-3xl font-serif font-black text-white uppercase tracking-tight italic glow-text-white">{user.displayName}</h2>
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-4">
-              <p className="text-[10px] font-mono text-accent uppercase tracking-[0.5em] font-black">Level {stats.level} / 100</p>
-              <span className="text-[10px] font-mono text-text-m opacity-50 uppercase tracking-widest">• {getTitleForLevel(stats.level)}</span>
-              <span className="flex items-center gap-1 text-[10px] font-mono text-warning font-black uppercase">
-                <Flame size={12} /> {stats.currentStreak} Day Streak
+            <h2 className="text-xl sm:text-3xl font-serif font-black text-white uppercase tracking-tight italic glow-text-white truncate">{user.displayName}</h2>
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-4">
+              <p className="text-[8px] sm:text-[10px] font-mono text-accent uppercase tracking-[0.2em] sm:tracking-[0.5em] font-black whitespace-nowrap">LVL {stats.level} / 100</p>
+              <span className="text-[8px] sm:text-[10px] font-mono text-text-m opacity-50 uppercase tracking-widest whitespace-nowrap">• {getTitleForLevel(stats.level)}</span>
+              <span className="flex items-center gap-1 text-[8px] sm:text-[10px] font-mono text-warning font-black uppercase whitespace-nowrap">
+                <Flame className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {stats.currentStreak}D STREAK
               </span>
             </div>
           </div>
 
-          <div className="space-y-2 max-w-md mx-auto md:mx-0">
-             <div className="flex justify-between text-[10px] font-mono uppercase">
-                <span className="text-text-m">XP_BARRIER: {Math.floor(levelProgress)}%</span>
-                <span className="text-text-s">{currentXP.toLocaleString()} / {nextLevelXP.toLocaleString()} XP</span>
+          <div className="space-y-2 max-w-md mx-auto md:mx-0 w-full">
+             <div className="flex justify-between text-[7px] sm:text-[10px] font-mono uppercase gap-2">
+                <span className="text-text-m truncate">XP_BARRIER: {Math.floor(levelProgress)}%</span>
+                <span className="text-text-s whitespace-nowrap">{currentXP.toLocaleString()}/{nextLevelXP.toLocaleString()} XP</span>
              </div>
-             <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/5 p-0.5">
+             <div className="h-1.5 sm:h-2 w-full bg-white/5 rounded-full overflow-hidden border border-white/5 p-0.5">
                 <motion.div 
                    initial={{ width: 0 }}
                    animate={{ width: `${levelProgress}%` }}
                    className="h-full bg-gradient-to-r from-cyan to-accent rounded-full shadow-[0_0_15px_rgba(0,217,255,0.4)]"
                 />
              </div>
-             <div className="flex justify-between text-[8px] font-mono text-text-s uppercase italic opacity-60">
-                <span>Next level in ~{estimatedDays} days at current pace</span>
-                <span>{xpNeeded.toLocaleString()} XP remaining</span>
+             <div className="flex justify-between text-[6px] sm:text-[8px] font-mono text-text-s uppercase italic opacity-60 gap-4">
+                <span className="truncate">Next node: ~{estimatedDays}D</span>
+                <span className="whitespace-nowrap">{xpNeeded.toLocaleString()} XP LEFT</span>
              </div>
           </div>
         </div>
@@ -1973,33 +3201,31 @@ function QuickStatsGrid({ stats, journals }: { stats: UserStats | null, journals
   const { levelProgress } = getLevelFromXP(stats.experience);
   
   const metrics = [
-    { label: 'LIFETIME_XP', value: stats.experience.toLocaleString(), icon: <Activity size={18} className="text-cyan" />, unit: 'PTS' },
-    { label: 'TASKS_SYNCED', value: stats.totalTasksCompleted, icon: <CheckCircle2 size={18} className="text-success" />, unit: 'UNITS' },
-    { label: 'NODE_STREAK', value: stats.currentStreak, icon: <Flame size={18} className="text-warning" />, unit: 'DAYS' },
-    { label: 'NEURAL_LOGS', value: journals.length, icon: <Book size={18} className="text-accent" />, unit: 'ENTRIES' },
-    { label: 'ARCHIVE_SYNC', value: `${stats.unlockedAchievements?.length || 0} / ${ACHIEVEMENTS.length}`, icon: <Award size={18} className="text-purple-400" />, unit: 'UNLOCKED' },
-    { label: 'SYNC_PERCENT', value: `${Math.floor(levelProgress)}%`, icon: <PieChart size={18} className="text-blue-400" />, unit: 'LEVEL_COMPLETE' },
+    { label: 'XP_DATA', value: stats.experience.toLocaleString(), icon: <Activity className="text-cyan w-3 h-3 sm:w-3.5 sm:h-3.5" />, unit: 'PTS' },
+    { label: 'TASKS_SYNCED', value: stats.totalTasksCompleted, icon: <CheckCircle2 className="text-success w-3 h-3 sm:w-3.5 sm:h-3.5" />, unit: 'UNITS' },
+    { label: 'STREAK', value: stats.currentStreak, icon: <Flame className="text-warning w-3 h-3 sm:w-3.5 sm:h-3.5" />, unit: 'DAYS' },
+    { label: 'LOGS', value: journals.length, icon: <Book className="text-accent w-3 h-3 sm:w-3.5 sm:h-3.5" />, unit: 'ENT' },
+    { label: 'NODE_SYNC', value: `${Math.floor(levelProgress)}%`, icon: <PieChart className="text-blue-400 w-3 h-3 sm:w-3.5 sm:h-3.5" />, unit: 'VAL' },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
       {metrics.map((m, i) => (
         <motion.div 
           key={m.label}
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: i * 0.05 }}
-          className="glass p-4 rounded-xl border border-white/5 bg-white/2 hover:bg-white/5 transition-all group overflow-hidden relative"
+          className="glass p-2.5 sm:p-4 rounded-xl border border-white/5 bg-white/2 hover:bg-white/5 transition-all group overflow-hidden relative"
         >
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-2 mb-1">
             <div className="group-hover:scale-110 transition-transform">{m.icon}</div>
-            <span className="text-[10px] font-mono text-text-m uppercase tracking-widest font-black whitespace-nowrap">{m.label}</span>
+            <span className="text-[7px] sm:text-[9px] font-mono text-text-m uppercase tracking-widest font-black whitespace-nowrap">{m.label}</span>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-serif font-black text-white italic">{m.value}</span>
-            <span className="text-[8px] font-mono text-text-s uppercase opacity-40">{m.unit}</span>
+          <div className="flex items-baseline gap-1">
+            <span className="text-base sm:text-2xl font-serif font-black text-white italic">{m.value}</span>
+            <span className="text-[6px] sm:text-[8px] font-mono text-text-s uppercase opacity-40">{m.unit}</span>
           </div>
-          <div className="absolute top-0 right-0 w-1 h-full bg-white/5 group-hover:bg-cyan/20 transition-all" />
         </motion.div>
       ))}
     </div>
@@ -2340,6 +3566,62 @@ function MotivationPortal({
   );
 }
 
+function LifeSyncOverview({ lifeSync, setActiveTab }: { lifeSync?: UserStats['lifeSync'], setActiveTab: any }) {
+  if (!lifeSync) return (
+    <div 
+      onClick={() => setActiveTab('lifeSync')}
+      className="glass p-8 rounded-[2rem] border border-white/5 bg-gradient-to-br from-indigo-500/10 to-transparent cursor-pointer hover:border-indigo-500/30 transition-all flex flex-col items-center justify-center gap-4 text-center group"
+    >
+       <Network size={40} className="text-indigo-400 group-hover:scale-110 transition-transform" />
+       <div>
+         <h4 className="text-sm font-mono font-black uppercase tracking-widest text-text-p">INITIALIZE_LIFE_SYNC</h4>
+         <p className="text-[10px] font-mono text-text-m opacity-60">"DATA_GAPS_DETECTED. ALIGN_REALITY_PROTOCOLS."</p>
+       </div>
+    </div>
+  );
+
+  const values = lifeSync.current;
+  const balanceScore = Number((Object.values(values).reduce((a, b) => a + b, 0) / 8).toFixed(1));
+  
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      onClick={() => setActiveTab('lifeSync')}
+      className="glass p-8 lg:p-12 rounded-[2rem] lg:rounded-[3rem] border border-white/5 bg-gradient-to-br from-indigo-500/10 via-transparent to-accent/5 relative overflow-hidden group shadow-2xl cursor-pointer hover:border-white/20 transition-all"
+    >
+      <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity" style={{ color: '#6366f1' }}>
+        <Network size={120} className="rotate-12" />
+      </div>
+      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+        <div>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+            <span className="text-[10px] font-mono text-indigo-400 font-black uppercase tracking-[0.4em]">SYSTEM_LIFE_SYNC_ACTIVE</span>
+          </div>
+          <div className="space-y-1">
+             <p className="text-[10px] font-mono text-text-m uppercase tracking-[0.2em] opacity-60">Current_Alignment</p>
+             <h2 className="text-5xl font-serif font-black text-text-p italic">{balanceScore}<span className="text-lg opacity-40">/10</span></h2>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-x-4 gap-y-3">
+          {LIFE_CATEGORIES.map(cat => {
+            const val = values[cat.id] || 0;
+            return (
+              <div key={cat.id} className="flex flex-col gap-1 items-start min-w-[60px]">
+                 <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-full" style={{ width: `${val * 10}%`, backgroundColor: cat.color }} />
+                 </div>
+                 <span className="text-[8px] font-mono font-bold" style={{ color: cat.color }}>{cat.label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 function Dashboard({ 
   stats, 
   tasks, 
@@ -2369,6 +3651,8 @@ function Dashboard({
       </div>
 
       <ProfileCard stats={stats} user={user} />
+      
+      <LifeSyncOverview lifeSync={stats?.lifeSync} setActiveTab={setActiveTab} />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Col: Main Stream */}
@@ -2448,6 +3732,7 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
   const [newCat, setNewCat] = useState<'health' | 'learning' | 'creative' | 'work' | 'personal' | 'routine'>('work');
   const [estimate, setEstimate] = useState(30);
   const [isChallenging, setIsChallenging] = useState(false);
+  const [isBoss, setIsBoss] = useState(false);
   const [customXP, setCustomXP] = useState<number | ''>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -2464,12 +3749,46 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
   );
 
   const [isEstimating, setIsEstimating] = useState(false);
+  const [isBreakingDownId, setIsBreakingDownId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  const handleBreakdown = async (task: Task) => {
+    setIsBreakingDownId(task.id);
+    try {
+      const subTasksRaw = await breakdownBossTask(task.title, task.category);
+      const subTasks: SubTask[] = subTasksRaw.map((st: any, i: number) => ({
+        id: `st-${Date.now()}-${i}`,
+        title: st.title,
+        completed: false,
+        duration: st.duration
+      }));
+      
+      await updateDoc(doc(db, 'tasks', task.id), { subTasks });
+      setCompleteToast(`Neural_Link_Expanded: ${subTasks.length} sub-protocols established.`);
+    } catch (e) {
+      console.error("AI Breakdown Failed", e);
+    } finally {
+      setIsBreakingDownId(null);
+    }
+  };
+
+  const toggleSubTask = async (task: Task, subTaskId: string) => {
+    if (!task.subTasks) return;
+    const newSubTasks = task.subTasks.map(st => 
+      st.id === subTaskId ? { ...st, completed: !st.completed } : st
+    );
+    await updateDoc(doc(db, 'tasks', task.id), { subTasks: newSubTasks });
+  };
 
   const estimateXPWithAI = async () => {
     if (!newTitle.trim()) return;
     setIsEstimating(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("GEMINI_API_KEY_NOT_FOUND: Configure environment variables for production.");
+      }
+      const ai = new GoogleGenAI({ apiKey });
       const prompt = `You are a gamification engine for a productivity app called Aether. 
       Analyze the following task and suggest an appropriate XP reward based on complexity and time.
       Task Title: "${newTitle}"
@@ -2514,6 +3833,7 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
         category: newCat,
         estimate: estimate,
         isChallenging: isChallenging,
+        isBoss: isBoss,
         customXP: customXP || null,
         isSpeedRun: false, // Updated on completion if user marks it
         difficulty: 'medium', // legacy
@@ -2521,6 +3841,8 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
       });
       setNewTitle('');
       setCustomXP('');
+      setIsBoss(false);
+      setIsChallenging(false);
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'tasks');
     }
@@ -2535,8 +3857,8 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <form onSubmit={addTask} className="glass p-8 rounded-xl space-y-6 border-t-2 border-t-cyan/20 bg-card/40 premium-transition hover:border-cyan/40 shadow-2xl">
+    <div className="space-y-6 lg:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <form onSubmit={addTask} className="glass p-4 lg:p-8 rounded-xl space-y-4 lg:space-y-6 border-t-2 border-t-cyan/20 bg-card/40 premium-transition hover:border-cyan/40 shadow-2xl">
         <div className="flex flex-col md:flex-row gap-6 items-end">
           <div className="flex-1 w-full">
             <label className="text-[10px] font-bold text-text-m uppercase mb-3 block tracking-[0.3em] font-mono border-l-2 border-cyan pl-2">INITIATE_PROTOCOL_CMD</label>
@@ -2624,6 +3946,17 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
             <label className="flex items-center gap-2 cursor-pointer group w-full p-2 rounded hover:bg-white/5 transition-all">
               <input 
                 type="checkbox"
+                checked={isBoss}
+                onChange={(e) => setIsBoss(e.target.checked)}
+                className="w-4 h-4 rounded border-white/20 bg-black/40 text-danger focus:ring-0 cursor-pointer"
+              />
+              <span className="text-[10px] font-mono font-bold text-text-m group-hover:text-danger transition-colors">BOSS_PROTOCOL</span>
+            </label>
+          </div>
+          <div className="flex items-end pb-1 col-span-2 md:col-span-1">
+            <label className="flex items-center gap-2 cursor-pointer group w-full p-2 rounded hover:bg-white/5 transition-all">
+              <input 
+                type="checkbox"
                 checked={isChallenging}
                 onChange={(e) => setIsChallenging(e.target.checked)}
                 className="w-4 h-4 rounded border-white/20 bg-black/40 text-accent focus:ring-0 cursor-pointer"
@@ -2679,20 +4012,46 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
                 {task.status === 'completed' ? <CheckCircle2 size={32} /> : <Circle size={32} className="opacity-40 group-hover:opacity-100" />}
               </button>
               <div className="min-w-0 flex-1">
-                <h3 className={cn("text-xl font-serif font-black uppercase tracking-tight italic flex items-center gap-3 truncate", task.status === 'completed' ? "line-through text-text-m" : "text-text-p")}>
-                  {task.title}
+                <div className="flex items-center gap-3">
+                  <h3 className={cn("text-xl font-serif font-black uppercase tracking-tight italic truncate", task.status === 'completed' ? "line-through text-text-m" : "text-text-p")}>
+                    {task.title}
+                  </h3>
                   {task.priority === 'critical' && <Zap size={14} className="text-danger animate-pulse shrink-0" />}
-                </h3>
+                  {task.isBoss && task.status === 'pending' && !task.subTasks && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleBreakdown(task); }}
+                      disabled={isBreakingDownId === task.id}
+                      className={cn(
+                        "p-1.5 rounded bg-white/5 border border-white/10 text-cyan hover:bg-cyan/10 transition-all",
+                        isBreakingDownId === task.id && "animate-spin"
+                      )}
+                      title="AI_BREAKDOWN"
+                    >
+                      <Brain size={14} />
+                    </button>
+                  )}
+                </div>
                 <div className="flex flex-wrap items-center gap-3 mt-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                  {/* ... badges ... */}
                   <span className={cn(
                     "text-[9px] px-2 py-0.5 rounded-sm font-bold uppercase font-mono border whitespace-nowrap",
-                    task.priority === 'critical' || task.priority === 'high' ? "border-danger/30 bg-danger/10 text-danger" : 
-                    task.priority === 'medium' ? "border-warning/30 bg-warning/10 text-warning" : "border-cyan/30 bg-cyan/10 text-cyan"
+                    task.priority === 'critical' ? "border-danger/30 bg-danger/10 text-danger shadow-[0_0_10px_rgba(255,61,61,0.1)]" : 
+                    task.priority === 'high' ? "border-orange-500/30 bg-orange-500/10 text-orange-400" : 
+                    task.priority === 'medium' ? "border-warning/30 bg-warning/10 text-warning" : 
+                    "border-cyan/30 bg-cyan/10 text-cyan shadow-[0_0_10px_rgba(0,217,255,0.1)]"
                   )}>
                     PRIOR_{task.priority}
                   </span>
                   <span className="text-[9px] text-text-m uppercase font-bold tracking-widest font-mono truncate">NODE_{task.category}</span>
                   <span className="text-[9px] text-text-s uppercase font-mono">{task.estimate} MIN</span>
+                  {task.scheduledStart && (
+                    <span className="text-[9px] text-cyan font-mono font-black border border-cyan/30 bg-cyan/5 px-1.5 rounded-sm">
+                      SCHEDULED: {format(parseISO(task.scheduledStart), 'HH:mm')}
+                    </span>
+                  )}
+                  {task.isBoss && (
+                    <span className="text-[9px] text-danger font-mono font-black border border-danger/30 bg-danger/5 px-1.5 rounded-sm shadow-[0_0_10px_rgba(255,61,61,0.2)] animate-pulse uppercase">BOSS_PROTOCOL_5X</span>
+                  )}
                   {task.isChallenging && (
                     <span className="text-[9px] text-accent font-mono font-black border border-accent/30 bg-accent/5 px-1.5 rounded-sm whitespace-nowrap">CHALLENGE_ACT_1.5X</span>
                   )}
@@ -2700,20 +4059,61 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
                     <span className="text-[9px] text-orange-400 font-mono font-black border border-orange-400/30 bg-orange-400/5 px-1.5 rounded-sm whitespace-nowrap">SPEED_RUN_1.2X</span>
                   )}
                 </div>
+
+                {/* Sub-tasks list */}
+                {task.subTasks && task.subTasks.length > 0 && (
+                  <div className="mt-4 pl-4 border-l-2 border-white/5 space-y-2">
+                    {task.subTasks.map(st => (
+                      <div key={st.id} className="flex items-center gap-3">
+                        <button 
+                          onClick={() => toggleSubTask(task, st.id)}
+                          className={cn("p-1 transition-all", st.completed ? "text-success" : "text-text-m opacity-40 hover:opacity-100")}
+                        >
+                          {st.completed ? <CheckCircle2 size={14} /> : <Circle size={14} />}
+                        </button>
+                        <span className={cn("text-[10px] font-mono", st.completed ? "line-through text-text-m opacity-40" : "text-text-p")}>
+                          {st.title} <span className="opacity-40 ml-1">[{st.duration}M]</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-6 relative z-10">
-               <div className="hidden lg:flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="text-[8px] font-mono text-text-s uppercase">HASH_{task.id.slice(0, 8)}</span>
-                  <span className="text-[8px] font-mono text-text-s uppercase">SYNC_DATE_{new Date(task.createdAt).toLocaleDateString().replace(/\//g, '.')}</span>
-               </div>
-              <button 
-                onClick={() => deleteTask(task.id)}
-                className="text-text-m hover:text-danger p-2 transition-all hover:bg-danger/10 rounded-lg group-hover:translate-x-0 translate-x-2 opacity-0 group-hover:opacity-100"
-              >
-                <Trash2 size={20} />
-              </button>
-            </div>
+              <div className="flex items-center gap-4 relative z-10">
+                 <div className="hidden lg:flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span className="text-[8px] font-mono text-text-s uppercase">HASH_{task.id.slice(0, 8)}</span>
+                    <span className="text-[8px] font-mono text-text-s uppercase">SYNC_DATE_{new Date(task.createdAt).toLocaleDateString().replace(/\//g, '.')}</span>
+                 </div>
+                
+                {deleteConfirmId === task.id ? (
+                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <motion.button 
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => { deleteTask(task.id); setDeleteConfirmId(null); }}
+                      className="bg-danger/20 hover:bg-danger text-danger hover:text-white border border-danger/30 px-3 py-1 rounded-lg text-[9px] font-mono font-black uppercase transition-all shadow-[0_0_15px_rgba(255,0,0,0.2)]"
+                    >
+                      CONFIRM_ERASE
+                    </motion.button>
+                    <motion.button 
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setDeleteConfirmId(null)}
+                      className="bg-white/5 hover:bg-white/10 text-text-m border border-white/10 px-3 py-1 rounded-lg text-[9px] font-mono font-black uppercase transition-all"
+                    >
+                      ABORT
+                    </motion.button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => setDeleteConfirmId(task.id)}
+                    className="text-text-m hover:text-danger p-2 transition-all hover:bg-danger/10 rounded-lg group-hover:translate-x-0 translate-x-2 opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                )}
+              </div>
           </div>
         ))}
       </div>
@@ -2953,6 +4353,26 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
           icon: <ShoppingBag size={18} className="text-success" />
         }
       ]
+    },
+    {
+      category: "FUTURE_ROADMAP",
+      items: [
+        {
+          title: "NEURAL_PERK_TREE",
+          description: "A recursive logic path to unlock specialized cognitive boosts, passive XP yields, and advanced interface overrides.",
+          icon: <Network size={18} className="text-cyan" />
+        },
+        {
+          title: "TEMPORAL_RAIDS",
+          description: "High-stakes, high-reward synchronization events that challenge your focus-density against 'glitch' interference.",
+          icon: <Zap size={18} className="text-warning" />
+        },
+        {
+          title: "SYSTEM_THEMES",
+          description: "Real-time environment recalibration. Unlock unique aesthetic 'skins' for Aether_OS using marketplace credits.",
+          icon: <Palette size={18} className="text-accent" />
+        }
+      ]
     }
   ];
 
@@ -3072,6 +4492,205 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
   );
 }
 
+function FocusProtocol({ stats, user, onAddXP, setCompleteToast }: { stats: UserStats | null, user: User, onAddXP: any, setCompleteToast: any }) {
+  const [timerMode, setTimerMode] = React.useState<'POMODORO' | 'DEEP_WORK'>('POMODORO');
+  const [phase, setPhase] = React.useState<'WORK' | 'SHORT_BREAK' | 'LONG_BREAK'>('WORK');
+  const [timeLeft, setTimeLeft] = React.useState(25 * 60);
+  const [isActive, setIsActive] = React.useState(false);
+  const [sessionsCompleted, setSessionsCompleted] = React.useState(0);
+
+  const getPhaseDuration = (p: typeof phase, m: typeof timerMode) => {
+    if (p === 'LONG_BREAK') return 15 * 60;
+    if (m === 'POMODORO') return p === 'WORK' ? 25 * 60 : 5 * 60;
+    return p === 'WORK' ? 50 * 60 : 10 * 60;
+  };
+
+  const playPhaseSound = (isWorkEnd: boolean) => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      oscillator.type = 'sine';
+      // High pitch for work end (starting break), Lower for break end (starting work)
+      oscillator.frequency.setValueAtTime(isWorkEnd ? 880 : 440, audioCtx.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(isWorkEnd ? 1320 : 660, audioCtx.currentTime + 0.1);
+
+      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.5);
+    } catch (e) {
+      console.warn("Audio blocked");
+    }
+  };
+
+  const handleSessionComplete = async () => {
+    if (phase === 'WORK') {
+      const isLastInCycle = sessionsCompleted === 3;
+      const newTotalSessions = (stats?.pomodoroSessions || 0) + 1;
+      const newTodaySessions = (stats?.pomodoroToday || 0) + 1;
+      
+      await updateDoc(doc(db, 'user_stats', user.uid), {
+        pomodoroSessions: newTotalSessions,
+        pomodoroToday: newTodaySessions
+      });
+
+      onAddXP(25, 'POMODORO_SESSION_COMPLETE');
+      if (isLastInCycle) {
+        onAddXP(50, 'FOCUS_CYCLE_MASTER_BONUS');
+        setCompleteToast('FOCUS_CYCLE_PROTOCOL_COMPLETE');
+        setTimeout(() => setCompleteToast(null), 3000);
+        setPhase('LONG_BREAK');
+        setTimeLeft(15 * 60);
+      } else {
+        setPhase('SHORT_BREAK');
+        setTimeLeft(timerMode === 'POMODORO' ? 5 * 60 : 10 * 60);
+      }
+      
+      setSessionsCompleted(prev => (prev + 1) % 4);
+      playPhaseSound(true);
+    } else {
+      // Break over
+      setPhase('WORK');
+      setTimeLeft(timerMode === 'POMODORO' ? 25 * 60 : 50 * 60);
+      playPhaseSound(false);
+    }
+    setIsActive(false);
+  };
+
+  useEffect(() => {
+    let interval: any = null;
+    if (isActive && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft(prev => prev - 1);
+      }, 1000);
+    } else if (timeLeft === 0) {
+      handleSessionComplete();
+    }
+    return () => clearInterval(interval);
+  }, [isActive, timeLeft, phase]);
+
+  const resetTimer = () => {
+    setIsActive(false);
+    setPhase('WORK');
+    setTimeLeft(getPhaseDuration('WORK', timerMode));
+    setSessionsCompleted(0);
+  };
+
+  const toggleTimer = () => {
+    setIsActive(!isActive);
+  };
+
+  const changeMode = (m: typeof timerMode) => {
+    setIsActive(false);
+    setTimerMode(m);
+    setPhase('WORK');
+    setTimeLeft(getPhaseDuration('WORK', m));
+    setSessionsCompleted(0);
+  };
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  return (
+    <div className="glass p-8 rounded-3xl border border-white/5 space-y-8 relative overflow-hidden">
+      <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+        <Clock size={120} className="text-white" />
+      </div>
+
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+             <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+             <span className="text-[10px] font-mono text-accent uppercase tracking-[0.4em] font-black">Focus_Protocol_Active</span>
+          </div>
+          <h3 className="text-3xl font-serif font-black text-white uppercase italic tracking-wider">AETHER_POMODORO</h3>
+          
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 w-fit">
+            <button 
+              onClick={() => changeMode('POMODORO')}
+              className={cn(
+                "px-4 py-2 rounded-lg text-[10px] font-mono font-black uppercase tracking-widest transition-all",
+                timerMode === 'POMODORO' ? "bg-white/10 text-text-p shadow-xl" : "text-text-m opacity-50 hover:opacity-100"
+              )}
+            >
+              POMODORO
+            </button>
+            <button 
+              onClick={() => changeMode('DEEP_WORK')}
+              className={cn(
+                "px-4 py-2 rounded-lg text-[10px] font-mono font-black uppercase tracking-widest transition-all",
+                timerMode === 'DEEP_WORK' ? "bg-white/20 text-accent shadow-xl" : "text-text-m opacity-50 hover:opacity-100"
+              )}
+            >
+              DEEP_WORK
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-4">
+           <div className="text-7xl font-mono font-black text-white text-glow-white tracking-tighter">
+             {formatTime(timeLeft)}
+           </div>
+           <div className="flex items-center gap-2">
+              <p className="text-[10px] font-mono text-text-m uppercase tracking-widest opacity-60">
+                 {phase === 'WORK' ? 'WORK_SESSION' : phase === 'SHORT_BREAK' ? 'SHORT_BREAK' : 'LONG_BREAK'}
+              </p>
+              <div className="flex gap-1.5 ml-4">
+                {[...Array(4)].map((_, i) => (
+                  <div 
+                    key={i} 
+                    className={cn(
+                      "w-2 h-2 rounded-full transition-all duration-500",
+                      i < sessionsCompleted ? "bg-accent shadow-[0_0_8px_rgba(255,51,102,0.6)]" : "bg-white/10 border border-white/5"
+                    )} 
+                  />
+                ))}
+              </div>
+           </div>
+        </div>
+
+        <div className="flex gap-3">
+           <button 
+            onClick={toggleTimer}
+            className={cn(
+              "px-8 py-3 rounded-xl font-mono text-xs font-black uppercase tracking-widest transition-all shadow-xl",
+              isActive ? "bg-white/5 text-text-p border border-white/20" : "bg-accent text-white accent-glow"
+            )}
+           >
+             {isActive ? 'PAUSE' : 'START_MISSION'}
+           </button>
+           <button 
+            onClick={resetTimer}
+            className="p-3 bg-white/5 border border-white/10 text-text-m hover:text-text-p rounded-xl transition-all"
+           >
+             <Eraser size={18} />
+           </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+         <div className="glass p-4 rounded-2xl border border-white/5 bg-black/40">
+            <p className="text-[8px] font-mono text-text-m uppercase tracking-widest mb-1">PROTOCOLS_LIFETIME</p>
+            <p className="text-xl font-mono font-black text-white">{stats?.pomodoroSessions || 0}</p>
+         </div>
+         <div className="glass p-4 rounded-2xl border border-white/5 bg-black/40">
+            <p className="text-[8px] font-mono text-text-m uppercase tracking-widest mb-1">PROTOCOLS_TODAY</p>
+            <p className="text-xl font-mono font-black text-accent text-glow-soft">{stats?.pomodoroToday || 0}</p>
+         </div>
+      </div>
+    </div>
+  );
+}
+
 function TemporalHub({ 
   tasks, 
   timeBlocks, 
@@ -3084,6 +4703,7 @@ function TemporalHub({
   addTimeBlock,
   deleteTimeBlock,
   updateTimeBlock,
+  updateTask,
   applyTemplate,
   setCompleteToast,
   settings,
@@ -3098,8 +4718,9 @@ function TemporalHub({
   onFocus: (task: Task) => void;
   onComplete: (task: Task) => void;
   addTimeBlock: (block: Omit<TimeBlock, 'id' | 'userId'>) => Promise<void>;
-  deleteTimeBlock: (id: string) => Promise<void>;
-  updateTimeBlock: (id: string, updates: Partial<TimeBlock>) => Promise<void>;
+  deleteTimeBlock: (id: string, source?: 'task' | 'block') => Promise<void>;
+  updateTimeBlock: (id: string, updates: Partial<TimeBlock>, source?: 'task' | 'block') => Promise<void>;
+  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
   applyTemplate: (templateId: string, date: Date) => Promise<void>;
   setCompleteToast: (msg: string | null) => void;
   settings: AppSettings | null;
@@ -3113,8 +4734,93 @@ function TemporalHub({
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState('');
   const [blockForm, setBlockForm] = useState<Partial<TimeBlock>>({ type: 'task' });
+  
+  const [draggingBlock, setDraggingBlock] = useState<{
+    id: string;
+    source: 'task' | 'block';
+    initialTop: number;
+    initialStartY: number;
+    initialStartTime: string;
+    initialEndTime: string;
+  } | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
 
   const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+
+  // Sync scheduled tasks into the timetable
+  const allBlocks = useMemo(() => {
+    const blocks = timeBlocks.map(b => ({ 
+      ...b, 
+      source: 'block' as const,
+      originalTask: null as Task | null
+    }));
+    
+    tasks.forEach(t => {
+      if (t.scheduledStart && t.scheduledEnd) {
+        blocks.push({
+          id: t.id,
+          userId: t.userId,
+          title: t.title,
+          type: 'task',
+          startTime: t.scheduledStart,
+          endTime: t.scheduledEnd,
+          completed: t.status === 'completed',
+          source: 'task' as const,
+          originalTask: t
+        } as any);
+      }
+    });
+    
+    return blocks;
+  }, [timeBlocks, tasks]);
+
+  useEffect(() => {
+    if (!draggingBlock) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaY = e.pageY - draggingBlock.initialStartY;
+      setDragOffset(deltaY);
+    };
+
+    const handleMouseUp = async () => {
+      if (!draggingBlock) return;
+
+      const finalOffsetMinutes = Math.round(dragOffset / 1.6);
+      if (finalOffsetMinutes === 0) {
+        setDraggingBlock(null);
+        setDragOffset(0);
+        return;
+      }
+
+      const start = parseISO(draggingBlock.initialStartTime);
+      const end = parseISO(draggingBlock.initialEndTime);
+      
+      const newStart = addMinutes(start, finalOffsetMinutes);
+      const newEnd = addMinutes(end, finalOffsetMinutes);
+
+      if (draggingBlock.source === 'block') {
+        await updateTimeBlock(draggingBlock.id, {
+          startTime: newStart.toISOString(),
+          endTime: newEnd.toISOString()
+        });
+      } else {
+        await updateTask(draggingBlock.id, {
+          scheduledStart: newStart.toISOString(),
+          scheduledEnd: newEnd.toISOString()
+        });
+      }
+
+      setDraggingBlock(null);
+      setDragOffset(0);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [draggingBlock, dragOffset, updateTimeBlock, updateTask]);
 
   const generateAITimetable = async (routine: string[]) => {
     if (!user) return;
@@ -3180,21 +4886,56 @@ function TemporalHub({
         const { writeBatch } = await import('firebase/firestore');
         const batch = writeBatch(db);
         
+        // Only clear BLOCKS, don't delete TASKS
         const todayBlocks = timeBlocks.filter(b => b.startTime.startsWith(todayStr));
         for (const b of todayBlocks) {
           batch.delete(doc(db, 'time_blocks', b.id));
         }
 
+        // Also clear existing scheduled times for tasks today to avoid overlaps or duplicates if they are rescheduled
+        const todayTasks = tasks.filter(t => t.scheduledStart?.startsWith(todayStr));
+        for (const t of todayTasks) {
+          batch.update(doc(db, 'tasks', t.id), { scheduledStart: null, scheduledEnd: null });
+        }
+
         for (const block of blocks) {
-          const newBlockRef = doc(collection(db, 'time_blocks'));
-          batch.set(newBlockRef, {
-            userId: user.uid,
-            title: block.title,
-            type: block.type,
-            startTime: block.startTime,
-            endTime: block.endTime,
-            completed: false
-          });
+          // Sync check: Does this block title match an existing pending task?
+          const matchingTask = pendingTasks.find(t => 
+            t.title.toLowerCase().includes(block.title.toLowerCase()) || 
+            block.title.toLowerCase().includes(t.title.toLowerCase())
+          );
+
+          if (block.type === 'task' && matchingTask) {
+            batch.update(doc(db, 'tasks', matchingTask.id), {
+              scheduledStart: block.startTime,
+              scheduledEnd: block.endTime
+            });
+          } else if (block.type === 'task') {
+            // It's a new task suggested by AI, create a Task doc instead of a TimeBlock
+            const newTaskRef = doc(collection(db, 'tasks'));
+            batch.set(newTaskRef, {
+              userId: user.uid,
+              title: block.title,
+              priority: 'medium',
+              status: 'pending',
+              category: 'learning',
+              estimate: differenceInMinutes(parseISO(block.endTime), parseISO(block.startTime)),
+              difficulty: 'medium',
+              scheduledStart: block.startTime,
+              scheduledEnd: block.endTime,
+              createdAt: new Date().toISOString()
+            });
+          } else {
+            const newBlockRef = doc(collection(db, 'time_blocks'));
+            batch.set(newBlockRef, {
+              userId: user.uid,
+              title: block.title,
+              type: block.type,
+              startTime: block.startTime,
+              endTime: block.endTime,
+              completed: false
+            });
+          }
         }
         
         await batch.commit();
@@ -3294,42 +5035,44 @@ function TemporalHub({
     const hours = Array.from({ length: 19 }, (_, i) => i + 5); // 5 AM to 11 PM
 
     return (
-      <div className="space-y-8 animate-in fade-in duration-500">
-        <div className="flex items-center justify-between">
-           <div className="flex items-center gap-6">
-              <div className="flex glass p-1 rounded-lg border border-white/5">
+      <div className="space-y-6 lg:space-y-8 animate-in fade-in duration-500">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+           <div className="flex flex-col md:flex-row md:items-center gap-4 lg:gap-6 overflow-x-auto no-scrollbar pb-2 md:pb-0">
+              <div className="flex glass p-1 rounded-lg border border-white/5 shrink-0">
                 {(['month', 'week', 'day'] as const).map(mode => (
                   <button key={mode} onClick={() => setViewMode(mode)} className={cn("px-4 py-1.5 rounded-md text-[10px] font-mono font-black uppercase transition-all", viewMode === mode ? "bg-accent text-white" : "text-text-m hover:text-text-p")}>{mode}</button>
                 ))}
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 shrink-0">
                  <button onClick={() => setCurrentDate(addDays(currentDate, viewMode === 'week' ? -7 : -1))} className="p-2 hover:bg-white/5 rounded-full text-text-m border border-white/5"><ChevronRight className="rotate-180" size={16} /></button>
-                 <span className="text-sm font-mono font-black uppercase tracking-widest">{viewMode === 'week' ? `Week of ${format(days[0], 'MMM do')}` : format(currentDate, 'EEEE, MMM do')}</span>
+                 <span className="text-[10px] lg:text-sm font-mono font-black uppercase tracking-widest whitespace-nowrap">{viewMode === 'week' ? `Week of ${format(days[0], 'MMM do')}` : format(currentDate, 'EEEE, MMM do')}</span>
                  <button onClick={() => setCurrentDate(addDays(currentDate, viewMode === 'week' ? 7 : 1))} className="p-2 hover:bg-white/5 rounded-full text-text-m border border-white/5"><ChevronRight size={16} /></button>
               </div>
            </div>
            
-           <div className="flex gap-4">
+           <div className="flex gap-2 lg:gap-4 overflow-x-auto no-scrollbar pb-2 xl:pb-0">
               <button 
                 onClick={() => setIsAIModalOpen(true)}
-                className="flex items-center gap-3 px-5 py-2 glass border border-accent/40 text-accent font-mono text-[10px] font-black uppercase tracking-widest hover:bg-accent/10 hover:border-accent transition-all rounded-lg accent-glow-soft group"
+                className="flex items-center gap-2 lg:gap-3 px-3 lg:px-5 py-2 glass border border-accent/40 text-accent font-mono text-[9px] lg:text-[10px] font-black uppercase tracking-widest hover:bg-accent/10 hover:border-accent transition-all rounded-lg accent-glow-soft group shrink-0"
               >
-                <Sparkles size={14} className="group-hover:animate-pulse" /> AI Scheduler
+                <Sparkles size={12} className="group-hover:animate-pulse" /> AI Scheduler
               </button>
               <button 
                 onClick={() => setIsTemplateModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 glass border border-cyan/30 text-cyan font-mono text-[10px] font-black uppercase tracking-widest hover:bg-cyan/10 transition-all rounded-lg"
+                className="flex items-center gap-2 px-3 lg:px-4 py-2 glass border border-cyan/30 text-cyan font-mono text-[9px] lg:text-[10px] font-black uppercase tracking-widest hover:bg-cyan/10 transition-all rounded-lg shrink-0"
               >
-                <LayoutGrid size={14} /> Templates
+                <LayoutGrid size={12} /> Templates
               </button>
               <button 
                 onClick={() => { setBlockForm({ startTime: format(new Date(), "yyyy-MM-dd'T'HH:mm"), endTime: format(addHours(new Date(), 1), "yyyy-MM-dd'T'HH:mm"), type: 'task' }); setIsBlockModalOpen(true); }}
-                className="flex items-center gap-2 px-4 py-2 bg-accent text-white font-mono text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-all rounded-lg accent-glow shadow-xl"
+                className="flex items-center gap-2 px-3 lg:px-4 py-2 bg-accent text-white font-mono text-[9px] lg:text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-all rounded-lg accent-glow shadow-xl shrink-0"
               >
-                <Plus size={14} /> Add Block
+                <Plus size={12} /> Add Block
               </button>
            </div>
         </div>
+
+        <FocusProtocol stats={stats} user={user} onAddXP={onAddXP} setCompleteToast={setCompleteToast} />
 
         <div className="relative glass rounded-3xl border border-white/5 overflow-hidden bg-black/20 flex min-h-[600px]">
            <AnimatePresence>
@@ -3368,7 +5111,7 @@ function TemporalHub({
              <div className="flex divide-x divide-white/5 min-w-full">
                 {days.map(day => {
                   const dayStr = format(day, 'yyyy-MM-dd');
-                  const dayBlocks = timeBlocks.filter(b => b.startTime.startsWith(dayStr));
+                  const dayBlocks = allBlocks.filter(b => b.startTime.startsWith(dayStr));
                   const isToday = isSameDay(day, new Date());
                   
                   return (
@@ -3381,8 +5124,11 @@ function TemporalHub({
                        {dayBlocks.map(block => {
                          const start = parseISO(block.startTime);
                          const end = parseISO(block.endTime);
-                         const top = ((start.getHours() - 5) * 60 + start.getMinutes()) * 1.6;
+                         const initialTop = ((start.getHours() - 5) * 60 + start.getMinutes()) * 1.6;
                          const height = differenceInMinutes(end, start) * 1.6;
+                         
+                         const isDragging = draggingBlock?.id === block.id;
+                         const top = isDragging ? initialTop + dragOffset : initialTop;
                          
                          const typeColors = {
                             task: 'border-warning bg-warning/10 text-warning',
@@ -3394,21 +5140,65 @@ function TemporalHub({
                          return (
                            <motion.div 
                              key={block.id}
-                             whileHover={{ scale: 1.02, zIndex: 10 }}
-                             onClick={() => { setBlockForm(block); setIsBlockModalOpen(true); }}
+                             whileHover={!draggingBlock ? { scale: 1.02, zIndex: 10 } : {}}
+                             onMouseDown={(e) => {
+                               e.stopPropagation();
+                               setDraggingBlock({
+                                 id: block.id,
+                                 source: (block as any).source || 'block',
+                                 initialTop,
+                                 initialStartY: e.pageY,
+                                 initialStartTime: block.startTime,
+                                 initialEndTime: block.endTime
+                               });
+                             }}
+                             onClick={() => { if (!draggingBlock) { setBlockForm(block); setIsBlockModalOpen(true); } }}
                              className={cn(
-                                "absolute left-2 right-2 rounded-xl border-t-4 p-3 glass flex flex-col justify-between overflow-hidden cursor-pointer",
-                                typeColors[block.type] || typeColors.task
+                                "absolute left-2 right-2 rounded-xl border-t-4 p-3 glass flex flex-col justify-between overflow-hidden cursor-grab active:cursor-grabbing select-none transition-shadow",
+                                typeColors[block.type] || typeColors.task,
+                                isDragging && "z-50 shadow-[0_0_40px_rgba(255,255,255,0.2)] opacity-90 scale-[1.02] border-white/40"
                              )}
                              style={{ top: `${top}px`, height: `${height}px` }}
                            >
                               <div className="space-y-1">
-                                 <p className="text-[8px] font-mono uppercase font-black tracking-widest opacity-60">{block.type}</p>
+                                 <div className="flex justify-between items-start">
+                                    <p className="text-[8px] font-mono uppercase font-black tracking-widest opacity-60">{(block as any).source === 'task' ? 'SYNCED_TASK' : block.type}</p>
+                                    {(block as any).completed && <CheckCircle2 size={10} className="text-success" />}
+                                 </div>
                                  <p className="text-xs font-bold leading-tight uppercase font-serif italic truncate">{block.title}</p>
                               </div>
                               <div className="flex justify-between items-center mt-2">
-                                 <span className="text-[8px] font-mono opacity-50">{format(start, 'HH:mm')}</span>
-                                 <button onClick={(e) => { e.stopPropagation(); deleteTimeBlock(block.id); }} className="hover:text-danger p-1"><Trash2 size={10} /></button>
+                                 <span className="text-[8px] font-mono opacity-50">
+                                   {format(isDragging ? addMinutes(start, Math.round(dragOffset/1.6)) : start, 'HH:mm')}
+                                 </span>
+                                 <div className="flex gap-2">
+                                   {(block as any).source === 'task' && !block.completed && (
+                                     <button 
+                                       onClick={(e) => { 
+                                         e.stopPropagation(); 
+                                         if ((block as any).originalTask) {
+                                           onComplete((block as any).originalTask);
+                                         }
+                                       }} 
+                                       className="hover:text-success p-1 opacity-40 hover:opacity-100"
+                                     >
+                                       <CheckCircle2 size={10} />
+                                     </button>
+                                   )}
+                                   <button 
+                                     onClick={(e) => { 
+                                       e.stopPropagation(); 
+                                       if ((block as any).source === 'block') {
+                                         deleteTimeBlock(block.id);
+                                       } else {
+                                         deleteTimeBlock(block.id, 'task');
+                                       }
+                                     }} 
+                                     className="hover:text-danger p-1 opacity-40 hover:opacity-100"
+                                   >
+                                     <Trash2 size={10} />
+                                   </button>
+                                 </div>
                               </div>
                            </motion.div>
                          );
@@ -3452,8 +5242,71 @@ function TemporalHub({
       </header>
 
       {viewMode === 'month' && renderMonthView()}
-      {viewMode === 'week' && renderTimetableView(eachDayOfInterval({ start: startOfWeek(currentDate), end: endOfWeek(currentDate) }))}
-      {viewMode === 'day' && renderTimetableView([currentDate])}
+      {(viewMode === 'week' || viewMode === 'day') && (
+        <div className="grid grid-cols-1 gap-6">
+          {/* Protocol Buffer (Unscheduled Tasks) */}
+          <div className="glass p-6 rounded-3xl border border-white/5 bg-white/2 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-cyan/2 rounded-full -translate-y-32 translate-x-32 blur-3xl" />
+            <div className="flex items-center justify-between mb-4 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-cyan/10 flex items-center justify-center border border-cyan/20">
+                  <Database size={16} className="text-cyan" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-mono font-black text-white uppercase tracking-[0.3em]">Protocol_Buffer</h3>
+                  <p className="text-[8px] font-mono text-text-m uppercase opacity-50">Pending Synchronization</p>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono text-text-m bg-white/5 px-2 py-1 rounded border border-white/5 italic">
+                {tasks.filter(t => t.status === 'pending' && !t.scheduledStart).length} PENDING_LOADS
+              </span>
+            </div>
+            
+            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar relative z-10 scroll-smooth">
+              {tasks.filter(t => t.status === 'pending' && !t.scheduledStart).length === 0 ? (
+                <div className="py-6 px-4 text-center w-full">
+                  <p className="text-[10px] font-mono text-text-s uppercase tracking-widest opacity-40">ALL_PROTOCOLS_SYNCHRONIZED</p>
+                </div>
+              ) : (
+                tasks.filter(t => t.status === 'pending' && !t.scheduledStart).map(task => (
+                  <motion.div 
+                    key={task.id} 
+                    whileHover={{ scale: 1.02, backgroundColor: 'rgba(0, 217, 255, 0.05)' }}
+                    onClick={() => { 
+                      const now = new Date();
+                      now.setMinutes(Math.round(now.getMinutes() / 15) * 15);
+                      const end = addMinutes(now, task.estimate || 30);
+                      setBlockForm({
+                        id: task.id,
+                        title: task.title,
+                        startTime: format(now, "yyyy-MM-dd'T'HH:mm"),
+                        endTime: format(end, "yyyy-MM-dd'T'HH:mm"),
+                        type: 'task',
+                        source: 'task'
+                      } as any);
+                      setIsBlockModalOpen(true);
+                    }}
+                    className="min-w-[200px] p-4 glass border border-white/10 rounded-2xl cursor-pointer hover:border-cyan/40 transition-all flex flex-col justify-between group/task bg-black/20"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-[8px] font-mono text-cyan uppercase font-black tracking-tighter opacity-70 group-hover/task:opacity-100 italic">SYSTEM_PENDING</span>
+                      <ChevronRight size={12} className="text-text-m opacity-0 group-hover/task:opacity-100 group-hover/task:translate-x-1 transition-all" />
+                    </div>
+                    <p className="text-sm font-serif font-black text-white italic uppercase tracking-tight truncate mb-2">{task.title}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-mono text-text-m opacity-50 uppercase">NODE_{task.category}</span>
+                      <span className="text-[9px] font-mono text-cyan font-black uppercase">{task.estimate}M</span>
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {viewMode === 'week' && renderTimetableView(eachDayOfInterval({ start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) }))}
+          {viewMode === 'day' && renderTimetableView([currentDate])}
+        </div>
+      )}
 
       <AnimatePresence>
         {isAIModalOpen && (
@@ -3507,7 +5360,14 @@ function TemporalHub({
                  </div>
                  <div className="flex gap-4 pt-4">
                     <button onClick={() => setIsBlockModalOpen(false)} className="flex-1 py-4 glass border border-white/10 text-text-m font-mono font-black uppercase rounded-xl hover:bg-white/5">Cancel</button>
-                    <button onClick={() => { if (blockForm.id) { updateTimeBlock(blockForm.id, blockForm); } else { addTimeBlock(blockForm as any); } setIsBlockModalOpen(true); }} className="flex-1 py-4 bg-accent text-white font-mono font-black uppercase rounded-xl accent-glow">{blockForm.id ? 'Update Sync' : 'Initialize'}</button>
+                    <button onClick={() => { 
+                      if (blockForm.id) { 
+                        updateTimeBlock(blockForm.id, blockForm, (blockForm as any).source); 
+                      } else { 
+                        addTimeBlock(blockForm as any); 
+                      } 
+                      setIsBlockModalOpen(false); 
+                    }} className="flex-1 py-4 bg-accent text-white font-mono font-black uppercase rounded-xl accent-glow">{blockForm.id ? 'Update Sync' : 'Initialize'}</button>
                  </div>
               </motion.div>
            </div>
@@ -3656,10 +5516,17 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
         createdAt: new Date().toISOString(),
         isReflection: usePrompt,
         wordCount,
-        promptId: usePrompt ? currentPrompt : undefined
+        promptId: usePrompt ? currentPrompt : undefined,
+        cognitiveSignature: await (async () => {
+          try {
+            return await analyzeJournalEntry(content);
+          } catch (e) {
+            console.error("AI Journal Analysis Failed", e);
+            return null;
+          }
+        })()
       };
 
-      const { writeBatch } = await import('firebase/firestore');
       const batch = writeBatch(db);
 
       if (todayEntry) {
@@ -4404,8 +6271,8 @@ function EvolutionMetric({
   );
 }
 
-function StatsView({ stats, user, tasks, journals, timeBlocks }: { stats: UserStats | null; user: User; tasks: Task[]; journals: JournalEntry[]; timeBlocks: TimeBlock[] }) {
-  const [activeSubTab, setActiveSubTab] = useState<'evolution' | 'achievements'>('evolution');
+function StatsView({ stats, user, tasks, journals, timeBlocks, onPurchasePerk }: { stats: UserStats | null; user: User; tasks: Task[]; journals: JournalEntry[]; timeBlocks: TimeBlock[]; onPurchasePerk: (perkId: string) => void }) {
+  const [activeSubTab, setActiveSubTab] = useState<'evolution' | 'achievements' | 'perks'>('evolution');
   const [filter, setFilter] = useState<'all' | 'earned' | 'locked'>('all');
   const [rarityFilter, setRarityFilter] = useState<Achievement['rarity'] | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<Achievement['category'] | 'all'>('all');
@@ -4522,10 +6389,10 @@ function StatsView({ stats, user, tasks, journals, timeBlocks }: { stats: UserSt
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
            <h1 className="text-4xl font-serif font-black text-text-p uppercase tracking-[0.2em] font-mono italic">
-             {activeSubTab === 'evolution' ? 'NEURAL_EVOLUTION' : 'SYST_ARCHIVE'}
+             {activeSubTab === 'evolution' ? 'NEURAL_EVOLUTION' : activeSubTab === 'achievements' ? 'SYST_ARCHIVE' : 'NEURAL_PERKS'}
            </h1>
            <p className="text-[10px] font-mono text-text-m uppercase tracking-[0.5em] opacity-40">
-             {activeSubTab === 'evolution' ? 'MONTH_OVER_MONTH_SYNC_ANALYSIS' : `Neural_Growth: ${completionRate}% Complete`}
+             {activeSubTab === 'evolution' ? 'MONTH_OVER_MONTH_SYNC_ANALYSIS' : activeSubTab === 'achievements' ? `Neural_Growth: ${completionRate}% Complete` : 'PURCHASE_CRITICAL_SYSTEM_UPGRADES'}
            </p>
         </div>
         <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
@@ -4541,10 +6408,16 @@ function StatsView({ stats, user, tasks, journals, timeBlocks }: { stats: UserSt
            >
              Archive
            </button>
+           <button 
+             onClick={() => setActiveSubTab('perks')}
+             className={cn("px-4 py-2 rounded-lg font-mono text-[10px] font-black uppercase tracking-widest transition-all", activeSubTab === 'perks' ? "bg-accent text-white" : "text-text-m hover:text-white")}
+           >
+             Perks
+           </button>
         </div>
       </div>
 
-      {activeSubTab === 'evolution' ? (
+      {activeSubTab === 'evolution' && (
         <div className="space-y-12">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <EvolutionMetric label="Routine_Sync (Habits)" current={curHabits} previous={prevHabits} icon={<Flame size={20} />} />
@@ -4571,7 +6444,9 @@ function StatsView({ stats, user, tasks, journals, timeBlocks }: { stats: UserSt
              </div>
           </div>
         </div>
-      ) : (
+      )}
+
+      {activeSubTab === 'achievements' && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
              <div className="glass p-6 rounded-2xl border-b-4 border-accent bg-accent/5">
@@ -4647,6 +6522,71 @@ function StatsView({ stats, user, tasks, journals, timeBlocks }: { stats: UserSt
             </div>
           </div>
         </>
+      )}
+
+      {activeSubTab === 'perks' && (
+        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-20">
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {PERKS.map((perk, i) => {
+                const isUnlocked = stats.unlockedPerks?.includes(perk.id);
+                const canAfford = (stats.coins || 0) >= perk.cost;
+                
+                return (
+                  <motion.div 
+                    key={perk.id}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.1 }}
+                    className={cn(
+                      "glass p-8 rounded-[2.5rem] border flex flex-col justify-between group transition-all relative overflow-hidden h-80",
+                      isUnlocked ? "border-success/30 bg-success/5 shadow-[0_0_30px_rgba(34,197,94,0.1)]" : "border-white/5 hover:border-accent/40"
+                    )}
+                  >
+                    <div className="absolute top-0 right-0 p-8 opacity-5 grayscale group-hover:grayscale-0 group-hover:scale-125 transition-all">
+                       {perk.icon}
+                    </div>
+                    
+                    <div className="space-y-4 relative z-10">
+                       <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "p-3 rounded-2xl",
+                            isUnlocked ? "bg-success/20 text-success shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "bg-white/5 text-accent"
+                          )}>
+                             {perk.icon}
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-serif font-black text-white italic transition-colors group-hover:text-accent uppercase">{perk.name}</h3>
+                            <p className="text-[10px] font-mono text-text-m uppercase opacity-60 font-black">COST_{perk.cost}_CR</p>
+                          </div>
+                       </div>
+                       <p className="text-sm font-mono leading-relaxed text-text-m group-hover:text-text-p transition-colors">{perk.description}</p>
+                    </div>
+
+                    <button 
+                      disabled={isUnlocked || !canAfford}
+                      onClick={() => onPurchasePerk(perk.id)}
+                      className={cn(
+                        "w-full py-4 rounded-2xl font-mono text-[10px] font-black uppercase tracking-widest transition-all relative z-10",
+                        isUnlocked ? "bg-success/10 text-success border border-success/20 cursor-default" :
+                        canAfford ? "bg-white text-black hover:bg-accent hover:text-white" :
+                        "bg-white/5 text-text-m border border-white/10 opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      {isUnlocked ? "PROTOCOL_ACTIVE" : canAfford ? "AUTHORIZE_SYNAPSE_PURGE" : "INSUFFICIENT_CREDITS"}
+                    </button>
+                  </motion.div>
+                );
+              })}
+           </div>
+
+           <div className="glass p-12 rounded-[3.5rem] border border-white/5 text-center space-y-6 relative overflow-hidden bg-accent/5">
+              <Network size={48} className="mx-auto text-accent animate-pulse" />
+              <div className="space-y-2">
+                 <h3 className="text-3xl font-serif font-black text-white italic uppercase tracking-widest">Neural_Pathways</h3>
+                 <p className="text-xs font-mono text-text-m uppercase max-w-lg mx-auto opacity-60">Perks provide permanent cognitive enhancements. These upgrades are integrated directly into the Aether_OS Kernel and cannot be revoked once active.</p>
+              </div>
+           </div>
+        </div>
       )}
     </div>
   );
@@ -5189,6 +7129,8 @@ function SettingsView({ settings, stats, user, onUpdate }: { settings: AppSettin
          </div>
          <p className="text-[8px] font-mono text-text-m uppercase tracking-widest">© 2026 DEEP_NEURAL_SOLUTIONS. ALL_RIGHTS_RESERVED.</p>
       </footer>
+      <Analytics />
+      <SpeedInsights />
     </div>
   );
 }
