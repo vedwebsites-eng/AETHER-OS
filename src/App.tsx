@@ -17,7 +17,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon, ListOrdered, Heading1, Heading2, Link as LinkIcon, Eraser, Type, Palette,
   ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download, Briefcase,
   Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
-  Mail, Lock, Users, Globe, Network, Cpu, Brain
+  Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -993,6 +993,7 @@ export default function App() {
   const [terminalLogs, setTerminalLogs] = useState<{ id: string; msg: string; type: 'info' | 'warn' | 'error' | 'success'; time: string }[]>([]);
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [isNodeRecalibrating, setIsNodeRecalibrating] = useState(false);
+  const [isNavExpanded, setIsNavExpanded] = useState(false);
 
   const addToTerminal = (msg: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -2130,7 +2131,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-text-p selection:bg-accent selection:text-white cyber-grid">
+    <div className={cn(
+      "min-h-screen text-text-p selection:bg-accent selection:text-white transition-colors duration-500",
+      settings?.display.theme === 'light' ? "bg-background light" : "bg-background cyber-grid"
+    )}>
       {/* Node Recalibration Overlay */}
       <AnimatePresence>
         {isNodeRecalibrating && (
@@ -2171,20 +2175,46 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* How To Button */}
-      <button 
-        onClick={() => setIsManualOpen(true)}
-        className="fixed top-6 right-6 lg:top-8 lg:right-8 z-[60] flex items-center gap-2 glass px-4 py-2 rounded-full border border-white/10 text-[10px] font-mono font-black text-text-m hover:text-cyan hover:border-cyan/50 hover:bg-cyan/5 transition-all group shadow-2xl backdrop-blur-xl"
-      >
-        <HelpCircle size={14} className="group-hover:rotate-12 transition-transform" />
-        HOW_TO
-      </button>
+      {/* Control Panel Buttons */}
+      <div className="fixed top-6 right-6 lg:top-8 lg:right-8 z-[60] flex items-center gap-3">
+        {/* Dark/Light Mode Toggle */}
+        <button 
+          onClick={() => {
+            const nextTheme = settings?.display.theme === 'light' ? 'cyberpunk' : 'light';
+            updateSettings({ display: { ...settings!.display, theme: nextTheme } });
+          }}
+          className="glass w-10 h-10 lg:w-12 lg:h-12 rounded-full flex items-center justify-center border border-white/10 text-white hover:text-cyan hover:border-cyan/50 hover:bg-cyan/5 transition-all group shadow-2xl backdrop-blur-xl"
+        >
+          {settings?.display.theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+        </button>
+
+        {/* How To Button */}
+        <button 
+          onClick={() => setIsManualOpen(true)}
+          className="flex items-center gap-2 glass px-4 py-2 h-10 lg:h-12 rounded-full border border-white/10 text-[10px] font-mono font-black text-text-m hover:text-cyan hover:border-cyan/50 hover:bg-cyan/5 transition-all group shadow-2xl backdrop-blur-xl"
+        >
+          <HelpCircle size={14} className="group-hover:rotate-12 transition-transform" />
+          HOW_TO
+        </button>
+      </div>
 
       {/* Sidebar / Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 lg:left-0 lg:top-0 lg:bottom-0 lg:w-20 glass border-t lg:border-t-0 lg:border-r border-border-subtle z-50 flex lg:flex-col items-center justify-start lg:justify-center gap-2 lg:gap-8 min-h-[72px] lg:h-auto py-2 lg:py-8 px-4 lg:px-0 overflow-x-auto lg:overflow-x-hidden no-scrollbar premium-transition">
-        <NavButton active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<HardDrive size={20} className="lg:w-6 lg:h-6" />} label="CORE_COMMAND" />
-        <NavButton active={activeTab === 'tasks'} onClick={() => handleTabChange('tasks')} icon={<CheckCircle2 size={20} className="lg:w-6 lg:h-6" />} label="DAILY_SYNC" />
+      <nav className={cn(
+        "fixed bottom-0 left-0 right-0 lg:left-0 lg:top-0 lg:bottom-0 glass border-t lg:border-t-0 lg:border-r border-border-subtle z-50 flex lg:flex-col items-center justify-start lg:justify-start gap-2 lg:gap-2 min-h-[72px] lg:h-auto py-2 lg:py-8 px-4 lg:px-4 overflow-x-auto lg:overflow-x-hidden no-scrollbar transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+        isNavExpanded ? "lg:w-64" : "lg:w-20"
+      )}>
+        {/* Menu Toggle for Desktop */}
+        <button 
+          onClick={() => setIsNavExpanded(!isNavExpanded)}
+          className="hidden lg:flex p-3 text-text-m hover:text-white transition-colors mb-8 self-center lg:self-start lg:ml-1 group"
+        >
+          <Menu size={20} className={cn("lg:w-6 lg:h-6 transition-transform", isNavExpanded && "rotate-90 text-accent")} />
+        </button>
+
+        <NavButton isExpanded={isNavExpanded} active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<HardDrive size={20} className="lg:w-6 lg:h-6" />} label="CORE_COMMAND" />
+        <NavButton isExpanded={isNavExpanded} active={activeTab === 'tasks'} onClick={() => handleTabChange('tasks')} icon={<CheckCircle2 size={20} className="lg:w-6 lg:h-6" />} label="DAILY_SYNC" />
         <NavButton 
+          isExpanded={isNavExpanded}
           active={activeTab === 'timetable'} 
           onClick={() => handleTabChange('timetable')} 
           icon={<Calendar size={20} className="lg:w-6 lg:h-6" />} 
@@ -2192,25 +2222,29 @@ export default function App() {
           badge="AI"
         />
         <NavButton 
+          isExpanded={isNavExpanded}
           active={activeTab === 'routineMatrix'} 
           onClick={() => handleTabChange('routineMatrix')} 
           icon={<Cpu size={20} className="lg:w-6 lg:h-6" />} 
           label="ROUTINE_MATRIX" 
         />
-        <NavButton active={activeTab === 'journal'} onClick={() => handleTabChange('journal')} icon={<Book size={20} className="lg:w-6 lg:h-6" />} label="NEURAL_ARCHIVE" />
+        <NavButton isExpanded={isNavExpanded} active={activeTab === 'journal'} onClick={() => handleTabChange('journal')} icon={<Book size={20} className="lg:w-6 lg:h-6" />} label="NEURAL_ARCHIVE" />
         <NavButton 
+          isExpanded={isNavExpanded}
           active={activeTab === 'lifeSync'} 
           onClick={() => handleTabChange('lifeSync')} 
           icon={<Network size={20} className="lg:w-6 lg:h-6" />} 
           label="LIFE_SYNC" 
         />
         <NavButton 
+          isExpanded={isNavExpanded}
           active={activeTab === 'stats'} 
           onClick={() => handleTabChange('stats')} 
           icon={<TrendingUp size={20} className="lg:w-6 lg:h-6" />} 
           label="NEURAL_EVOLUTION" 
         />
         <NavButton 
+          isExpanded={isNavExpanded}
           active={activeTab === 'shop'} 
           onClick={() => handleTabChange('shop')} 
           icon={<ShoppingBag size={20} className="lg:w-6 lg:h-6" />} 
@@ -2219,6 +2253,7 @@ export default function App() {
           unlockLevel={20}
         />
         <NavButton 
+          isExpanded={isNavExpanded}
           active={activeTab === 'settings'} 
           onClick={() => handleTabChange('settings')} 
           icon={<Settings size={20} className="lg:w-6 lg:h-6" />} 
@@ -2227,14 +2262,25 @@ export default function App() {
         
         <button 
           onClick={() => signOut(auth)}
-          className="p-3 text-text-m hover:text-danger transition-colors lg:mt-auto group shrink-0"
+          className={cn(
+            "p-3 text-text-m hover:text-danger transition-all lg:mt-auto group shrink-0 flex items-center gap-3 w-full rounded-xl lg:rounded-none",
+            isNavExpanded ? "px-4" : "justify-center"
+          )}
         >
           <LogOut size={20} className="lg:w-6 lg:h-6 group-hover:scale-110 transition-transform" />
+          {isNavExpanded && (
+            <span className="text-[10px] font-mono font-black uppercase text-text-m group-hover:text-danger hidden lg:block tracking-widest">
+              TERMINATE_SESSION
+            </span>
+          )}
           <span className="sr-only">TERMINATE_SESSION</span>
         </button>
       </nav>
 
-      <main className="pb-32 lg:pb-8 lg:pl-28 pt-4 lg:pt-8 px-4 max-w-7xl mx-auto">
+      <main className={cn(
+        "pb-32 lg:pb-8 pt-4 lg:pt-8 px-4 max-w-7xl mx-auto transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+        isNavExpanded ? "lg:pl-[18rem]" : "lg:pl-28"
+      )}>
         {activeTab !== 'dashboard' && (
           <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 lg:mb-12 gap-4 lg:gap-6 glass p-4 lg:p-6 rounded-xl border border-border-subtle premium-transition">
             <div className="flex items-center gap-3 lg:gap-4">
@@ -2582,16 +2628,17 @@ function AITimetableModal({
 
 // --- Components ---
 
-function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; locked?: boolean; unlockLevel?: number; badge?: string }) {
+function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge, isExpanded }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; locked?: boolean; unlockLevel?: number; badge?: string; isExpanded?: boolean }) {
   return (
     <button 
       onClick={locked ? undefined : onClick}
       className={cn(
-        "relative p-3 transition-all group shrink-0",
-        active ? "text-accent" : (locked ? "text-text-s/30 cursor-not-allowed" : "text-text-m hover:text-text-p")
+        "relative p-3 transition-all group shrink-0 flex items-center gap-3 w-full rounded-xl lg:rounded-none lg:bg-transparent",
+        active ? "text-accent bg-accent/5 lg:bg-transparent" : (locked ? "text-text-s/30 cursor-not-allowed" : "text-text-m hover:text-text-p hover:bg-white/5 lg:hover:bg-transparent"),
+        isExpanded ? "px-4" : "justify-center"
       )}
     >
-      <div className={cn(active && "accent-glow text-accent", locked && "opacity-40 grayscale")}>
+      <div className={cn("relative z-10", active && "accent-glow text-accent", locked && "opacity-40 grayscale")}>
         {icon}
         {badge && (
           <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-accent text-white text-[7px] font-mono font-black rounded-sm border border-white/20 animate-pulse">
@@ -2604,16 +2651,37 @@ function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge }:
           </div>
         )}
       </div>
-      <span className={cn(
-        "absolute left-full ml-4 px-2 py-1 text-[10px] uppercase font-bold opacity-0 group-hover:opacity-100 transition-opacity hidden lg:block whitespace-nowrap pointer-events-none z-50",
-        locked ? "bg-black/60 text-text-m border border-white/10" : "bg-accent text-white"
-      )}>
-        {locked ? `LOCKED (LVL ${unlockLevel})` : label}
-      </span>
+      
+      {isExpanded && (
+        <motion.span 
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          className={cn(
+            "text-[10px] uppercase font-bold tracking-widest whitespace-nowrap hidden lg:block overflow-hidden transition-all duration-300",
+            locked ? "text-text-s/50" : (active ? "text-accent" : "text-text-m")
+          )}
+        >
+          {locked ? `LOCKED (LVL ${unlockLevel})` : label}
+        </motion.span>
+      )}
+
+      {/* Legacy Tooltip behavior when not expanded */}
+      {!isExpanded && (
+        <span className={cn(
+          "absolute left-full ml-4 px-2 py-1 text-[10px] uppercase font-bold opacity-0 group-hover:opacity-100 transition-opacity hidden lg:block whitespace-nowrap pointer-events-none z-50",
+          locked ? "bg-black/60 text-text-m border border-white/10" : "bg-accent text-white"
+        )}>
+          {locked ? `LOCKED (LVL ${unlockLevel})` : label}
+        </span>
+      )}
+
       {active && (
         <motion.div 
           layoutId="nav-pill"
-          className="absolute inset-0 bg-accent/10 lg:bg-transparent lg:border-r-2 lg:border-accent -right-4 lg:right-[-2px]"
+          className={cn(
+            "absolute inset-0 bg-accent/10 transition-all",
+            !isExpanded && "lg:bg-transparent lg:border-r-2 lg:border-accent -right-4 lg:right-[-2px]"
+          )}
         />
       )}
     </button>
@@ -4489,6 +4557,11 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
           title: "NEURAL_ARCHIVE",
           description: "High-fidelity journaling. Use Markdown for structured logging. Mood-tagging initializes sentiment-analysis logs that track emotional density over long arcs.",
           icon: <Book size={18} className="text-purple-400" />
+        },
+        {
+          title: "ROUTINE_MATRIX",
+          description: "Full habit synchronization unit. Monitor consistency with the 52-week global grid. Habits yield XP scaled by category importance (Health: 1.2x, Learning: 1.1x).",
+          icon: <Cpu size={18} className="text-cyan" />
         }
       ]
     },
@@ -4534,6 +4607,11 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
           title: "NEURAL_SHOP",
           description: "Expend hard-earned Credits (CR) to unlock custom visual interfaces, legacy badges, and experimental difficulty mods.",
           icon: <ShoppingBag size={18} className="text-success" />
+        },
+        {
+          title: "WHEEL_AUTO_SYNC",
+          description: "Habit protocols now silently synchronize with the 'Wheel of Life'. Completing categorized habits boosts corresponding axes (e.g. Routine -> Sleep) in real-time.",
+          icon: <Network size={18} className="text-indigo-400" />
         }
       ]
     },
@@ -7390,7 +7468,6 @@ function SettingsView({ settings, stats, user, onUpdate }: { settings: AppSettin
   const categories = [
     { id: 'profile', label: 'IDENTITY_CORE', icon: <UserIcon size={16} />, color: 'text-accent' },
     { id: 'gameplay', label: 'OPERATION_LOGIC', icon: <Zap size={16} />, color: 'text-warning' },
-    { id: 'interface', label: 'VISUAL_SYNC', icon: <Palette size={16} />, color: 'text-cyan' },
     { id: 'notifications', label: 'COMMS_PROTOCOLS', icon: <Bell size={16} />, color: 'text-success' },
     { id: 'data', label: 'SYSTEM_MEMORY', icon: <HardDrive size={16} />, color: 'text-text-m' },
   ] as const;
@@ -7569,89 +7646,7 @@ function SettingsView({ settings, stats, user, onUpdate }: { settings: AppSettin
             </motion.section>
           )}
 
-          {activeCategory === 'interface' && (
-            <motion.section 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="space-y-8"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="glass p-8 rounded-[3rem] border border-white/5 space-y-8">
-                  <h4 className="text-xs font-mono font-black text-cyan uppercase tracking-widest flex items-center gap-2">
-                    <Palette size={14} />
-                    VISUAL_CORE
-                  </h4>
-                  
-                  <div className="space-y-6">
-                    <div className="space-y-3">
-                       <label className="text-[10px] font-mono text-text-m font-black uppercase tracking-widest">UI_THEME_NODE</label>
-                       <div className="grid grid-cols-2 gap-2">
-                         {['CYBERPUNK', 'MINIMAL', 'OLED_DEEP', 'PHANTOM'].map(t => (
-                           <button 
-                             key={t}
-                             className={cn(
-                               "py-3 font-mono text-[9px] font-black uppercase rounded-xl border transition-all",
-                               t === 'CYBERPUNK' ? "bg-cyan text-black border-cyan" : "bg-white/5 border-white/10 text-text-m hover:bg-white/10"
-                             )}
-                           >
-                             {t}
-                           </button>
-                         ))}
-                       </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-mono text-text-m font-black uppercase tracking-widest">TEMPORAL_FORMAT</label>
-                      <div className="flex gap-2">
-                        {['12h', '24h'].map(f => (
-                          <button
-                            key={f}
-                            onClick={() => onUpdate({ display: { ...settings.display, timeFormat: f as any } })}
-                            className={cn(
-                              "flex-1 py-3 font-mono text-[10px] font-black uppercase rounded-xl border transition-all",
-                              settings.display.timeFormat === f ? "bg-white text-black border-white" : "bg-white/2 border-white/5 text-text-m"
-                            )}
-                          >
-                            {f}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="glass p-8 rounded-[3rem] border border-white/5 space-y-8">
-                   <h4 className="text-xs font-mono font-black text-accent uppercase tracking-widest flex items-center gap-2">
-                    <Sparkles size={14} />
-                    EFFECT_RENDERER
-                  </h4>
-
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                       <span className="text-[10px] font-mono text-text-p uppercase font-black">XP_PARTICLE_LOAD</span>
-                       <Toggle active={settings.ui.showXpPopups} onChange={() => onUpdate({ ui: { ...settings.ui, showXpPopups: !settings.ui.showXpPopups } })} />
-                    </div>
-                    <div className="flex items-center justify-between">
-                       <span className="text-[10px] font-mono text-text-p uppercase font-black">ACHIEVEMENT_GLOW</span>
-                       <Toggle active={true} onChange={() => {}} />
-                    </div>
-                    <div className="space-y-3">
-                       <label className="text-[10px] font-mono text-text-m uppercase font-black tracking-widest">ANIM_RESOURCES</label>
-                       <select 
-                         value={settings.ui.animations}
-                         onChange={(e) => onUpdate({ ui: { ...settings.ui, animations: e.target.value as any } })}
-                         className="w-full bg-black/40 border border-white/10 p-4 rounded-2xl font-mono text-xs text-white outline-none"
-                       >
-                         <option value="full">MAX_FIDELITY</option>
-                         <option value="reduced">BALANCED_FLOW</option>
-                         <option value="none">STATIC_OPTIMIZED</option>
-                       </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.section>
-          )}
+          {/* No interface section here anymore */}
 
           {activeCategory === 'notifications' && (
             <motion.section 

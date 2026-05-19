@@ -1,12 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap');
 @import "tailwindcss";
 
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
-  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
-
-  /* Elegant Dark Color Palette */
+:root {
   --color-background: #050505;
   --color-card: #111111;
   --color-background-raised: #111111;
@@ -23,6 +18,47 @@
   --color-success: #00CC44;
   --color-warning: #FFB700;
   --color-danger: #FF3D3D;
+}
+
+.light {
+  --color-background: #F8FAFC;
+  --color-card: #FFFFFF;
+  --color-background-raised: #FFFFFF;
+  --color-background-nested: #F1F5F9;
+  --color-border-subtle: #CBD5E1;
+  
+  --color-text-p: #0F172A;
+  --color-text-s: #334155;
+  --color-text-m: #475569;
+
+  --color-accent: #EA580C;
+  --color-cyan: #0284C7;
+  --color-success: #16A34A;
+  --color-warning: #D97706;
+  --color-danger: #DC2626;
+}
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+
+  --color-background: var(--color-background);
+  --color-card: var(--color-card);
+  --color-background-raised: var(--color-background-raised);
+  --color-background-nested: var(--color-background-nested);
+  --color-border-subtle: var(--color-border-subtle);
+  
+  --color-accent: var(--color-accent);
+  --color-cyan: var(--color-cyan);
+  
+  --color-text-p: var(--color-text-p);
+  --color-text-s: var(--color-text-s);
+  --color-text-m: var(--color-text-m);
+  
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger: var(--color-danger);
 
   /* Custom Animations */
   --animate-text-glow: text-glow 2s ease-in-out infinite alternate;
@@ -165,4 +201,39 @@
   border: 1px solid rgba(0, 217, 255, 0.2);
   @apply animate-border-glow;
 }
+
+.light .glass {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+}
+
+.light .cyber-grid {
+  background-image: 
+    linear-gradient(rgba(15, 23, 42, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* Force text-white to be text-text-p in light mode for common usage */
+.light .text-white { color: var(--color-text-p) !important; }
+.light .text-text-m { color: var(--color-text-s); } /* Boost visibility of medium text */
+.light .bg-white\/5 { background-color: rgba(15, 23, 42, 0.05) !important; }
+.light .bg-white\/2 { background-color: rgba(15, 23, 42, 0.02) !important; }
+.light .border-white\/10 { border-color: rgba(15, 23, 42, 0.1) !important; }
+.light .border-white\/5 { border-color: rgba(15, 23, 42, 0.05) !important; }
+.light .bg-black\/40 { background-color: rgba(255, 255, 255, 0.6) !important; }
+.light .bg-black\/60 { background-color: rgba(255, 255, 255, 0.8) !important; }
+
+/* Ensure primary buttons and badges that use text-white on dark backgrounds stay white */
+.light .bg-accent .text-white,
+.light .bg-cyan .text-white,
+.light .bg-success .text-white,
+.light .bg-danger .text-white,
+.light .bg-accent.text-white,
+.light .bg-cyan.text-white {
+  color: #FFFFFF !important;
+}
+
 
