@@ -28,6 +28,9 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, addDays, isPast, isFuture, parseISO, startOfDay, addHours, addMinutes, differenceInMinutes, isWithinInterval, subDays, startOfYesterday } from 'date-fns';
 import { ResponsiveContainer, BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip, CartesianGrid, Cell, PieChart as RePieChart, Pie } from 'recharts';
 import { cn } from './lib/utils';
+import { EmptyState } from './components/EmptyState';
+import { WeeklyDebriefModal } from './components/WeeklyDebriefModal';
+import { OnboardingModal } from './components/OnboardingModal';
 
 // --- Types ---
 type AppTab = 'dashboard' | 'tasks' | 'lifeSync' | 'journal' | 'stats' | 'timetable' | 'routineMatrix' | 'shop' | 'settings';
@@ -171,6 +174,17 @@ interface AppSettings {
     streakReminders: boolean;
   };
   aiRoutine?: string[];
+  onboardingComplete?: boolean;
+}
+
+interface WeeklyReview {
+  id: string;
+  userId: string;
+  wentWell: string;
+  didntGo: string;
+  nextWeekFocus: string;
+  week: string;
+  createdAt: string;
 }
 
 interface UserStats {
@@ -982,6 +996,10 @@ export default function App() {
   const [motivationItems, setMotivationItems] = useState<MotivationItem[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
+  const [weeklyReviews, setWeeklyReviews] = useState<WeeklyReview[]>([]);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isDebriefModalOpen, setIsDebriefModalOpen] = useState(false);
+  const [syncFailed, setSyncFailed] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [xpNotifications, setXpNotifications] = useState<XPNotification[]>([]);
@@ -1020,6 +1038,126 @@ export default function App() {
       addToTerminal(`SYSTEM_BOOT_SEQUENCE_COMPLETE: NODE_${user.uid.slice(0, 8)} CONNECTED`, 'success');
     }
   }, [user]);
+
+  // Helper For ISO Week Calculation
+  const getISOWeekString = (date: Date) => {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return `${d.getUTCFullYear()}-W${weekNo}`;
+  };
+
+  const lastActiveDays = useMemo(() => {
+    if (!stats?.lastActiveDate) return 0;
+    const diffTime = Math.abs(new Date().getTime() - new Date(stats.lastActiveDate).getTime());
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  }, [stats?.lastActiveDate]);
+
+  const handleReactivateProtocol = async () => {
+    if (!user || !stats) return;
+    try {
+      const statsRef = doc(db, 'user_stats', user.uid);
+      await updateDoc(statsRef, {
+        lastActiveDate: new Date().toISOString(),
+      });
+      await addXP(50, 'REACTIVATE_PROTOCOL');
+      setCompleteToast('SYSTEM_REACTIVATED_PROTOCOL_READY');
+      setIsMotivationPortalOpen(true);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleOnboardingComplete = async (
+    displayName: string,
+    difficulty: 'easy' | 'normal' | 'hard',
+    initialTaskTitle: string,
+    wheelTarget: Record<string, number>
+  ) => {
+    if (!user || !stats || !settings) return;
+    try {
+      await updateProfile(auth.currentUser!, { displayName });
+      const newTaskRef = doc(collection(db, 'tasks'));
+      await setDoc(newTaskRef, {
+        userId: user.uid,
+        title: initialTaskTitle,
+        priority: 'medium',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        category: 'work',
+        estimate: 30,
+        subTasks: []
+      });
+
+      const statsRef = doc(db, 'user_stats', user.uid);
+      await updateDoc(statsRef, {
+        'lifeSync.current': wheelTarget,
+        'lifeSync.lastSaved': new Date().toISOString().split('T')[0]
+      });
+      await addXP(50, 'NEURAL_ONBOARDING_SEQUENCE_SUCCESS');
+
+      const settingsRef = doc(db, 'user_settings', user.uid);
+      await updateDoc(settingsRef, {
+        onboardingComplete: true,
+        difficultyMultiplier: difficulty === 'easy' ? 0.8 : difficulty === 'hard' ? 1.2 : 1.0
+      });
+
+      setIsOnboardingOpen(false);
+      setCompleteToast('ONBOARDING_COMPLETE_PROTOCOL_SYNCHRONIZED');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSaveDebrief = async (wentWell: string, didntGo: string, focus: string) => {
+    if (!user || !stats) return;
+    try {
+      const today = new Date();
+      const weekKey = getISOWeekString(today);
+      const newReviewRef = doc(collection(db, 'weekly_reviews'));
+      
+      const reviewData = {
+        userId: user.uid,
+        wentWell,
+        didntGo,
+        nextWeekFocus: focus,
+        week: weekKey,
+        createdAt: today.toISOString()
+      };
+
+      await setDoc(newReviewRef, reviewData);
+      await addXP(100, 'DEBRIEF_PROTOCOL_COMPLETED');
+      setCompleteToast('DEBRIEF_SAVED_TRAJECTORY_ALIGNMENT_AWARD_XP');
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Trigger Weekly Review Check
+  useEffect(() => {
+    if (user && weeklyReviews.length >= 0) {
+      const today = new Date();
+      if (today.getDay() === 0) {
+        const weekKey = getISOWeekString(today);
+        const alreadyDone = weeklyReviews.some(r => r.week === weekKey);
+        if (!alreadyDone) {
+          setIsDebriefModalOpen(true);
+        }
+      }
+    }
+  }, [user, weeklyReviews]);
+
+  // Trigger Onboarding Check
+  useEffect(() => {
+    if (stats && settings) {
+      const isNewUser = (stats.totalTasksCompleted === 0) && (!settings.onboardingComplete);
+      if (isNewUser) {
+        setIsOnboardingOpen(true);
+      }
+    }
+  }, [stats, settings]);
 
   useEffect(() => {
     if (user && stats) {
@@ -1320,6 +1458,34 @@ export default function App() {
       unsubHabits();
       unsubLogs();
     };
+  }, [user]);
+
+  // Fetch Weekly Reviews
+  useEffect(() => {
+    if (!user) {
+      setWeeklyReviews([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'weekly_reviews'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      setWeeklyReviews(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WeeklyReview)));
+      if (syncFailed) {
+        setSyncFailed(false);
+        setCompleteToast('DATA_SYNC_RESTORED');
+      }
+    }, (err) => {
+      console.error('FIRESTORE_SYNC_FAILED: ' + err.message);
+      setSyncFailed(true);
+      handleFirestoreError(err, OperationType.LIST, 'weekly_reviews');
+    });
+
+    return () => unsub();
   }, [user]);
 
   // Daily Sync (Streaks & Challenges)
@@ -2135,6 +2301,23 @@ export default function App() {
       "min-h-screen text-text-p selection:bg-accent selection:text-white transition-colors duration-500",
       settings?.display.theme === 'light' ? "bg-background light" : "bg-background cyber-grid"
     )}>
+      {/* Dormant System Banner */}
+      {lastActiveDays > 7 && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-accent/20 border-b border-accent text-white text-[11px] font-mono p-3 text-center flex items-center justify-center gap-4 z-[150] relative"
+        >
+          <span>SYSTEM_DORMANT. You've been inactive {lastActiveDays} days. Ready to reactivate?</span>
+          <button 
+            onClick={handleReactivateProtocol}
+            className="px-3 py-1 bg-accent text-white hover:bg-accent/80 rounded-[4px] text-[9px] font-black uppercase tracking-wider"
+          >
+            REACTIVATE_PROTOCOL
+          </button>
+        </motion.div>
+      )}
+
       {/* Node Recalibration Overlay */}
       <AnimatePresence>
         {isNodeRecalibrating && (
@@ -2394,7 +2577,7 @@ export default function App() {
               )}
               {activeTab === 'journal' && <JournalView journals={journals} user={user} onAddXP={addXP} stats={stats} />}
               {activeTab === 'lifeSync' && <LifeSyncView stats={stats} user={user} onAddXP={addXP} tasks={tasks} journals={journals} addToTerminal={addToTerminal} />}
-              {activeTab === 'stats' && <StatsView stats={stats} user={user} tasks={tasks} journals={journals} timeBlocks={timeBlocks} onPurchasePerk={handlePurchasePerk} />}
+              {activeTab === 'stats' && <StatsView stats={stats} user={user} tasks={tasks} journals={journals} timeBlocks={timeBlocks} weeklyReviews={weeklyReviews} onPurchasePerk={handlePurchasePerk} />}
               {activeTab === 'shop' && <ShopView stats={stats} user={user} onPurchase={handlePurchase} />}
               {activeTab === 'settings' && <SettingsView settings={settings} stats={stats} user={user} onUpdate={updateSettings} />}
             </motion.div>
@@ -2420,6 +2603,20 @@ export default function App() {
         {isManualOpen && (
           <ManualModal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} />
         )}
+        <WeeklyDebriefModal
+          isOpen={isDebriefModalOpen}
+          onClose={() => setIsDebriefModalOpen(false)}
+          onSave={handleSaveDebrief}
+          tasks={tasks}
+          journals={journals}
+          habits={habits}
+          habitLogs={habitLogs}
+          pomodoroSessions={stats?.pomodoroSessions || 0}
+        />
+        <OnboardingModal
+          isOpen={isOnboardingOpen}
+          onComplete={handleOnboardingComplete}
+        />
         {completeToast && (
           <motion.div 
             initial={{ y: 50, opacity: 0 }}
@@ -2578,8 +2775,8 @@ function AITimetableModal({
            <div className="space-y-3">
               <label className="text-[10px] font-mono text-text-m uppercase font-black tracking-widest">A_Daily_Sync_Events</label>
               <div className="flex flex-wrap gap-2">
-                 {routine.map(r => (
-                   <div key={r} className="flex items-center gap-2 bg-white/5 border border-white/10 pl-3 pr-1 py-1 rounded-full group">
+                 {routine.map((r, i) => (
+                   <div key={`${r}-${i}`} className="flex items-center gap-2 bg-white/5 border border-white/10 pl-3 pr-1 py-1 rounded-full group">
                       <span className="text-[10px] font-mono text-white uppercase italic">{r}</span>
                       <button onClick={() => removeRoutine(r)} className="p-1 hover:text-danger opacity-40 group-hover:opacity-100 transition-opacity"><X size={12} /></button>
                    </div>
@@ -3252,8 +3449,8 @@ function SystemTerminal({ logs }: { logs: any[] }) {
               <button onClick={() => setIsExpanded(false)} className="text-text-m hover:text-white"><X size={14} /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 font-mono text-[9px] space-y-2 no-scrollbar selection:bg-accent/30">
-              {logs.map(log => (
-                <div key={log.id} className="flex gap-3 animate-in fade-in slide-in-from-left-2 transition-all">
+              {logs.map((log, i) => (
+                <div key={`${log.id}-${i}`} className="flex gap-3 animate-in fade-in slide-in-from-left-2 transition-all">
                   <span className="opacity-30 shrink-0">[{log.time}]</span>
                   <span className={cn(
                     "truncate",
@@ -3494,7 +3691,7 @@ function RecentActivityFeed({ log }: { log?: ActivityEntry[] }) {
     <div className="space-y-3">
       {log.slice(0, 5).map((entry, i) => (
         <motion.div 
-          key={entry.id}
+          key={`${entry.id}-${i}`}
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: i * 0.1 }}
@@ -3760,6 +3957,17 @@ function MotivationPortal({
                     <div className="text-[10px] font-mono text-text-s uppercase">{items.length}_LOADED</div>
                  </div>
                  <div className="grid grid-cols-1 gap-4">
+                   {items.length === 0 && (
+                     <EmptyState
+                       icon={<Music size={24} className="text-accent" />}
+                       title="MOTIVATION_SET_EMPTY. Create your first motivational item..."
+                       actionLabel="CREATE_NOW"
+                       onAction={() => {
+                         setNewContent('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+                         setNewTitle('Calibrate Motivation Catalyst');
+                       }}
+                     />
+                   )}
                    {items.map(item => (
                      <div key={item.id} className="glass p-5 rounded-3xl border border-white/5 flex items-center justify-between group hover:border-white/20 transition-all">
                        <div className="flex items-center gap-5 truncate">
@@ -4244,6 +4452,17 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
       </div>
 
       <div className="grid grid-cols-1 gap-6">
+          {filteredTasks.length === 0 && (
+            <EmptyState
+              icon={<CheckCircle2 size={24} className="text-accent" />}
+              title="TASK_QUEUE_EMPTY. Create your first task..."
+              actionLabel="CREATE_NOW"
+              onAction={() => {
+                // Focus the title input field or set a placeholder title
+                setNewTitle('Calibrate System Protocol');
+              }}
+            />
+          )}
           {filteredTasks.map(task => (
             <div 
               key={task.id} 
@@ -5881,15 +6100,12 @@ function RoutineMatrixView({
 
           <div className="space-y-4">
             {activeHabits.length === 0 ? (
-              <div className="glass p-12 rounded-3xl border border-white/5 flex flex-col items-center justify-center text-center gap-4 opacity-40">
-                <div className="w-16 h-16 rounded-full border border-dashed border-white/20 flex items-center justify-center">
-                  <Database size={24} />
-                </div>
-                <div>
-                  <p className="text-xs font-mono font-black uppercase mb-1">NO_HABITS_DETECTED</p>
-                  <p className="text-[10px] font-mono opacity-60 italic">"CREATE_FIRST_HABIT_TO_BEGIN_SYNC"</p>
-                </div>
-              </div>
+              <EmptyState
+                icon={<Database size={24} className="text-accent" />}
+                title="NO_HABITS_DETECTED"
+                actionLabel="CREATE_NOW"
+                onAction={() => setIsAddModalOpen(true)}
+              />
             ) : (
               activeHabits.map(habit => {
                 const isDoneToday = habitLogs.some(l => l.habitId === habit.id && l.date === todayStr);
@@ -6494,8 +6710,8 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
               </div>
               <div className="prose prose-invert prose-xs line-clamp-3 text-text-m h-16 mb-4" dangerouslySetInnerHTML={{ __html: entry.content }} />
               <div className="flex flex-wrap gap-2">
-                {entry.tags?.map(t => (
-                  <span key={t} className="text-[8px] font-mono text-cyan bg-cyan/10 px-1.5 py-0.5 rounded border border-cyan/20">#{t.toUpperCase()}</span>
+                {entry.tags?.map((t, idx) => (
+                  <span key={`${t}-${idx}`} className="text-[8px] font-mono text-cyan bg-cyan/10 px-1.5 py-0.5 rounded border border-cyan/20">#{t.toUpperCase()}</span>
                 ))}
               </div>
               <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
@@ -6506,10 +6722,13 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
           );
         })}
         {journals.length === 0 && (
-          <div className="col-span-full py-20 text-center opacity-40 glass rounded-3xl border border-dashed border-white/10">
-             <Book size={48} className="mx-auto mb-4 text-text-m" />
-             <p className="font-mono text-sm uppercase tracking-widest">Archive_Matrix_Empty</p>
-             <p className="text-xs font-mono mt-2 italic px-8 max-w-md mx-auto">No neural logs found in the archives. Initialize your first log to begin synchronization process.</p>
+          <div className="col-span-full">
+            <EmptyState
+              icon={<Book size={24} className="text-accent" />}
+              title="ARCHIVE_MATRIX_EMPTY"
+              actionLabel="CREATE_NOW"
+              onAction={() => setActiveSubTab('entry')}
+            />
           </div>
         )}
       </div>
@@ -7028,7 +7247,38 @@ function EvolutionMetric({
   );
 }
 
-function StatsView({ stats, user, tasks, journals, timeBlocks, onPurchasePerk }: { stats: UserStats | null; user: User; tasks: Task[]; journals: JournalEntry[]; timeBlocks: TimeBlock[]; onPurchasePerk: (perkId: string) => void }) {
+function WeeklyReviewItem({ review }: { review: WeeklyReview }) {
+  const [isCollapsed, setIsCollapsed] = useState(true);
+  return (
+    <div className="glass p-5 rounded-2xl border border-white/5 bg-white/2">
+      <div className="flex justify-between items-center cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-mono font-black text-accent">{review.week}</span>
+          <span className="text-[10px] font-mono text-text-s">{new Date(review.createdAt).toLocaleDateString()}</span>
+        </div>
+        <span className="text-xs font-mono text-cyan uppercase">{isCollapsed ? 'EXPAND' : 'COLLAPSE'}</span>
+      </div>
+      {!isCollapsed && (
+        <div className="mt-4 space-y-4 border-t border-white/5 pt-4 text-xs font-mono text-text-p leading-relaxed">
+          <div>
+            <span className="text-accent block text-[9px] font-bold uppercase mb-1">WHAT_WENT_WELL</span>
+            <p className="bg-black/30 p-3 rounded-lg border border-white/5 text-white">{review.wentWell}</p>
+          </div>
+          <div>
+            <span className="text-danger block text-[9px] font-bold uppercase mb-1">WHAT_DIDNT_GO</span>
+            <p className="bg-black/30 p-3 rounded-lg border border-white/5 text-white">{review.didntGo}</p>
+          </div>
+          <div>
+            <span className="text-cyan block text-[9px] font-bold uppercase mb-1">NEXT_WEEK_FOCUS</span>
+            <p className="bg-black/30 p-3 rounded-lg border border-white/5 text-white">{review.nextWeekFocus}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews, onPurchasePerk }: { stats: UserStats | null; user: User; tasks: Task[]; journals: JournalEntry[]; timeBlocks: TimeBlock[]; weeklyReviews: WeeklyReview[]; onPurchasePerk: (perkId: string) => void }) {
   const [activeSubTab, setActiveSubTab] = useState<'evolution' | 'achievements' | 'perks'>('evolution');
   const [filter, setFilter] = useState<'all' | 'earned' | 'locked'>('all');
   const [rarityFilter, setRarityFilter] = useState<Achievement['rarity'] | 'all'>('all');
@@ -7200,6 +7450,24 @@ function StatsView({ stats, user, tasks, journals, timeBlocks, onPurchasePerk }:
                 </p>
              </div>
           </div>
+
+          {/* PAST DEBRIEFS SECTION */}
+          <div className="space-y-4 mt-8">
+             <h3 className="text-xs font-mono font-black text-text-p uppercase tracking-[0.2em] px-2">WEEKLY_REVIEWS (WEEKLY_DEBRIEFS)</h3>
+             {weeklyReviews.length === 0 ? (
+               <EmptyState
+                 icon={<Book size={20} className="text-accent" />}
+                 title="NO_PAST_DEBRIEFS_FOUND"
+               />
+             ) : (
+               <div className="grid grid-cols-1 gap-4">
+                 {weeklyReviews.map(review => (
+                   <WeeklyReviewItem key={review.id} review={review} />
+                 ))}
+               </div>
+             )}
+          </div>
+
         </div>
       )}
 

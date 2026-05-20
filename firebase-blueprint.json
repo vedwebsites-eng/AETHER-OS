@@ -155,6 +155,20 @@
         "timestamp": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "habitId", "date", "completed", "timestamp"]
+    },
+    "WeeklyReview": {
+      "title": "WeeklyReview",
+      "description": "A weekly debrief review entry",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "wentWell": { "type": "string" },
+        "didntGo": { "type": "string" },
+        "nextWeekFocus": { "type": "string" },
+        "week": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "wentWell", "didntGo", "nextWeekFocus", "week", "createdAt"]
     }
   },
   "firestore": {
@@ -193,6 +207,10 @@
     "/habit_logs/{logId}": {
       "schema": "HabitLog",
       "description": "User habit completion logs"
+    },
+    "/weekly_reviews/{reviewId}": {
+      "schema": "WeeklyReview",
+      "description": "User weekly review entries"
     }
   }
 }

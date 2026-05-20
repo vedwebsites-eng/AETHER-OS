@@ -112,6 +112,16 @@ service cloud.firestore {
              data.timestamp is string && data.timestamp.size() <= 100;
     }
 
+    // WeeklyReview Validation
+    function isValidWeeklyReview(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.wentWell is string && data.wentWell.size() <= 10000 &&
+             data.didntGo is string && data.didntGo.size() <= 10000 &&
+             data.nextWeekFocus is string && data.nextWeekFocus.size() <= 10000 &&
+             data.week is string && data.week.size() <= 100 &&
+             data.createdAt is string && data.createdAt.size() <= 100;
+    }
+
     // --- Collections ---
 
     // UserStats: Identified by userId
@@ -195,6 +205,15 @@ service cloud.firestore {
       allow read: if isOwner(resource.data.userId);
       allow create: if isVerified() && isValidHabitLog(incoming()) && isOwner(incoming().userId) && isValidId(logId);
       allow update: if isVerified() && isOwner(existing().userId) && isValidHabitLog(incoming()) && 
+                    incoming().userId == existing().userId;
+      allow delete: if isVerified() && isOwner(existing().userId);
+    }
+
+    // WeeklyReviews
+    match /weekly_reviews/{reviewId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isVerified() && isValidWeeklyReview(incoming()) && isOwner(incoming().userId) && isValidId(reviewId);
+      allow update: if isVerified() && isOwner(existing().userId) && isValidWeeklyReview(incoming()) && 
                     incoming().userId == existing().userId;
       allow delete: if isVerified() && isOwner(existing().userId);
     }
