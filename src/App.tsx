@@ -289,7 +289,7 @@ function RadarChart({ values }: { values: Record<string, number> }) {
           }).join(' ');
           return (
             <polygon 
-              key={i} 
+              key={`radar-ring-${i}`} 
               points={gridPoints} 
               fill="none" 
               stroke="currentColor" 
@@ -304,7 +304,7 @@ function RadarChart({ values }: { values: Record<string, number> }) {
           const angle = (Math.PI * 2 * i) / categories.length - Math.PI / 2;
           return (
             <line
-              key={cat.id}
+              key={`radar-axis-${cat.id}`}
               x1={center}
               y1={center}
               x2={center + radius * Math.cos(angle)}
@@ -333,7 +333,7 @@ function RadarChart({ values }: { values: Record<string, number> }) {
           const y = center + labelDist * Math.sin(angle);
           
           return (
-            <g key={cat.id}>
+            <g key={`radar-group-${cat.id}`}>
               <circle 
                 cx={center + radius * Math.cos(angle)} 
                 cy={center + radius * Math.sin(angle)} 
@@ -539,7 +539,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
                 const saved = i < history.length;
                 return (
                   <div 
-                    key={i}
+                    key={`history-indicator-${i}`}
                     className={cn(
                       "w-4 h-4 rounded-sm border transition-all",
                       saved ? "bg-indigo-500 border-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.5)]" : "border-white/10 bg-white/5"
@@ -787,7 +787,7 @@ const MOTIVATIONAL_MESSAGES = [
 ];
 
 interface XPNotification {
-  id: number;
+  id: number | string;
   amount: number;
   source: string;
 }
@@ -1520,7 +1520,7 @@ export default function App() {
           if (newStreak === 30) newExperience += 500;
           if (newStreak === 100) newExperience += 1000;
 
-          const streakId = Date.now();
+          const streakId = `streak-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           setXpNotifications(prev => [...prev, { 
             id: streakId, 
             amount: dailyBonus, 
@@ -1656,7 +1656,7 @@ export default function App() {
           challengeUpdate.completed = true;
           const reward = DAILY_CHALLENGES.find(c => c.id === challengeUpdate.id)?.xpReward || 0;
           finalAmount += reward;
-          const challengeId = Date.now() + 1;
+          const challengeId = `challenge-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           setXpNotifications(prev => [...prev, { 
             id: challengeId, 
             amount: reward, 
@@ -1669,7 +1669,7 @@ export default function App() {
       }
 
       // Trigger Notification
-      const id = Date.now();
+      const id = `xp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       setXpNotifications(prev => [...prev, { id, amount: finalAmount, source }]);
       setTimeout(() => {
         setXpNotifications(prev => prev.filter(n => n.id !== id));
@@ -1846,7 +1846,7 @@ export default function App() {
             setCelebratingAchievement(ach);
             setTimeout(() => setCelebratingAchievement(null), 6000);
 
-            const achId = Date.now() + Math.random();
+            const achId = `ach-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             setXpNotifications(prev => [...prev, { id: achId, amount: ach.xpReward, source: `ACHIEVEMENT_UNLOCKED: ${ach.title}` }]);
             setTimeout(() => setXpNotifications(prev => prev.filter(n => n.id !== achId)), 5000);
           }
@@ -2260,7 +2260,7 @@ export default function App() {
             <div className="flex gap-1 justify-center">
               {[0, 1, 2].map((i) => (
                 <motion.div
-                  key={i}
+                  key={`loading-dot-${i}`}
                   animate={{ 
                     opacity: [0, 1, 0],
                     y: [0, -2, 0]
@@ -3325,7 +3325,7 @@ function NeuralCore({ stats }: { stats: UserStats | null }) {
         <div className="absolute inset-0">
           {[0, 1, 2, 3].map(i => (
             <motion.div 
-              key={i}
+              key={`radar-scanner-${i}`}
               className="absolute w-1 h-1 bg-accent rounded-full"
               style={{ 
                 top: '50%', 
@@ -3449,8 +3449,8 @@ function SystemTerminal({ logs }: { logs: any[] }) {
               <button onClick={() => setIsExpanded(false)} className="text-text-m hover:text-white"><X size={14} /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 font-mono text-[9px] space-y-2 no-scrollbar selection:bg-accent/30">
-              {logs.map((log, i) => (
-                <div key={`${log.id}-${i}`} className="flex gap-3 animate-in fade-in slide-in-from-left-2 transition-all">
+              {logs.map((log) => (
+                <div key={log.id} className="flex gap-3 animate-in fade-in slide-in-from-left-2 transition-all">
                   <span className="opacity-30 shrink-0">[{log.time}]</span>
                   <span className={cn(
                     "truncate",
@@ -3691,7 +3691,7 @@ function RecentActivityFeed({ log }: { log?: ActivityEntry[] }) {
     <div className="space-y-3">
       {log.slice(0, 5).map((entry, i) => (
         <motion.div 
-          key={`${entry.id}-${i}`}
+          key={entry.id}
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
           transition={{ delay: i * 0.1 }}
@@ -3734,7 +3734,7 @@ function UpcomingAndQuickAccess({ tasks, journals, setActiveTab }: { tasks: Task
           {nextTasks.length === 0 ? (
             <p className="p-4 text-[10px] font-mono text-text-m opacity-40 uppercase italic text-center">NO_PENDING_OBJECTIVES</p>
           ) : (
-            nextTasks.map(t => (
+            nextTasks.map((t) => (
               <div key={t.id} className="p-3 hover:bg-white/5 rounded flex justify-between items-center group cursor-default">
                  <span className="text-sm font-serif font-black uppercase text-text-p truncate max-w-[150px] italic">{t.title}</span>
                  <span className="text-[10px] font-mono text-text-m opacity-40 group-hover:opacity-100 transition-opacity whitespace-nowrap">
@@ -3784,7 +3784,7 @@ function AchievementsSummary({ stats }: { stats: UserStats | null }) {
            <button className="text-[8px] font-mono text-purple-400 hover:underline">VIEW_LIBRARY</button>
         </div>
         <div className="p-4 space-y-6">
-          {topLocked.map((ach, i) => (
+          {topLocked.map((ach) => (
             <div key={ach.id} className="space-y-2 opacity-60 hover:opacity-100 transition-opacity">
                <div className="flex items-center gap-3">
                   <div className="p-2 bg-white/5 rounded grayscale group-hover:grayscale-0">{ach.icon}</div>
@@ -3795,11 +3795,11 @@ function AchievementsSummary({ stats }: { stats: UserStats | null }) {
                </div>
                <div className="space-y-1">
                   <div className="flex justify-between text-[7px] font-mono text-text-s uppercase">
-                    <span>EST_SYNC: 43%</span>
-                    <span>+{ach.xpReward} XP</span>
+                     <span>EST_SYNC: 43%</span>
+                     <span>+{ach.xpReward} XP</span>
                   </div>
                   <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-purple-500 w-[43%]" />
+                     <div className="h-full bg-purple-500 w-[43%]" />
                   </div>
                </div>
             </div>
@@ -3968,7 +3968,7 @@ function MotivationPortal({
                        }}
                      />
                    )}
-                   {items.map(item => (
+                   {items.map((item) => (
                      <div key={item.id} className="glass p-5 rounded-3xl border border-white/5 flex items-center justify-between group hover:border-white/20 transition-all">
                        <div className="flex items-center gap-5 truncate">
                           <div className={cn(
@@ -4463,7 +4463,7 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
               }}
             />
           )}
-          {filteredTasks.map(task => (
+          {filteredTasks.map((task) => (
             <div 
               key={task.id} 
               className={cn(
@@ -4533,8 +4533,8 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
                 {/* Sub-tasks list */}
                 {task.subTasks && task.subTasks.length > 0 && (
                   <div className="mt-4 pl-4 border-l-2 border-white/5 space-y-2">
-                    {task.subTasks.map(st => (
-                      <div key={st.id} className="flex items-center gap-3">
+                    {task.subTasks.map((st) => (
+                      <div key={`${task.id}-sub-${st.id}`} className="flex items-center gap-3">
                         <button 
                           onClick={() => toggleSubTask(task, st.id)}
                           className={cn("p-1 transition-all", st.completed ? "text-success" : "text-text-m opacity-40 hover:opacity-100")}
@@ -4672,7 +4672,7 @@ function LevelUpOverlay({ level, onClose, stats }: { level: number; onClose: () 
                    initial={{ x: -20, opacity: 0 }}
                    animate={{ x: 0, opacity: 1 }}
                    transition={{ delay: 0.5 + (i * 0.1) }}
-                   key={i} 
+                   key={`reward-${i}`} 
                    className="glass p-6 rounded-2xl border-2 border-warning/30 bg-warning/5 flex items-center gap-4"
                 >
                   <Trophy className="text-warning h-8 w-8" />
@@ -4909,12 +4909,12 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
                 isExpanded ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
               )}>
                 {sections.map((cat, catIdx) => (
-                  <div key={cat.category} className="space-y-6">
+                  <div key={`${cat.category}-${catIdx}`} className="space-y-6">
                     <h3 className="text-[10px] font-mono font-black text-cyan uppercase tracking-[0.5em] border-b border-cyan/20 pb-2">{cat.category}</h3>
                     <div className="space-y-4">
                       {cat.items.map((item, idx) => (
                         <motion.div 
-                          key={item.title}
+                          key={`${item.title}-${idx}`}
                           initial={{ opacity: 0, x: -20 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: (catIdx * 0.1) + (idx * 0.05) }}
@@ -5127,7 +5127,7 @@ function FocusProtocol({ stats, user, onAddXP, setCompleteToast }: { stats: User
               <div className="flex gap-1.5 ml-4">
                 {[...Array(4)].map((_, i) => (
                   <div 
-                    key={i} 
+                    key={`session-dot-${i}`} 
                     className={cn(
                       "w-2 h-2 rounded-full transition-all duration-500",
                       i < sessionsCompleted ? "bg-accent shadow-[0_0_8px_rgba(255,51,102,0.6)]" : "bg-white/10 border border-white/5"
@@ -5500,7 +5500,7 @@ function TemporalHub({
                 </div>
                 {mood && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20 group-hover:opacity-100 transition-opacity"><span className="text-lg">{mood.emoji}</span></div>}
                 <div className="absolute bottom-2 left-2 right-2 flex justify-between items-end">
-                   <div className="flex gap-0.5">{dayTasks.slice(0, 3).map((t, i) => (<div key={i} className={cn("w-1.5 h-1.5 rounded-full", t.status === 'completed' ? "bg-success" : "bg-text-s")} />))}</div>
+                   <div className="flex gap-0.5">{dayTasks.slice(0, 3).map((t, i) => (<div key={`task-dot-${t.id}-${i}`} className={cn("w-1.5 h-1.5 rounded-full", t.status === 'completed' ? "bg-success" : "bg-text-s")} />))}</div>
                    {xp > 0 && <span className="text-[8px] font-mono text-cyan/70">+{xp}</span>}
                 </div>
               </motion.div>
@@ -5619,7 +5619,7 @@ function TemporalHub({
 
                          return (
                            <motion.div 
-                             key={block.id}
+                             key={`${(block as any).source || 'block'}-${block.id}`}
                              whileHover={!draggingBlock ? { scale: 1.02, zIndex: 10 } : {}}
                              onMouseDown={(e) => {
                                e.stopPropagation();
@@ -6210,15 +6210,15 @@ function RoutineMatrixView({
                   {/* Grid Columns (Weeks) */}
                   <div className="flex gap-1">
                     {Array.from({ length: 52 }).map((_, weekIdx) => (
-                      <div key={weekIdx} className="flex flex-col gap-1">
+                      <div key={`heatmap-week-${weekIdx}`} className="flex flex-col gap-1">
                         {Array.from({ length: 7 }).map((_, dayIdx) => {
                           const dataIdx = weekIdx * 7 + dayIdx;
                           const dayData = heatmapData[dataIdx];
-                          if (!dayData) return <div key={dayIdx} className="w-3 h-3 rounded-sm bg-transparent" />;
+                          if (!dayData) return <div key={`heatmap-day-empty-${weekIdx}-${dayIdx}`} className="w-3 h-3 rounded-sm bg-transparent" />;
                           
                           return (
                             <div 
-                              key={dayIdx}
+                              key={`heatmap-day-${weekIdx}-${dayIdx}`}
                               title={`${dayData.date} - ${dayData.count} habits completed`}
                               className={cn(
                                 "w-3 h-3 rounded-sm border border-black/5 flex items-center justify-center text-[6px] font-mono transition-transform hover:scale-125 cursor-help",
@@ -6646,7 +6646,7 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
               </div>
               <div className="grid grid-cols-7 gap-4">
                  {frequencyData.map((d, i) => (
-                   <div key={i} className="flex flex-col items-center gap-3">
+                   <div key={`frequency-${d.name}-${i}`} className="flex flex-col items-center gap-3">
                       <div className="w-full h-32 bg-white/5 rounded-xl flex items-end overflow-hidden relative">
                          <motion.div 
                           initial={{ height: 0 }}
