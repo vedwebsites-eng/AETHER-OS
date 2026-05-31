@@ -16,7 +16,7 @@ import {
   Bold, Italic, Underline as UnderlineIcon, ListOrdered, Heading1, Heading2, Link as LinkIcon, Eraser, Type, Palette,
   ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download, Briefcase,
   Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
-  Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon
+  Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon, Info
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -32,7 +32,7 @@ import { WeeklyDebriefModal } from './components/WeeklyDebriefModal';
 import { OnboardingModal } from './components/OnboardingModal';
 
 // --- Types ---
-type AppTab = 'dashboard' | 'dailyWork' | 'reflect' | 'grow' | 'configOs';
+type AppTab = 'dashboard' | 'dailyWork' | 'reflect' | 'grow' | 'aetherCoach' | 'configOs';
 
 interface Habit {
   id: string;
@@ -636,7 +636,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
             exit={{ opacity: 0, scale: 0.95 }}
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
           >
-            <div className="glass max-w-lg w-full p-8 rounded-3xl border border-indigo-500/30 relative overflow-hidden">
+            <div className="glass max-w-2xl w-full p-8 lg:p-12 rounded-3xl border border-indigo-500/30 relative overflow-hidden">
                <div className="absolute top-0 right-0 p-4">
                  <button onClick={() => setAiInsight(null)} className="text-text-m hover:text-text-p transition-colors">
                    <X size={20} />
@@ -2400,6 +2400,7 @@ export default function App() {
         <NavButton isExpanded={isNavExpanded} active={activeTab === 'dailyWork'} onClick={() => handleTabChange('dailyWork')} icon={<CheckCircle2 size={20} className="lg:w-6 lg:h-6" />} label="DAILY_WORK" />
         <NavButton isExpanded={isNavExpanded} active={activeTab === 'reflect'} onClick={() => handleTabChange('reflect')} icon={<Book size={20} className="lg:w-6 lg:h-6" />} label="REFLECT" />
         <NavButton isExpanded={isNavExpanded} active={activeTab === 'grow'} onClick={() => handleTabChange('grow')} icon={<TrendingUp size={20} className="lg:w-6 lg:h-6" />} label="GROW" />
+        <NavButton isExpanded={isNavExpanded} active={activeTab === 'aetherCoach'} onClick={() => handleTabChange('aetherCoach')} icon={<Sparkles size={20} className="lg:w-6 lg:h-6 text-cyan" />} label="AETHER_COACH" />
         <NavButton isExpanded={isNavExpanded} active={activeTab === 'configOs'} onClick={() => handleTabChange('configOs')} icon={<Settings size={20} className="lg:w-6 lg:h-6" />} label="CONFIG_OS" />
         
         <button 
@@ -2534,6 +2535,14 @@ export default function App() {
                   user={user}
                   onAddXP={addXP}
                   stats={stats}
+                  setActiveTab={handleTabChange}
+                />
+              )}
+              {activeTab === 'aetherCoach' && (
+                <AetherCoachTabView
+                  stats={stats}
+                  user={user}
+                  journals={journals}
                 />
               )}
               {activeTab === 'grow' && (
@@ -2745,7 +2754,7 @@ function AITimetableModal({
         initial={{ y: 50, scale: 0.9, opacity: 0 }}
         animate={{ y: 0, scale: 1, opacity: 1 }}
         exit={{ y: 50, scale: 0.9, opacity: 0 }}
-        className="glass max-w-xl w-full p-10 rounded-[3rem] border border-white/10 space-y-8 relative overflow-hidden" 
+        className="glass max-w-2xl w-full p-10 rounded-[3rem] border border-white/10 space-y-8 relative overflow-hidden" 
         onClick={e => e.stopPropagation()}
       >
         <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
@@ -2820,15 +2829,15 @@ function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge, i
     <button 
       onClick={locked ? undefined : onClick}
       className={cn(
-        "relative p-3 transition-all group shrink-0 flex items-center gap-3 w-full rounded-xl lg:rounded-none lg:bg-transparent",
-        active ? "text-accent bg-accent/5 lg:bg-transparent" : (locked ? "text-text-s/30 cursor-not-allowed" : "text-text-m hover:text-text-p hover:bg-white/5 lg:hover:bg-transparent"),
-        isExpanded ? "px-4" : "justify-center"
+        "relative p-4 transition-all group shrink-0 flex items-center gap-4 w-full rounded-xl lg:rounded-r-none lg:bg-transparent",
+        active ? "text-accent bg-accent/10 lg:bg-accent/5 lg:border-l-4 lg:border-accent" : (locked ? "text-text-s/30 cursor-not-allowed" : "text-text-m hover:text-text-p hover:bg-white/5 lg:hover:bg-white/5 lg:hover:border-l-4 lg:hover:border-white/10"),
+        isExpanded ? "px-5" : "justify-center"
       )}
     >
       <div className={cn("relative z-10", active && "accent-glow text-accent", locked && "opacity-40 grayscale")}>
         {icon}
         {badge && (
-          <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-accent text-white text-[7px] font-mono font-black rounded-sm border border-white/20 animate-pulse">
+          <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-accent text-white text-[9px] font-mono font-black rounded-sm border border-white/20 animate-pulse">
             {badge}
           </span>
         )}
@@ -2844,7 +2853,7 @@ function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge, i
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
           className={cn(
-            "text-[10px] uppercase font-bold tracking-widest whitespace-nowrap hidden lg:block overflow-hidden transition-all duration-300",
+            "text-xs lg:text-sm uppercase font-bold tracking-widest whitespace-nowrap hidden lg:block overflow-hidden transition-all duration-300",
             locked ? "text-text-s/50" : (active ? "text-accent" : "text-text-m")
           )}
         >
@@ -3340,6 +3349,7 @@ function CommandPalette({ isOpen, onClose, onNavigate, activeTab }: { isOpen: bo
     { id: 'dailyWork', label: 'GO_TO_DAILY_WORK', icon: <CheckCircle2 size={18} />, tab: 'dailyWork' },
     { id: 'reflect', label: 'GO_TO_REFLECT_JOURNAL', icon: <Book size={18} />, tab: 'reflect' },
     { id: 'grow', label: 'GO_TO_GROW_SYSTEMS', icon: <TrendingUp size={18} />, tab: 'grow' },
+    { id: 'coach', label: 'GO_TO_AETHER_COACH', icon: <Sparkles size={18} />, tab: 'aetherCoach' },
     { id: 'settings', label: 'GO_TO_CONFIG_OS', icon: <Settings size={18} />, tab: 'configOs' },
   ];
 
@@ -3354,7 +3364,7 @@ function CommandPalette({ isOpen, onClose, onNavigate, activeTab }: { isOpen: bo
             initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 20 }}
-            className="w-full max-w-lg glass rounded-2xl border border-white/20 overflow-hidden shadow-2xl relative z-10"
+            className="w-full max-w-2xl glass rounded-2xl border border-white/20 overflow-hidden shadow-2xl relative z-10"
           >
             <div className="p-4 border-b border-white/10 flex items-center gap-4 bg-white/5">
               <Command className="text-accent" size={24} />
@@ -3635,6 +3645,15 @@ function ProfileCard({ stats, user }: { stats: UserStats | null, user: User }) {
 function QuickStatsGrid({ stats, journals }: { stats: UserStats | null, journals: any[] }) {
   if (!stats) return null;
   const { levelProgress } = getLevelFromXP(stats.experience);
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+
+  const explanations: Record<string, string> = {
+    'XP_DATA': 'Experience points accumulated by resolving standard targets, carrying out lifestyle habits, and committing logs.',
+    'TASKS_SYNCED': 'The cumulative sum of all standalone and recurring task list objectives checked off as complete.',
+    'STREAK': 'Refers to consecutive, uninterrupted daily log-in cycles of program engagement or reflective journal entries.',
+    'LOGS': 'Total volume of narrative reflection journals committed and safely archived onto the neural timeline.',
+    'NODE_SYNC': 'Progress level alignment percent showing how close you are to completing qualifications for the next level.',
+  };
   
   const metrics = [
     { label: 'XP_DATA', value: stats.experience.toLocaleString(), icon: <Activity className="text-cyan w-3 h-3 sm:w-3.5 sm:h-3.5" />, unit: 'PTS' },
@@ -3645,23 +3664,73 @@ function QuickStatsGrid({ stats, journals }: { stats: UserStats | null, journals
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6">
       {metrics.map((m, i) => (
         <motion.div 
           key={m.label}
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: i * 0.05 }}
-          className="glass p-2.5 sm:p-4 rounded-xl border border-white/5 bg-white/2 hover:bg-white/5 transition-all group overflow-hidden relative"
+          className="glass p-4 sm:p-5 rounded-2xl border border-white/5 bg-white/2 hover:bg-white/5 transition-all group overflow-hidden relative min-h-[120px] flex flex-col justify-between"
         >
-          <div className="flex items-center gap-2 mb-1">
-            <div className="group-hover:scale-110 transition-transform">{m.icon}</div>
-            <span className="text-[7px] sm:text-[9px] font-mono text-text-m uppercase tracking-widest font-black whitespace-nowrap">{m.label}</span>
+          <div className="flex items-center justify-between gap-1 mb-1.5 shrink-0 relative z-10 w-full">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <div className="group-hover:scale-110 transition-transform shrink-0">{m.icon}</div>
+              <span className="text-[9px] sm:text-[10px] font-mono text-text-m uppercase tracking-wider font-black truncate">{m.label}</span>
+            </div>
+            
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setActiveTooltip(activeTooltip === m.label ? null : m.label);
+              }}
+              className={cn(
+                "p-1 rounded-full text-text-s hover:text-cyan transition-all flex items-center justify-center shrink-0 border border-transparent hover:border-white/10 hover:bg-white/5",
+                activeTooltip === m.label ? "text-cyan bg-cyan/10 border-cyan/20" : ""
+              )}
+              title="Metric details"
+            >
+              <Info size={10} className="sm:w-3 sm:h-3" />
+            </button>
           </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-base sm:text-2xl font-serif font-black text-white italic">{m.value}</span>
-            <span className="text-[6px] sm:text-[8px] font-mono text-text-s uppercase opacity-40">{m.unit}</span>
+
+          <div className="flex items-baseline gap-1 mt-auto relative z-10">
+            <span className="text-xl sm:text-2xl font-serif font-black text-white italic">{m.value}</span>
+            <span className="text-[8px] sm:text-[10px] font-mono text-text-s uppercase opacity-50 font-bold">{m.unit}</span>
           </div>
+
+          <AnimatePresence>
+            {activeTooltip === m.label && (
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 5 }}
+                className="absolute inset-0 bg-black/95 border border-cyan/30 rounded-2xl p-4 flex flex-col justify-between z-20"
+              >
+                <div className="space-y-1.5">
+                   <div className="flex items-center justify-between">
+                     <span className="text-[8px] font-mono font-black text-cyan uppercase tracking-wider">{m.label}_INFO</span>
+                     <button
+                       type="button"
+                       onClick={(e) => {
+                         e.preventDefault();
+                         e.stopPropagation();
+                         setActiveTooltip(null);
+                       }}
+                       className="text-text-s hover:text-white p-0.5 rounded transition-colors"
+                     >
+                       <X size={10} />
+                     </button>
+                   </div>
+                   <p className="text-[9px] sm:text-[10px] font-mono leading-relaxed text-text-m text-left normal-case tracking-normal">
+                     {explanations[m.label]}
+                   </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       ))}
     </div>
@@ -5747,7 +5816,7 @@ function TemporalHub({
       <AnimatePresence>
         {isTemplateModalOpen && (
           <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-background/90 backdrop-blur-xl" onClick={() => setIsTemplateModalOpen(false)}>
-             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="glass max-w-xl w-full p-8 rounded-3xl border border-white/10 space-y-6" onClick={e => e.stopPropagation()}>
+             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="glass max-w-2xl w-full p-8 rounded-3xl border border-white/10 space-y-6" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center border-b border-white/5 pb-4"><h3 className="text-2xl font-serif font-black text-white italic uppercase tracking-widest">Select Protocol Template</h3><button onClick={() => setIsTemplateModalOpen(false)} className="text-text-m hover:text-white"><X /></button></div>
                 <div className="grid grid-cols-1 gap-4">
                    {TEMPLATES.map(t => (
@@ -5764,8 +5833,8 @@ function TemporalHub({
 
       <AnimatePresence>
          {isBlockModalOpen && (
-           <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-background/90 backdrop-blur-xl" onClick={() => setIsBlockModalOpen(false)}>
-              <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="glass max-w-md w-full p-8 rounded-3xl border border-white/10 space-y-6" onClick={e => e.stopPropagation()}>
+            <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-background/90 backdrop-blur-xl" onClick={() => setIsBlockModalOpen(false)}>
+               <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="glass max-w-2xl w-full p-8 rounded-3xl border border-white/10 space-y-6" onClick={e => e.stopPropagation()}>
                  <h3 className="text-2xl font-serif font-black text-white italic uppercase tracking-widest">Initialize Time Block</h3>
                  <div className="space-y-4">
                     <div className="space-y-2"><label className="text-[10px] font-mono text-text-m uppercase">Block Title</label><input type="text" value={blockForm.title || ''} onChange={e => setBlockForm({...blockForm, title: e.target.value})} className="w-full bg-background-nested p-3 rounded-lg border border-white/10 text-white font-mono outline-none focus:border-accent" placeholder="Deep work session..." /></div>
@@ -6032,9 +6101,9 @@ function RoutineMatrixView({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="flex flex-col lg:flex-row gap-8">
         {/* Left Panel - Habit List */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="w-full lg:w-[320px] shrink-0 space-y-6">
           <div className="flex items-center justify-between px-2">
             <h3 className="text-xs font-mono font-black text-text-m uppercase tracking-widest">Active_Protocols</h3>
             <span className="text-[10px] font-mono text-accent bg-accent/10 px-2 py-0.5 rounded border border-accent/20">
@@ -6110,7 +6179,7 @@ function RoutineMatrixView({
         </div>
 
         {/* Right Panel - Heatmap */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="flex-1 min-w-0 space-y-6">
           <div className="glass p-8 rounded-3xl border border-white/5 bg-white/2 relative overflow-hidden">
              <div className="absolute top-0 right-0 w-64 h-64 bg-cyan/5 rounded-full -translate-y-32 translate-x-32 blur-3xl" />
              
@@ -6121,28 +6190,28 @@ function RoutineMatrixView({
                </div>
                <div className="flex gap-2">
                  <div className="flex items-center gap-1.5">
-                   <div className="w-2 h-2 rounded-sm bg-white/5 border border-white/10" />
-                   <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">0</span>
+                   <div className="w-2.5 h-2.5 rounded-sm bg-white/5 border border-white/10" />
+                   <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">0</span>
                  </div>
                  <div className="flex items-center gap-1.5">
-                   <div className="w-2 h-2 rounded-sm bg-cyan/20 border border-cyan/20" />
-                   <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">1-2</span>
+                   <div className="w-2.5 h-2.5 rounded-sm bg-cyan/20 border border-cyan/20" />
+                   <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">1-2</span>
                  </div>
                  <div className="flex items-center gap-1.5">
-                   <div className="w-2 h-2 rounded-sm bg-cyan/50 border border-cyan/50" />
-                   <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">3-4</span>
+                   <div className="w-2.5 h-2.5 rounded-sm bg-cyan/50 border border-cyan/50" />
+                   <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">3-4</span>
                  </div>
                  <div className="flex items-center gap-1.5">
-                   <div className="w-2 h-2 rounded-sm bg-cyan border border-cyan" />
-                   <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">5+</span>
+                   <div className="w-2.5 h-2.5 rounded-sm bg-cyan border border-cyan" />
+                   <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">5+</span>
                  </div>
                </div>
              </div>
 
              <div className="relative z-10">
-                <div className="flex gap-1 overflow-x-auto pb-4 no-scrollbar">
+                <div className="flex gap-2.5 overflow-x-auto pb-4 no-scrollbar">
                   {/* Grid Labels: Days */}
-                  <div className="flex flex-col justify-around text-[8px] font-mono text-text-m opacity-30 pr-2 uppercase pb-2">
+                  <div className="flex flex-col justify-around text-[10px] font-mono text-text-m opacity-40 pr-3 uppercase pb-2">
                     <span>Mon</span>
                     <span className="opacity-0">Tue</span>
                     <span>Wed</span>
@@ -6153,20 +6222,20 @@ function RoutineMatrixView({
                   </div>
 
                   {/* Grid Columns (Weeks) */}
-                  <div className="flex gap-1">
+                  <div className="flex gap-1.5">
                     {Array.from({ length: 52 }).map((_, weekIdx) => (
-                      <div key={`heatmap-week-${weekIdx}`} className="flex flex-col gap-1">
+                      <div key={`heatmap-week-${weekIdx}`} className="flex flex-col gap-1.5">
                         {Array.from({ length: 7 }).map((_, dayIdx) => {
                           const dataIdx = weekIdx * 7 + dayIdx;
                           const dayData = heatmapData[dataIdx];
-                          if (!dayData) return <div key={`heatmap-day-empty-${weekIdx}-${dayIdx}`} className="w-3 h-3 rounded-sm bg-transparent" />;
+                          if (!dayData) return <div key={`heatmap-day-empty-${weekIdx}-${dayIdx}`} className="w-4 h-4 rounded-sm bg-transparent" />;
                           
                           return (
                             <div 
                               key={`heatmap-day-${weekIdx}-${dayIdx}`}
                               title={`${dayData.date} - ${dayData.count} habits completed`}
                               className={cn(
-                                "w-3 h-3 rounded-sm border border-black/5 flex items-center justify-center text-[6px] font-mono transition-transform hover:scale-125 cursor-help",
+                                "w-4 h-4 rounded-sm border border-black/5 flex items-center justify-center text-[7px] font-mono transition-all hover:scale-135 hover:z-20 hover:shadow-md cursor-help",
                                 getIntensity(dayData.count)
                               )}
                             />
@@ -6177,7 +6246,7 @@ function RoutineMatrixView({
                   </div>
                 </div>
                 
-                <div className="mt-4 flex justify-between text-[8px] font-mono text-text-m opacity-30 uppercase">
+                <div className="mt-4 flex justify-between text-[10px] font-mono text-text-m opacity-30 uppercase">
                   <span>LAST_SYNC: 52_WEEKS_AGO</span>
                   <span>SYNC_TARGET: PRESENT_DAY</span>
                 </div>
@@ -6268,7 +6337,7 @@ function RoutineMatrixView({
                initial={{ opacity: 0, scale: 0.95 }}
                animate={{ opacity: 1, scale: 1 }}
                exit={{ opacity: 0, scale: 0.95 }}
-               className="w-full max-w-lg glass p-8 rounded-[2rem] border border-white/10 shadow-2xl relative"
+               className="w-full max-w-2xl glass p-8 rounded-[2rem] border border-white/10 shadow-2xl relative"
              >
                 <div className="flex items-center gap-3 mb-8">
                   <div className="p-3 bg-cyan/10 rounded-xl border border-cyan/20">
@@ -6800,10 +6869,10 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
               </div>
            </div>
 
-           <aside className="space-y-8">
-              <div className="glass p-8 rounded-3xl border border-white/5 space-y-8 bg-black/40">
+           <aside className="space-y-8 lg:col-span-1">
+              <div className="glass p-8 xl:p-12 rounded-[2.5rem] border border-white/5 bg-black/40 space-y-10 xl:space-y-12 transition-all duration-300">
                  <div>
-                    <label className="text-[10px] font-mono text-text-m uppercase tracking-[0.3em] font-black border-l-2 border-accent pl-3 mb-6 block">Mood_Index</label>
+                    <label className="text-[11px] font-mono text-text-m uppercase tracking-[0.3em] font-black border-l-2 border-accent pl-3 mb-6 block">Mood_Index</label>
                     <div className="grid grid-cols-5 gap-2">
                        {MOODS.map((m) => (
                          <button 
@@ -6823,7 +6892,7 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
                  </div>
 
                  <div>
-                    <label className="text-[10px] font-mono text-text-m uppercase tracking-[0.3em] font-black border-l-2 border-success pl-3 mb-6 block">Neural_Tags</label>
+                    <label className="text-[11px] font-mono text-text-m uppercase tracking-[0.3em] font-black border-l-2 border-success pl-3 mb-6 block">Neural_Tags</label>
                     <div className="flex flex-wrap gap-2">
                        {MOOD_TAGS.map(tag => (
                          <button 
@@ -6841,23 +6910,23 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
                  </div>
 
                  <div className="pt-8 border-t border-white/5">
-                    <label className="text-[10px] font-mono text-text-m uppercase tracking-[0.3em] font-black border-l-2 border-warning pl-3 mb-6 block">Archive_Stats</label>
-                    <div className="space-y-4">
-                       <div className="flex justify-between items-center glass p-3 rounded-xl border border-white/5 hover:bg-white/2 transition-colors">
-                          <span className="text-[10px] font-mono text-text-m uppercase">Total_Words</span>
-                          <span className="text-sm font-mono font-black text-white">{(totalWordsWritten / 1000).toFixed(1)}K</span>
+                    <label className="text-[11px] font-mono text-text-m uppercase tracking-[0.3em] font-black border-l-2 border-warning pl-3 mb-8 block">Archive_Stats</label>
+                    <div className="space-y-6">
+                       <div className="flex justify-between items-center glass p-4 xl:p-5 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
+                          <span className="text-[11px] font-mono text-text-m uppercase tracking-wider">Total_Words</span>
+                          <span className="text-base font-mono font-black text-white">{(totalWordsWritten / 1000).toFixed(1)}K</span>
                        </div>
-                       <div className="flex justify-between items-center glass p-3 rounded-xl border border-white/5 hover:bg-white/2 transition-colors">
-                          <span className="text-[10px] font-mono text-text-m uppercase">Avg_Recall</span>
-                          <span className="text-sm font-mono font-black text-white">{avgEntryLength} W/Entry</span>
+                       <div className="flex justify-between items-center glass p-4 xl:p-5 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
+                          <span className="text-[11px] font-mono text-text-m uppercase tracking-wider">Avg_Recall</span>
+                          <span className="text-base font-mono font-black text-white">{avgEntryLength} W/Entry</span>
                        </div>
-                       <div className="flex justify-between items-center glass p-3 rounded-xl border border-white/5 hover:bg-white/2 transition-colors">
-                          <span className="text-[10px] font-mono text-text-m uppercase">Peak_Sync_Time</span>
-                          <span className="text-sm font-mono font-black text-white">{peakTimeStr}</span>
+                       <div className="flex justify-between items-center glass p-4 xl:p-5 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
+                          <span className="text-[11px] font-mono text-text-m uppercase tracking-wider">Peak_Sync_Time</span>
+                          <span className="text-base font-mono font-black text-white">{peakTimeStr}</span>
                        </div>
-                       <div className="flex justify-between items-center glass p-3 rounded-xl border border-white/5 hover:bg-white/2 transition-colors">
-                          <span className="text-[10px] font-mono text-text-m uppercase">Journal_Streak</span>
-                          <span className="text-sm font-mono font-black text-warning flex items-center gap-1"><Flame size={12} fill="currentColor" /> {stats?.journalStreak || 0}d</span>
+                       <div className="flex justify-between items-center glass p-4 xl:p-5 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
+                          <span className="text-[11px] font-mono text-text-m uppercase tracking-wider">Journal_Streak</span>
+                          <span className="text-base font-mono font-black text-warning flex items-center gap-1.5"><Flame size={14} fill="currentColor" /> {stats?.journalStreak || 0}d</span>
                        </div>
                     </div>
                  </div>
@@ -8238,7 +8307,7 @@ function DailyWorkView({
       <div 
         className={cn(
           "glass border border-white/5 rounded-[2rem] p-6 lg:p-8 flex flex-col gap-6 transition-all duration-500 relative shrink-0",
-          isSidebarCollapsed ? "lg:w-20 lg:p-4" : "lg:w-[380px]"
+          isSidebarCollapsed ? "lg:w-20 lg:p-4" : "lg:w-[320px] lg:min-w-[320px]"
         )}
       >
         <button 
@@ -8389,7 +8458,7 @@ function DailyWorkView({
       </div>
 
       {/* RIGHT MAIN POWER MODULE */}
-      <div className="flex-1 w-full min-w-0">
+      <div className="flex-1 w-full min-w-0 overflow-auto min-h-[600px] lg:min-h-screen">
          <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -8445,7 +8514,31 @@ function DailyWorkView({
   );
 }
 
-function ReflectView({ journals, user, onAddXP, stats }: any) {
+function ReflectView({ journals, user, onAddXP, stats, setActiveTab }: any) {
+  return (
+    <div className="max-w-[1600px] mx-auto min-h-[85vh] flex flex-col gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+      
+      {/* Floating Action/Header section to prompt Aether Integrated Coach */}
+      <div className="flex justify-end pr-2">
+         <button
+           onClick={() => setActiveTab('aetherCoach')}
+           className="px-6 py-3.5 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(34,211,238,0.2)] flex items-center gap-2 border border-cyan/30"
+         >
+           <Sparkles size={14} className="animate-pulse" />
+           PROMPT_AETHER_COACH
+         </button>
+      </div>
+
+      {/* Journal View taking the full available width of the screen */}
+      <div className="w-full font-sans">
+         <JournalView journals={journals} user={user} onAddXP={onAddXP} stats={stats} />
+      </div>
+
+    </div>
+  );
+}
+
+function AetherCoachTabView({ stats, user, journals }: any) {
   const [messages, setMessages] = useState<Array<{ sender: 'user' | 'coach'; text: string; timestamp: Date }>>([
     { 
       sender: 'coach', 
@@ -8508,98 +8601,101 @@ function ReflectView({ journals, user, onAddXP, stats }: any) {
   };
 
   return (
-    <div className="max-w-[1600px] mx-auto min-h-[85vh] grid grid-cols-1 xl:grid-cols-12 gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-[1600px] mx-auto min-h-[85vh] flex flex-col justify-center items-center py-8 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* Left side column: Journal module */}
-      <div className="xl:col-span-7 w-full overflow-hidden">
-        <JournalView journals={journals} user={user} onAddXP={onAddXP} stats={stats} />
+      {/* Visual Title Header */}
+      <div className="w-full max-w-2xl text-center mb-8 space-y-2">
+         <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-cyan/15 border border-cyan/30 rounded-full text-cyan text-[10px] font-mono uppercase tracking-[0.2em] font-black">
+            <Sparkles size={11} className="animate-pulse" />
+            Neural_Guidance_Active
+         </div>
+         <h2 className="text-4xl sm:text-5xl font-serif font-black text-white uppercase italic tracking-widest text-glow-white">Aether_Coach</h2>
+         <p className="text-text-m font-mono text-xs max-w-md mx-auto uppercase opacity-50">Your localized AI cognitive advisor powered by Gemini.</p>
       </div>
 
-      {/* Right side column: AI Coach chat */}
-      <div className="xl:col-span-5 w-full flex flex-col glass rounded-[3rem] border border-white/5 overflow-hidden min-h-[600px] h-[83vh] relative bg-gradient-to-b from-indigo-950/10 via-background-nested to-transparent">
-        
-        {/* Coach Header */}
-        <div className="p-6 lg:p-8 bg-white/5 border-b border-white/5 flex items-center justify-between">
-           <div className="flex items-center gap-3">
-              <div className="w-2.5 h-2.5 rounded-full bg-cyan animate-pulse" />
-              <div>
-                 <h3 className="text-sm font-mono font-black uppercase text-white tracking-widest">AETHER_INTEGRATED_COACH</h3>
-                 <p className="text-[9px] font-mono text-cyan uppercase tracking-tighter">COGNITIVE_GUIDANCE_ONLINE</p>
-              </div>
-           </div>
-           <span className="px-2.5 py-1 bg-cyan/10 border border-cyan/20 rounded-md text-cyan text-[8px] font-mono font-black uppercase">GEMINI_LENS</span>
-        </div>
+      {/* Main Coach Window Pop-up Style Box */}
+      <div className="w-full max-w-2xl flex flex-col glass rounded-[2.5rem] border border-white/10 overflow-hidden h-[65vh] max-h-[600px] relative bg-gradient-to-b from-indigo-950/20 via-background-nested to-transparent shadow-[0_0_50px_rgba(34,211,238,0.1)]">
+         {/* Coach Header */}
+         <div className="p-6 bg-white/5 border-b border-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+               <div className="w-2.5 h-2.5 rounded-full bg-cyan animate-pulse" />
+               <div>
+                  <h3 className="text-xs font-mono font-black uppercase text-white tracking-widest">AETHER_INTEGRATED_COACH</h3>
+                  <p className="text-[8px] font-mono text-cyan uppercase tracking-tighter">COGNITIVE_GUIDANCE_ONLINE</p>
+               </div>
+            </div>
+            <span className="px-2.5 py-1 bg-cyan/10 border border-cyan/20 rounded-md text-cyan text-[8px] font-mono font-black uppercase">GEMINI_LENS</span>
+         </div>
 
-        {/* Coach Messages area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
-           {messages.map((m, idx) => (
-              <div 
-                key={`msg-${idx}-${m.sender}-${m.timestamp instanceof Date ? m.timestamp.getTime() : m.timestamp}`} 
-                className={cn(
-                  "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
-                  m.sender === 'user' 
-                    ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none" 
-                    : "bg-white/5 border border-white/10 text-text-m mr-auto rounded-tl-none border-l-2 border-l-cyan"
-                )}
-              >
-                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
-                    {m.sender === 'user' ? 'USER_NODE' : 'OS_COACH_DAEMON'}
-                 </span>
-                 <p className="whitespace-pre-wrap">{m.text}</p>
-              </div>
-           ))}
-           {isGenerating && (
-              <div className="bg-white/5 border border-white/10 text-cyan max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed mr-auto rounded-tl-none flex items-center gap-2">
-                 <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce" />
-                 <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.2s]" />
-                 <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.4s]" />
-                 <span className="text-[10px] uppercase font-black tracking-widest opacity-60">SYNAPSE_PROCESSING_REPLY...</span>
-              </div>
-           )}
-        </div>
+         {/* Coach Messages area */}
+         <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
+            {messages.map((m, idx) => (
+               <div 
+                 key={`msg-${idx}-${m.sender}-${m.timestamp instanceof Date ? m.timestamp.getTime() : m.timestamp}`} 
+                 className={cn(
+                   "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
+                   m.sender === 'user' 
+                     ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none" 
+                     : "bg-white/5 border border-white/10 text-text-m mr-auto rounded-tl-none border-l-2 border-l-cyan"
+                 )}
+               >
+                  <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
+                     {m.sender === 'user' ? 'USER_NODE' : 'OS_COACH_DAEMON'}
+                  </span>
+                  <p className="whitespace-pre-wrap">{m.text}</p>
+               </div>
+            ))}
+            {isGenerating && (
+               <div className="bg-white/5 border border-white/10 text-cyan max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed mr-auto rounded-tl-none flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.2s]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.4s]" />
+                  <span className="text-[10px] uppercase font-black tracking-widest opacity-60">SYNAPSE_PROCESSING_REPLY...</span>
+               </div>
+            )}
+         </div>
 
-        {/* Coach Control Area & Input */}
-        <div className="p-6 border-t border-white/5 space-y-4 bg-white/5">
-           
-           {/* Quick Prompts */}
-           <div className="flex flex-wrap gap-2">
-              {[
-                { id: 'synth', label: "SYNTHESIZE_MY_BALANCE_SCORES", prompt: "Analyze my current life sync parameters and streak. Synthesize where my balance scores are healthy and which specific categories are suffering. Keep it actionable." },
-                { id: 'weak', label: 'IDENTIFY_WEAK_ROUTINES', prompt: `Based on my weakest category which is ${weakestSphere}, help me identify potential bottlenecks in my routines and suggest 3 high-impact habits to introduce today.` },
-                { id: 'obstacles', label: 'PREDICT_TOMORROWS_OBSTACLES', prompt: "Synthesize today's metrics and predict what psychological or scheduling obstacles I might face tomorrow. Give me a strategy to bypass them." }
-              ].map(p => (
-                <button
-                  key={p.id}
-                  disabled={isGenerating}
-                  onClick={() => handleSendMessage(p.prompt)}
-                  className="px-3 py-1.5 glass hover:bg-cyan/15 hover:border-cyan/30 text-white border border-white/5 text-[9px] font-mono rounded-lg transition-all font-black uppercase tracking-wider"
-                >
-                  ➕ {p.label}
-                </button>
-              ))}
-           </div>
+         {/* Coach Control Area & Input */}
+         <div className="p-6 border-t border-white/5 space-y-4 bg-white/5">
+            
+            {/* Quick Prompts */}
+            <div className="flex flex-wrap gap-2">
+               {[
+                 { id: 'synth', label: "SYNTHESIZE_MY_BALANCE_SCORES", prompt: "Analyze my current life sync parameters and streak. Synthesize where my balance scores are healthy and which specific categories are suffering. Keep it actionable." },
+                 { id: 'weak', label: 'IDENTIFY_WEAK_ROUTINES', prompt: `Based on my weakest category which is ${weakestSphere}, help me identify potential bottlenecks in my routines and suggest 3 high-impact habits to introduce today.` },
+                 { id: 'obstacles', label: 'PREDICT_TOMORROWS_OBSTACLES', prompt: "Synthesize today's metrics and predict what psychological or scheduling obstacles I might face tomorrow. Give me a strategy to bypass them." }
+               ].map(p => (
+                 <button
+                   key={p.id}
+                   disabled={isGenerating}
+                   onClick={() => handleSendMessage(p.prompt)}
+                   className="px-3 py-1.5 glass hover:bg-cyan/15 hover:border-cyan/30 text-white border border-white/5 text-[9px] font-mono rounded-lg transition-all font-black uppercase tracking-wider"
+                 >
+                   ➕ {p.label}
+                 </button>
+               ))}
+            </div>
 
-           <form 
-             onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputText); }}
-             className="flex gap-2"
-           >
-              <input 
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="PROMPT_AETHER_COACH..."
-                disabled={isGenerating}
-                className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
-              />
-              <button 
-                type="submit" 
-                disabled={isGenerating || !inputText.trim()}
-                className="px-6 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40"
-              >
-                SEND
-              </button>
-           </form>
-        </div>
-
+            <form 
+              onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputText); }}
+              className="flex gap-2"
+            >
+               <input 
+                 value={inputText}
+                 onChange={(e) => setInputText(e.target.value)}
+                 placeholder="PROMPT_AETHER_COACH..."
+                 disabled={isGenerating}
+                 className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
+               />
+               <button 
+                 type="submit" 
+                 disabled={isGenerating || !inputText.trim()}
+                 className="px-6 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40"
+               >
+                 SEND
+               </button>
+            </form>
+         </div>
       </div>
 
     </div>
