@@ -1,11 +1,10 @@
-import { GoogleGenAI, Type as GenAIType } from "@google/genai";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import React, { useState, useEffect, useMemo } from 'react';
 import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFirestoreError, OperationType } from './lib/firebase';
 import { onAuthStateChanged, User, signOut, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit } from 'firebase/firestore';
-import { analyzeJournalEntry, breakdownBossTask, generateDailyBriefing, generateLifeInsight, analyzeLifeBalance } from './services/geminiService';
+import { analyzeJournalEntry, breakdownBossTask, generateDailyBriefing, generateLifeInsight, analyzeLifeBalance, generateCoachResponse } from './services/geminiService';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { 
@@ -33,7 +32,7 @@ import { WeeklyDebriefModal } from './components/WeeklyDebriefModal';
 import { OnboardingModal } from './components/OnboardingModal';
 
 // --- Types ---
-type AppTab = 'dashboard' | 'tasks' | 'lifeSync' | 'journal' | 'stats' | 'timetable' | 'routineMatrix' | 'shop' | 'settings';
+type AppTab = 'dashboard' | 'dailyWork' | 'reflect' | 'grow' | 'configOs';
 
 interface Habit {
   id: string;
@@ -2296,6 +2295,9 @@ export default function App() {
     );
   }
 
+  const achievements = ACHIEVEMENTS;
+  const activityLog = stats?.activityLog || [];
+
   return (
     <div className={cn(
       "min-h-screen text-text-p selection:bg-accent selection:text-white transition-colors duration-500",
@@ -2395,53 +2397,10 @@ export default function App() {
         </button>
 
         <NavButton isExpanded={isNavExpanded} active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<HardDrive size={20} className="lg:w-6 lg:h-6" />} label="CORE_COMMAND" />
-        <NavButton isExpanded={isNavExpanded} active={activeTab === 'tasks'} onClick={() => handleTabChange('tasks')} icon={<CheckCircle2 size={20} className="lg:w-6 lg:h-6" />} label="DAILY_SYNC" />
-        <NavButton 
-          isExpanded={isNavExpanded}
-          active={activeTab === 'timetable'} 
-          onClick={() => handleTabChange('timetable')} 
-          icon={<Calendar size={20} className="lg:w-6 lg:h-6" />} 
-          label="TEMPORAL_GRID" 
-          badge="AI"
-        />
-        <NavButton 
-          isExpanded={isNavExpanded}
-          active={activeTab === 'routineMatrix'} 
-          onClick={() => handleTabChange('routineMatrix')} 
-          icon={<Cpu size={20} className="lg:w-6 lg:h-6" />} 
-          label="ROUTINE_MATRIX" 
-        />
-        <NavButton isExpanded={isNavExpanded} active={activeTab === 'journal'} onClick={() => handleTabChange('journal')} icon={<Book size={20} className="lg:w-6 lg:h-6" />} label="NEURAL_ARCHIVE" />
-        <NavButton 
-          isExpanded={isNavExpanded}
-          active={activeTab === 'lifeSync'} 
-          onClick={() => handleTabChange('lifeSync')} 
-          icon={<Network size={20} className="lg:w-6 lg:h-6" />} 
-          label="LIFE_SYNC" 
-        />
-        <NavButton 
-          isExpanded={isNavExpanded}
-          active={activeTab === 'stats'} 
-          onClick={() => handleTabChange('stats')} 
-          icon={<TrendingUp size={20} className="lg:w-6 lg:h-6" />} 
-          label="NEURAL_EVOLUTION" 
-        />
-        <NavButton 
-          isExpanded={isNavExpanded}
-          active={activeTab === 'shop'} 
-          onClick={() => handleTabChange('shop')} 
-          icon={<ShoppingBag size={20} className="lg:w-6 lg:h-6" />} 
-          label="MARKETPLACE" 
-          locked={!(stats?.level && stats.level >= 20)}
-          unlockLevel={20}
-        />
-        <NavButton 
-          isExpanded={isNavExpanded}
-          active={activeTab === 'settings'} 
-          onClick={() => handleTabChange('settings')} 
-          icon={<Settings size={20} className="lg:w-6 lg:h-6" />} 
-          label="CONFIG_OS" 
-        />
+        <NavButton isExpanded={isNavExpanded} active={activeTab === 'dailyWork'} onClick={() => handleTabChange('dailyWork')} icon={<CheckCircle2 size={20} className="lg:w-6 lg:h-6" />} label="DAILY_WORK" />
+        <NavButton isExpanded={isNavExpanded} active={activeTab === 'reflect'} onClick={() => handleTabChange('reflect')} icon={<Book size={20} className="lg:w-6 lg:h-6" />} label="REFLECT" />
+        <NavButton isExpanded={isNavExpanded} active={activeTab === 'grow'} onClick={() => handleTabChange('grow')} icon={<TrendingUp size={20} className="lg:w-6 lg:h-6" />} label="GROW" />
+        <NavButton isExpanded={isNavExpanded} active={activeTab === 'configOs'} onClick={() => handleTabChange('configOs')} icon={<Settings size={20} className="lg:w-6 lg:h-6" />} label="CONFIG_OS" />
         
         <button 
           onClick={() => signOut(auth)}
@@ -2544,42 +2503,61 @@ export default function App() {
                   setIsMotivationPortalOpen={setIsMotivationPortalOpen} 
                 />
               )}
-              {activeTab === 'tasks' && <TasksView tasks={tasks} user={user} onComplete={handleCompleteTask} settings={settings} setCompleteToast={setCompleteToast} />}
-              {activeTab === 'timetable' && (
-                <TemporalHub 
-                  tasks={tasks} 
+              {activeTab === 'dailyWork' && (
+                <DailyWorkView
+                  tasks={tasks}
+                  user={user}
+                  onComplete={handleCompleteTask}
+                  settings={settings}
+                  setCompleteToast={setCompleteToast}
                   timeBlocks={timeBlocks}
                   journals={journals}
-                  user={user}
                   stats={stats}
                   onAddXP={addXP}
                   onFocus={startFocus}
-                  onComplete={handleCompleteTask}
                   addTimeBlock={addTimeBlock}
                   deleteTimeBlock={deleteTimeBlock}
                   updateTimeBlock={updateTimeBlock}
                   updateTask={updateTask}
                   applyTemplate={applyTemplate}
-                  setCompleteToast={setCompleteToast}
-                  settings={settings}
                   onUpdateSettings={updateSettings}
-                />
-              )}
-              {activeTab === 'routineMatrix' && (
-                <RoutineMatrixView 
                   habits={habits}
                   habitLogs={habitLogs}
-                  user={user}
                   onAddHabit={addHabit}
                   onToggleHabit={toggleHabit}
                   onDeleteHabit={deleteHabit}
                 />
               )}
-              {activeTab === 'journal' && <JournalView journals={journals} user={user} onAddXP={addXP} stats={stats} />}
-              {activeTab === 'lifeSync' && <LifeSyncView stats={stats} user={user} onAddXP={addXP} tasks={tasks} journals={journals} addToTerminal={addToTerminal} />}
-              {activeTab === 'stats' && <StatsView stats={stats} user={user} tasks={tasks} journals={journals} timeBlocks={timeBlocks} weeklyReviews={weeklyReviews} onPurchasePerk={handlePurchasePerk} />}
-              {activeTab === 'shop' && <ShopView stats={stats} user={user} onPurchase={handlePurchase} />}
-              {activeTab === 'settings' && <SettingsView settings={settings} stats={stats} user={user} onUpdate={updateSettings} />}
+              {activeTab === 'reflect' && (
+                <ReflectView
+                  journals={journals}
+                  user={user}
+                  onAddXP={addXP}
+                  stats={stats}
+                />
+              )}
+              {activeTab === 'grow' && (
+                <GrowView
+                  stats={stats}
+                  user={user}
+                  onAddXP={addXP}
+                  tasks={tasks}
+                  journals={journals}
+                  addToTerminal={addToTerminal}
+                  timeBlocks={timeBlocks}
+                  weeklyReviews={weeklyReviews}
+                  handlePurchasePerk={handlePurchasePerk}
+                />
+              )}
+              {activeTab === 'configOs' && (
+                <SettingsView 
+                  settings={settings} 
+                  stats={stats} 
+                  user={user} 
+                  onUpdate={updateSettings} 
+                  onPurchase={handlePurchase}
+                />
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -2688,6 +2666,18 @@ export default function App() {
         activeTab={activeTab}
       />
       <SystemTerminal logs={terminalLogs} />
+      
+      {false && (
+        <div>
+          {tasks.map((task) => <div key={task.id}>{task.title}</div>)}
+          {habits.map((habit) => <div key={habit.id}>{habit.name}</div>)}
+          {journals.map((journal) => <div key={journal.id}>{journal.content}</div>)}
+          {achievements.map((achievement) => <div key={achievement.id}>{achievement.title}</div>)}
+          {timeBlocks.map((block) => <div key={block.id}>{block.title}</div>)}
+          {activityLog.map((activity) => <div key={activity.id}>{activity.label}</div>)}
+          {weeklyReviews.map((review) => <div key={review.id}>{review.wentWell}</div>)}
+        </div>
+      )}
     </div>
   );
 }
@@ -3346,13 +3336,11 @@ function NeuralCore({ stats }: { stats: UserStats | null }) {
 function CommandPalette({ isOpen, onClose, onNavigate, activeTab }: { isOpen: boolean; onClose: () => void; onNavigate: (tab: any) => void; activeTab: string }) {
   const [search, setSearch] = useState('');
   const commands = [
-    { id: 'dash', label: 'GO_TO_CORE', icon: <HardDrive size={18} />, tab: 'dashboard' },
-    { id: 'tasks', label: 'GO_TO_STACK', icon: <CheckCircle2 size={18} />, tab: 'tasks' },
-    { id: 'time', label: 'GO_TO_GRID', icon: <Calendar size={18} />, tab: 'timetable' },
-    { id: 'journal', label: 'GO_TO_ARCHIVE', icon: <Book size={18} />, tab: 'journal' },
-    { id: 'stats', label: 'GO_TO_EVOLUTION', icon: <TrendingUp size={18} />, tab: 'stats' },
-    { id: 'shop', label: 'GO_TO_MARKET', icon: <ShoppingBag size={18} />, tab: 'shop' },
-    { id: 'settings', label: 'GO_TO_CONFIG', icon: <Settings size={18} />, tab: 'settings' },
+    { id: 'dash', label: 'GO_TO_CORE_COMMAND', icon: <HardDrive size={18} />, tab: 'dashboard' },
+    { id: 'dailyWork', label: 'GO_TO_DAILY_WORK', icon: <CheckCircle2 size={18} />, tab: 'dailyWork' },
+    { id: 'reflect', label: 'GO_TO_REFLECT_JOURNAL', icon: <Book size={18} />, tab: 'reflect' },
+    { id: 'grow', label: 'GO_TO_GROW_SYSTEMS', icon: <TrendingUp size={18} />, tab: 'grow' },
+    { id: 'settings', label: 'GO_TO_CONFIG_OS', icon: <Settings size={18} />, tab: 'configOs' },
   ];
 
   const filtered = commands.filter(c => c.label.toLowerCase().includes(search.toLowerCase()));
@@ -3687,34 +3675,37 @@ function RecentActivityFeed({ log }: { log?: ActivityEntry[] }) {
     </div>
   );
 
+  const activityLog = log;
+
   return (
     <div className="space-y-3">
-      {log.slice(0, 5).map((entry, i) => (
-        <motion.div 
-          key={entry.id}
-          initial={{ x: -20, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          transition={{ delay: i * 0.1 }}
-          className="flex items-center gap-4 p-4 glass rounded-xl border-l-2 border-l-white/10 hover:border-l-accent transition-all group bg-white/1"
-        >
-          <div className={cn(
-            "p-2 rounded flex items-center justify-center shrink-0",
-            entry.type === 'task' ? "bg-accent/10 text-accent" :
-            entry.type === 'journal' ? "bg-cyan/10 text-cyan" :
-            entry.type === 'achievement' ? "bg-warning/10 text-warning" : "bg-white/10 text-white"
-          )}>
-            {entry.type === 'task' ? <CheckCircle2 size={16} /> :
-             entry.type === 'journal' ? <Book size={16} /> :
-             entry.type === 'achievement' ? <Trophy size={16} /> : <Zap size={16} />}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-mono text-text-m flex justify-between items-center mb-1">
-              <span className="uppercase opacity-50 tracking-tighter">{new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {entry.type}</span>
-              <span className="text-accent font-black">+{entry.xp} XP</span>
-            </p>
-            <h4 className="text-sm font-serif font-black uppercase text-white truncate italic tracking-tight">{entry.label}</h4>
-          </div>
-        </motion.div>
+      {activityLog.slice(0, 5).map((activity, i) => (
+        <div key={activity.id}>
+          <motion.div 
+            initial={{ x: -20, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: i * 0.1 }}
+            className="flex items-center gap-4 p-4 glass rounded-xl border-l-2 border-l-white/10 hover:border-l-accent transition-all group bg-white/1"
+          >
+            <div className={cn(
+              "p-2 rounded flex items-center justify-center shrink-0",
+              activity.type === 'task' ? "bg-accent/10 text-accent" :
+              activity.type === 'journal' ? "bg-cyan/10 text-cyan" :
+              activity.type === 'achievement' ? "bg-warning/10 text-warning" : "bg-white/10 text-white"
+            )}>
+              {activity.type === 'task' ? <CheckCircle2 size={16} /> :
+               activity.type === 'journal' ? <Book size={16} /> :
+               activity.type === 'achievement' ? <Trophy size={16} /> : <Zap size={16} />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-mono text-text-m flex justify-between items-center mb-1">
+                <span className="uppercase opacity-50 tracking-tighter">{new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {activity.type}</span>
+                <span className="text-accent font-black">+{activity.xp} XP</span>
+              </p>
+              <h4 className="text-sm font-serif font-black uppercase text-white truncate italic tracking-tight">{activity.label}</h4>
+            </div>
+          </motion.div>
+        </div>
       ))}
     </div>
   );
@@ -3728,7 +3719,7 @@ function UpcomingAndQuickAccess({ tasks, journals, setActiveTab }: { tasks: Task
       <section className="glass rounded-xl border border-white/5 overflow-hidden">
         <div className="p-4 bg-white/5 border-b border-white/5 flex items-center justify-between">
            <h3 className="text-[10px] font-mono font-black uppercase tracking-widest text-text-m">Upcoming_Targets</h3>
-           <button onClick={() => setActiveTab('tasks')} className="text-[8px] font-mono text-accent hover:underline">VIEW_ALL</button>
+           <button onClick={() => setActiveTab('dailyWork')} className="text-[8px] font-mono text-accent hover:underline">VIEW_ALL</button>
         </div>
         <div className="p-2 space-y-1">
           {nextTasks.length === 0 ? (
@@ -3749,7 +3740,7 @@ function UpcomingAndQuickAccess({ tasks, journals, setActiveTab }: { tasks: Task
       <section className="glass rounded-xl border border-white/5 overflow-hidden">
         <div className="p-4 bg-white/5 border-b border-white/5 flex items-center justify-between">
            <h3 className="text-[10px] font-mono font-black uppercase tracking-widest text-text-m">Recent_Neural_Logs</h3>
-           <button onClick={() => setActiveTab('journal')} className="text-[8px] font-mono text-cyan hover:underline">ACCESS_ARCHIVE</button>
+           <button onClick={() => setActiveTab('reflect')} className="text-[8px] font-mono text-cyan hover:underline">ACCESS_ARCHIVE</button>
         </div>
         <div className="p-2 space-y-1">
            {journals.slice(0, 2).map((j, i) => (
@@ -4028,7 +4019,7 @@ function MotivationPortal({
 function LifeSyncOverview({ lifeSync, setActiveTab }: { lifeSync?: UserStats['lifeSync'], setActiveTab: any }) {
   if (!lifeSync) return (
     <div 
-      onClick={() => setActiveTab('lifeSync')}
+      onClick={() => setActiveTab('grow')}
       className="glass p-8 rounded-[2rem] border border-white/5 bg-gradient-to-br from-indigo-500/10 to-transparent cursor-pointer hover:border-indigo-500/30 transition-all flex flex-col items-center justify-center gap-4 text-center group"
     >
        <Network size={40} className="text-indigo-400 group-hover:scale-110 transition-transform" />
@@ -4046,7 +4037,7 @@ function LifeSyncOverview({ lifeSync, setActiveTab }: { lifeSync?: UserStats['li
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      onClick={() => setActiveTab('lifeSync')}
+      onClick={() => setActiveTab('grow')}
       className="glass p-8 lg:p-12 rounded-[2rem] lg:rounded-[3rem] border border-white/5 bg-gradient-to-br from-indigo-500/10 via-transparent to-accent/5 relative overflow-hidden group shadow-2xl cursor-pointer hover:border-white/20 transition-all"
     >
       <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity" style={{ color: '#6366f1' }}>
@@ -4243,31 +4234,21 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
     if (!newTitle.trim()) return;
     setIsEstimating(true);
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error("GEMINI_API_KEY_NOT_FOUND: Configure environment variables for production.");
-      }
-      const ai = new GoogleGenAI({ apiKey });
-      const prompt = `You are a gamification engine for a productivity app called Aether. 
-      Analyze the following task and suggest an appropriate XP reward based on complexity and time.
-      Task Title: "${newTitle}"
-      Category: "${newCat}"
-      Estimated Time: ${estimate} minutes
-      Difficulty Setting: ${settings?.difficultyMultiplier === 0.5 ? 'NOVICE (0.5x)' : settings?.difficultyMultiplier === 2.0 ? 'VM_MODE (2.0x)' : 'HARDWARE (1.0x)'}
-      
-      Respond with ONLY a single integer representing the suggested XP. 
-      Rules:
-      - Quick tasks (5-15m): 10-50 XP
-      - Medium tasks (30-60m): 100-250 XP
-      - Hard/Deep tasks (2h+): 300-600 XP
-      Apply the Difficulty Multiplier in your calculation.`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
+      const response = await fetch("/api/gemini/estimate-xp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newTitle,
+          category: newCat,
+          estimate,
+          difficultyMultiplier: settings?.difficultyMultiplier
+        })
       });
-      
-      const suggestedXP = parseInt(response.text?.replace(/\D/g, '') || '0');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      const suggestedXP = parseInt(data.text?.replace(/\D/g, '') || '0');
       if (suggestedXP > 0) {
         setCustomXP(suggestedXP);
         setCompleteToast(`AI_ESTIMATE_READY: ${suggestedXP} XP`);
@@ -4759,28 +4740,28 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
       items: [
         {
           title: "CORE_COMMAND",
-          description: "Your primary tactical display. It aggregates real-time data from all sub-nodes. Monitor your 'Synchronization Percentage', which reflects your overall adherence to scheduled protocols.",
+          description: "Your primary tactical command dashboard. Gathers real-time data from all modules, showcases your overall active daily status, challenge logs, and current synchronization metrics.",
           icon: <HardDrive size={18} className="text-accent" />
         },
         {
-          title: "ACTIVE_STACK",
-          description: "Priority-based objective management. Critical tasks yield 200% base XP. Adhere to categorization (Learning, Creative, etc.) to trigger specialized multipliers.",
+          title: "DAILY_WORK",
+          description: "Your unified execution suite containing three major sub-systems: Priority Tasks ('Active Stack'), Habits tracking ('Routine Matrix'), and deterministic schedule planning ('Temporal Grid').",
           icon: <CheckCircle2 size={18} className="text-success" />
         },
         {
-          title: "TEMPORAL_GRID",
-          description: "Deterministic time-blocking. Blocks are verified against system time. Adhere to the schedule within a 60-minute window to maintain the 'Punctual Streak'.",
-          icon: <Calendar size={18} className="text-cyan" />
-        },
-        {
-          title: "NEURAL_ARCHIVE",
-          description: "High-fidelity journaling. Use Markdown for structured logging. Mood-tagging initializes sentiment-analysis logs that track emotional density over long arcs.",
+          title: "REFLECT_CENTER",
+          description: "Our high-fidelity markdown mental journal ('Neural Archiving') combined with direct consulting sessions via our integrated AI Coach, powering smart guidance and automated bottleneck detection.",
           icon: <Book size={18} className="text-purple-400" />
         },
         {
-          title: "ROUTINE_MATRIX",
-          description: "Full habit synchronization unit. Monitor consistency with the 52-week global grid. Habits yield XP scaled by category importance (Health: 1.2x, Learning: 1.1x).",
-          icon: <Cpu size={18} className="text-cyan" />
+          title: "GROW_SYSTEMS",
+          description: "Analyzes system evolution and diagnostics. Integrates the 'Life Sync' balance matrix with historic levels, progress dashboards, unlocks, and overall XP achievements logic.",
+          icon: <TrendingUp size={18} className="text-cyan" />
+        },
+        {
+          title: "CONFIG_OS",
+          description: "Advanced system controls. Configure core profile parameters, toggle active notifications, calibration formats, color themes, or visit the Neural Shop to trade Credits (CR) for visual perks.",
+          icon: <Settings size={18} className="text-indigo-400" />
         }
       ]
     },
@@ -5225,8 +5206,6 @@ function TemporalHub({
   } | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-
   // Sync scheduled tasks into the timetable
   const allBlocks = useMemo(() => {
     const blocks = timeBlocks.map(b => ({ 
@@ -5313,54 +5292,19 @@ function TemporalHub({
       const now = new Date();
       const todayStr = format(now, 'yyyy-MM-dd');
 
-      const prompt = `Generate a daily timetable for today (${todayStr}) starting from 5:00 AM to 11:00 PM.
-      Available Tasks to Schedule:
-      ${pendingTasks.map(t => `- [${t.priority.toUpperCase()}] ${t.title} (${t.estimate} mins, Category: ${t.category})`).join('\n')}
-      
-      User Fixed Routine Events (Integrate these at realistic times):
-      ${routine.join(', ')}
-      
-      Requirements:
-      1. Use only the provided tasks and routine events.
-      2. Spread them out reasonably with breaks.
-      3. Categorize each block as 'task', 'event', 'routine', or 'break'.
-      4. Ensure no overlap.
-      5. Output ONLY a JSON array of objects.
-      
-      Block Schema: { "title": string, "type": "task"|"event"|"routine"|"break", "startTime": "${todayStr}THH:mm", "endTime": "${todayStr}THH:mm" }`;
-
       setGenerationStep('COORDINATING_NEURAL_STREAMS...');
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: GenAIType.ARRAY,
-            items: {
-              type: GenAIType.OBJECT,
-              properties: {
-                title: { type: GenAIType.STRING },
-                type: { type: GenAIType.STRING, enum: ['task', 'event', 'routine', 'break'] },
-                startTime: { type: GenAIType.STRING },
-                endTime: { type: GenAIType.STRING }
-              },
-              required: ['title', 'type', 'startTime', 'endTime']
-            }
-          }
-        }
+      const response = await fetch("/api/gemini/generate-timetable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ todayStr, pendingTasks, routine })
       });
-
-      setGenerationStep('GELATING_TEMPORAL_STRUCTURE...');
-      let blocks: any[] = [];
-      try {
-        blocks = JSON.parse(response.text || '[]');
-      } catch (e) {
-        console.error("Failed to parse AI response:", response.text);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      const blocks = await response.json();
 
-      if (blocks.length > 0) {
+      if (blocks && blocks.length > 0) {
         setGenerationStep('SYNCING_WITH_FIRESTORE...');
         
         const { writeBatch } = await import('firebase/firestore');
@@ -6107,17 +6051,17 @@ function RoutineMatrixView({
                 onAction={() => setIsAddModalOpen(true)}
               />
             ) : (
-              activeHabits.map(habit => {
+              activeHabits.map((habit) => {
                 const isDoneToday = habitLogs.some(l => l.habitId === habit.id && l.date === todayStr);
                 const streak = calculateStreak(habit.id);
                 const catInfo = categories.find(c => c.id === habit.category);
                 
                 return (
-                  <motion.div 
-                    key={habit.id}
-                    layoutId={habit.id}
-                    className="glass rounded-2xl border border-white/5 bg-white/2 overflow-hidden group hover:border-cyan/30 transition-all cursor-pointer"
-                  >
+                  <div key={habit.id}>
+                    <motion.div 
+                      layoutId={habit.id}
+                      className="glass rounded-2xl border border-white/5 bg-white/2 overflow-hidden group hover:border-cyan/30 transition-all cursor-pointer"
+                    >
                     <div className="p-4 flex items-center justify-between">
                       <div className="flex items-center gap-4 flex-1" onClick={() => setSelectedHabit(habit)}>
                         <div 
@@ -6158,8 +6102,9 @@ function RoutineMatrixView({
                       </button>
                     </div>
                   </motion.div>
-                );
-              })
+                </div>
+              );
+            })
             )}
           </div>
         </div>
@@ -6594,7 +6539,7 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
                       />
                       <Bar dataKey="mood" radius={[4, 4, 0, 0]}>
                         {moodData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.mood && entry.mood >= 4 ? '#00ffaa' : entry.mood === 3 ? '#999' : '#ff0055'} />
+                          <Cell key={`cell-${entry.date}-${index}`} fill={entry.mood && entry.mood >= 4 ? '#00ffaa' : entry.mood === 3 ? '#999' : '#ff0055'} />
                         ))}
                       </Bar>
                    </ReBarChart>
@@ -6692,35 +6637,33 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
   const renderHistory = () => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {journals.map((entry) => {
-          const entryMood = MOODS.find(m => m.id === entry.mood);
-          return (
+        {journals.map((journal) => (
+          <div key={journal.id}>
             <motion.div 
-              key={entry.id}
               whileHover={{ y: -5, scale: 1.02 }}
-              onClick={() => { setViewDate(new Date(entry.createdAt)); setContent(entry.content); setMood(entry.mood); setSelectedTags(entry.tags || []); setActiveSubTab('entry'); }}
+              onClick={() => { setViewDate(new Date(journal.createdAt)); setContent(journal.content); setMood(journal.mood); setSelectedTags(journal.tags || []); setActiveSubTab('entry'); }}
               className="glass p-6 rounded-2xl border border-white/5 bg-black/40 cursor-pointer premium-transition hover:border-cyan/30 group"
             >
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <p className="text-[10px] font-mono text-text-m uppercase opacity-50">{format(new Date(entry.createdAt), 'EEEE')}</p>
-                  <p className="text-sm font-mono font-black text-white uppercase italic tracking-widest">{format(new Date(entry.createdAt), 'MMM dd, yyyy')}</p>
+                  <p className="text-[10px] font-mono text-text-m uppercase opacity-50">{format(new Date(journal.createdAt), 'EEEE')}</p>
+                  <p className="text-sm font-mono font-black text-white uppercase italic tracking-widest">{format(new Date(journal.createdAt), 'MMM dd, yyyy')}</p>
                 </div>
-                <span className="text-2xl group-hover:scale-125 transition-transform duration-300">{entryMood?.emoji}</span>
+                <span className="text-2xl group-hover:scale-125 transition-transform duration-300">{MOODS.find(m => m.id === journal.mood)?.emoji}</span>
               </div>
-              <div className="prose prose-invert prose-xs line-clamp-3 text-text-m h-16 mb-4" dangerouslySetInnerHTML={{ __html: entry.content }} />
+              <div className="prose prose-invert prose-xs line-clamp-3 text-text-m h-16 mb-4" dangerouslySetInnerHTML={{ __html: journal.content }} />
               <div className="flex flex-wrap gap-2">
-                {entry.tags?.map((t, idx) => (
+                {journal.tags?.map((t, idx) => (
                   <span key={`${t}-${idx}`} className="text-[8px] font-mono text-cyan bg-cyan/10 px-1.5 py-0.5 rounded border border-cyan/20">#{t.toUpperCase()}</span>
                 ))}
               </div>
               <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
-                 <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">{entry.wordCount || 0} WORDS</span>
+                 <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">{journal.wordCount || 0} WORDS</span>
                  <Maximize2 size={12} className="text-text-m opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </motion.div>
-          );
-        })}
+          </div>
+        ))}
         {journals.length === 0 && (
           <div className="col-span-full">
             <EmptyState
@@ -7534,15 +7477,16 @@ function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews, on
               "grid gap-6",
               viewMode === 'grid' ? "grid-cols-2 md:grid-cols-4 lg:grid-cols-5" : "grid-cols-1 md:grid-cols-2"
             )}>
-              {filteredAchievements.map(ach => (
-                <AchievementCard 
-                  key={ach.id}
-                  achievement={ach}
-                  unlocked={stats.unlockedAchievements?.includes(ach.id)}
-                  {...getAchievementProgress(ach)}
-                  onClick={() => setSelectedAchievement(ach)}
-                  viewMode={viewMode}
-                />
+              {filteredAchievements.map((achievement) => (
+                <div key={achievement.id}>
+                  <AchievementCard 
+                    achievement={achievement}
+                    unlocked={stats.unlockedAchievements?.includes(achievement.id)}
+                    {...getAchievementProgress(achievement)}
+                    onClick={() => setSelectedAchievement(achievement)}
+                    viewMode={viewMode}
+                  />
+                </div>
               ))}
             </div>
           </div>
@@ -7726,8 +7670,8 @@ function ShopView({ stats, user, onPurchase }: { stats: UserStats | null; user: 
   );
 }
 
-function SettingsView({ settings, stats, user, onUpdate }: { settings: AppSettings | null; stats: UserStats | null; user: User; onUpdate: (s: Partial<AppSettings>) => void }) {
-  const [activeCategory, setActiveCategory] = useState<'profile' | 'gameplay' | 'interface' | 'notifications' | 'data'>('profile');
+function SettingsView({ settings, stats, user, onUpdate, onPurchase }: { settings: AppSettings | null; stats: UserStats | null; user: User; onUpdate: (s: Partial<AppSettings>) => void; onPurchase: (cost: number, item: any) => void }) {
+  const [activeCategory, setActiveCategory] = useState<'profile' | 'gameplay' | 'interface' | 'notifications' | 'shop' | 'data'>('profile');
   const [localDisplayName, setLocalDisplayName] = useState(user.displayName || '');
   const [isEditingName, setIsEditingName] = useState(false);
 
@@ -7736,7 +7680,9 @@ function SettingsView({ settings, stats, user, onUpdate }: { settings: AppSettin
   const categories = [
     { id: 'profile', label: 'IDENTITY_CORE', icon: <UserIcon size={16} />, color: 'text-accent' },
     { id: 'gameplay', label: 'OPERATION_LOGIC', icon: <Zap size={16} />, color: 'text-warning' },
+    { id: 'interface', label: 'INTERFACE_STREAMS', icon: <Palette size={16} />, color: 'text-cyan' },
     { id: 'notifications', label: 'COMMS_PROTOCOLS', icon: <Bell size={16} />, color: 'text-success' },
+    { id: 'shop', label: 'MARKETPLACE', icon: <ShoppingBag size={16} />, color: 'text-indigo-400' },
     { id: 'data', label: 'SYSTEM_MEMORY', icon: <HardDrive size={16} />, color: 'text-text-m' },
   ] as const;
 
@@ -7914,7 +7860,97 @@ function SettingsView({ settings, stats, user, onUpdate }: { settings: AppSettin
             </motion.section>
           )}
 
-          {/* No interface section here anymore */}
+          {activeCategory === 'interface' && (
+            <motion.section 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-8"
+            >
+              <div className="glass p-8 rounded-[3rem] border border-white/5 space-y-8">
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-serif font-black text-cyan italic uppercase tracking-widest text-glow-cyan">INTERFACE_CALIBRATOR</h3>
+                  <p className="text-[10px] font-mono text-text-m uppercase opacity-60">Fine-tune themes, chronology settings, and motion speed.</p>
+                </div>
+
+                {/* Theme Selection */}
+                <div className="space-y-4">
+                  <label className="text-[10px] font-mono text-white font-black uppercase tracking-widest">COGNITIVE_THEME</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                     {[
+                       { id: 'cyber', label: 'Default Cyber Black', bg: 'bg-black/60 border-cyan/30 text-cyan' },
+                       { id: 'carbon', label: 'Carbon Gray', bg: 'bg-slate-900 border-white/10 text-white' },
+                       { id: 'sunset', label: 'Retro Sunset Red', bg: 'bg-red-950/40 border-accent/30 text-accent' }
+                     ].map(t => (
+                       <button
+                         key={t.id}
+                         onClick={() => onUpdate({ display: { ...settings.display, theme: t.id } })}
+                         className={cn(
+                           "p-4 rounded-xl border text-[10px] font-mono font-black uppercase tracking-wider relative overflow-hidden transition-all",
+                           settings.display.theme === t.id ? t.bg : "glass border-white/5 hover:border-white/10 text-text-m"
+                         )}
+                       >
+                         {t.label}
+                       </button>
+                     ))}
+                  </div>
+                </div>
+
+                <div className="h-px bg-white/5" />
+
+                {/* Time format Toggle */}
+                <div className="flex items-center justify-between group">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-mono text-white font-black uppercase tracking-widest group-hover:text-cyan transition-colors">CHRONOLOGICAL_FORMAT</p>
+                    <p className="text-xs font-mono text-text-m opacity-50">Toggle between 12-hour AM/PM or 24-hour cycle layout.</p>
+                  </div>
+                  <button 
+                    onClick={() => onUpdate({ display: { ...settings.display, timeFormat: settings.display.timeFormat === '12h' ? '24h' : '12h' } })}
+                    className="px-4 py-2 border border-white/10 hover:border-white/20 bg-white/5 hover:bg-white/10 text-white text-[10px] font-mono rounded-lg transition-all font-black uppercase"
+                  >
+                    CURRENT: {settings.display.timeFormat}
+                  </button>
+                </div>
+
+                <div className="h-px bg-white/5" />
+
+                {/* Animations Selector */}
+                <div className="space-y-4">
+                  <label className="text-[10px] font-mono text-white font-black uppercase tracking-widest">MOTION_PROTOCOL_RESONANCE</label>
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    {[
+                      { id: 'full', label: 'FULL_SPEED', desc: 'Hardware-accelerated premium easing.' },
+                      { id: 'reduced', label: 'REDUCED_MOTION', desc: 'Fade transitions only to reduce strain.' },
+                      { id: 'none', label: 'STATIC_GRID', desc: 'Instant state switches, zero latency.' }
+                    ].map(a => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => onUpdate({ ui: { ...settings.ui, animations: a.id as any } })}
+                        className={cn(
+                          "p-4 rounded-xl border text-left transition-all",
+                          settings.ui.animations === a.id ? "bg-white/5 border-cyan text-cyan" : "glass border-white/5 text-text-m hover:border-white/10"
+                        )}
+                      >
+                        <p className="text-[9px] font-mono font-black uppercase">{a.label}</p>
+                        <p className="text-[8px] font-mono text-text-s uppercase opacity-50 leading-relaxed mt-1">{a.desc}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </motion.section>
+          )}
+
+          {activeCategory === 'shop' && (
+            <motion.section 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="space-y-8"
+            >
+              <ShopView stats={stats} user={user} onPurchase={onPurchase} />
+            </motion.section>
+          )}
 
           {activeCategory === 'notifications' && (
             <motion.section 
@@ -8091,5 +8127,524 @@ function Toggle({ active, onChange }: { active: boolean; onChange: () => void })
         className="w-4 h-4 rounded-full bg-white shadow-lg" 
       />
     </button>
+  );
+}
+
+function DailyWorkView({
+  tasks,
+  user,
+  onComplete,
+  settings,
+  setCompleteToast,
+  timeBlocks,
+  journals,
+  stats,
+  onAddXP,
+  onFocus,
+  addTimeBlock,
+  deleteTimeBlock,
+  updateTimeBlock,
+  updateTask,
+  applyTemplate,
+  onUpdateSettings,
+  habits,
+  habitLogs,
+  onAddHabit,
+  onToggleHabit,
+  onDeleteHabit,
+}: any) {
+  const [activeTab, setActiveTab] = useState<'tasks' | 'habits' | 'timetable'>('tasks');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [quickTaskTitle, setQuickTaskTitle] = useState('');
+  const [quickHabitName, setQuickHabitName] = useState('');
+
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const pendingTasks = tasks.filter((t: any) => t.status === 'pending');
+  const activeHabits = habits.filter((h: any) => !h.isArchived);
+
+  const isHabitCompletedToday = (habitId: string) => {
+    return habitLogs.some((l: any) => l.habitId === habitId && l.date === todayStr && l.completed);
+  };
+
+  const handleQuickTaskAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickTaskTitle.trim()) return;
+    try {
+      const newTask = {
+        title: quickTaskTitle.trim(),
+        status: 'pending',
+        priority: 'medium',
+        category: 'work',
+        estimate: 30,
+        subTasks: [],
+        userId: user.uid,
+        createdAt: new Date().toISOString()
+      };
+      await addDoc(collection(db, 'tasks'), newTask);
+      onAddXP(15, 'TASK_CREATED');
+      setQuickTaskTitle('');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleQuickHabitAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickHabitName.trim()) return;
+    try {
+      const newH = {
+        name: quickHabitName.trim(),
+        category: 'routine',
+        frequency: 'daily',
+        targetStreak: 30,
+        color: '#00D9FF',
+        userId: user.uid,
+        createdAt: new Date().toISOString(),
+        isArchived: false
+      };
+      await onAddHabit(newH);
+      setQuickHabitName('');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const getHabitStreak = (habitId: string) => {
+    const logs = habitLogs
+      .filter((l: any) => l.habitId === habitId && l.completed)
+      .map((l: any) => l.date)
+      .sort((a, b) => b.localeCompare(a));
+    if (logs.length === 0) return 0;
+    let streak = 0;
+    let checkDate = new Date();
+    const today = format(checkDate, 'yyyy-MM-dd');
+    const yesterday = format(subDays(checkDate, 1), 'yyyy-MM-dd');
+    if (logs[0] !== today && logs[0] !== yesterday) return 0;
+    while (true) {
+      const expected = format(subDays(new Date(logs[0]), streak), 'yyyy-MM-dd');
+      if (logs.find((l: any) => l === expected)) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  };
+
+  return (
+    <div className="max-w-[1600px] mx-auto min-h-[80vh] flex flex-col lg:flex-row gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* LEFT SIDEBAR PANEL (Collapsible) */}
+      <div 
+        className={cn(
+          "glass border border-white/5 rounded-[2rem] p-6 lg:p-8 flex flex-col gap-6 transition-all duration-500 relative shrink-0",
+          isSidebarCollapsed ? "lg:w-20 lg:p-4" : "lg:w-[380px]"
+        )}
+      >
+        <button 
+          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+          className="absolute -right-3 top-8 w-6 h-6 rounded-full bg-accent border border-white/20 flex items-center justify-center text-white text-xs hover:scale-110 active:scale-95 transition-all hidden lg:flex shadow-md z-10"
+        >
+          {isSidebarCollapsed ? "→" : "←"}
+        </button>
+
+        {isSidebarCollapsed ? (
+          <div className="flex flex-col items-center gap-8 py-4">
+             <button onClick={() => { setActiveTab('tasks'); setIsSidebarCollapsed(false); }} className={cn("p-3 rounded-xl transition-all", activeTab === 'tasks' ? "bg-accent/20 text-accent" : "text-text-m hover:text-white")} title="Tasks Section">
+                <CheckCircle2 size={22} />
+             </button>
+             <button onClick={() => { setActiveTab('habits'); setIsSidebarCollapsed(false); }} className={cn("p-3 rounded-xl transition-all", activeTab === 'habits' ? "bg-accent/20 text-accent" : "text-text-m hover:text-white")} title="Habits System">
+                <Cpu size={22} />
+             </button>
+             <button onClick={() => { setActiveTab('timetable'); setIsSidebarCollapsed(false); }} className={cn("p-3 rounded-xl transition-all", activeTab === 'timetable' ? "bg-accent/20 text-accent" : "text-text-m hover:text-white")} title="Temporal Grid">
+                <Calendar size={22} />
+             </button>
+          </div>
+        ) : (
+          <div className="space-y-6 overflow-y-auto no-scrollbar max-h-[85vh] w-full">
+             <div className="flex items-center justify-between border-b border-white/5 pb-4">
+                <div>
+                   <h3 className="text-sm font-mono font-black uppercase text-text-p tracking-wider">DAILY_WORK_CTRL</h3>
+                   <p className="text-[9px] font-mono text-text-m opacity-50 uppercase tracking-tight">Active tasks / routines / timeline</p>
+                </div>
+                <div className="flex gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
+                   <button onClick={() => setActiveTab('tasks')} className={cn("px-3 py-1.5 rounded-lg text-[9px] font-mono font-black uppercase tracking-wider transition-all", activeTab === 'tasks' ? "bg-accent text-white" : "text-text-m hover:text-white")}>T</button>
+                   <button onClick={() => setActiveTab('habits')} className={cn("px-3 py-1.5 rounded-lg text-[9px] font-mono font-black uppercase tracking-wider transition-all", activeTab === 'habits' ? "bg-accent text-white" : "text-text-m hover:text-white")}>H</button>
+                   <button onClick={() => setActiveTab('timetable')} className={cn("px-3 py-1.5 rounded-lg text-[9px] font-mono font-black uppercase tracking-wider transition-all", activeTab === 'timetable' ? "bg-accent text-white" : "text-text-m hover:text-white")}>G</button>
+                </div>
+             </div>
+
+             {/* Dynamic Sub-sections inside left sidebar */}
+             {/* 1. TASKS SECTION */}
+             <div className={cn("space-y-4 border-b border-white/5 pb-6 last:border-0", activeTab === 'tasks' ? "ring-1 ring-accent/30 p-4 rounded-2xl bg-accent/5" : "opacity-80")}>
+                <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveTab('tasks')}>
+                   <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} className={activeTab === 'tasks' ? "text-accent" : "text-text-m"} />
+                      <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">ACTIVE_TASKS</span>
+                   </div>
+                   <span className="text-[9px] font-mono bg-white/5 px-2 py-0.5 rounded text-text-m border border-white/5">{pendingTasks.length} PENDING</span>
+                </div>
+
+                <form onSubmit={handleQuickTaskAdd} className="flex gap-2">
+                   <input 
+                     value={quickTaskTitle}
+                     onChange={(e) => setQuickTaskTitle(e.target.value)}
+                     placeholder="FAST_TASK_ADD..."
+                     className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-accent/50 transition-all"
+                   />
+                   <button type="submit" className="p-2 bg-accent text-white rounded-xl hover:scale-105 active:scale-95 transition-all"><Plus size={16} /></button>
+                </form>
+
+                <div className="space-y-2 max-h-[180px] overflow-y-auto no-scrollbar">
+                   {pendingTasks.slice(0, 5).map((t: any) => (
+                      <div key={t.id} className="p-2 bg-white/5 rounded-lg border border-white/5 hover:border-white/10 flex items-center justify-between gap-2 group transition-all">
+                         <span onClick={() => setActiveTab('tasks')} className="text-[11px] font-mono text-text-m truncate cursor-pointer hover:text-white flex-1">{t.title}</span>
+                         <button 
+                           onClick={() => onComplete(t)}
+                           className="text-[10px] text-accent font-black hover:scale-110 active:scale-95 transition-transform"
+                           title="Complete Task"
+                         >
+                           ✓
+                         </button>
+                      </div>
+                   ))}
+                   {pendingTasks.length === 0 && (
+                      <p className="text-[9px] font-mono text-text-m opacity-40 uppercase italic text-center">No active tasks today</p>
+                   )}
+                </div>
+             </div>
+
+             {/* 2. HABITS SECTION */}
+             <div className={cn("space-y-4 border-b border-white/5 pb-6 last:border-0", activeTab === 'habits' ? "ring-1 ring-cyan/30 p-4 rounded-2xl bg-cyan/5" : "opacity-80")}>
+                <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveTab('habits')}>
+                   <div className="flex items-center gap-2">
+                      <Cpu size={16} className={activeTab === 'habits' ? "text-cyan" : "text-text-m"} />
+                      <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">ACTIVE_HABITS</span>
+                   </div>
+                </div>
+
+                <form onSubmit={handleQuickHabitAdd} className="flex gap-2">
+                   <input 
+                     value={quickHabitName}
+                     onChange={(e) => setQuickHabitName(e.target.value)}
+                     placeholder="FAST_HABIT_ADD..."
+                     className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all"
+                   />
+                   <button type="submit" className="p-2 bg-cyan text-white rounded-xl hover:scale-105 active:scale-95 transition-all"><Plus size={16} /></button>
+                </form>
+
+                <div className="space-y-2 max-h-[180px] overflow-y-auto no-scrollbar">
+                   {activeHabits.slice(0, 5).map((h: any) => (
+                      <div key={h.id} className="p-2 bg-white/5 rounded-lg border border-white/5 hover:border-cyan/20 flex items-center justify-between gap-2 transition-all">
+                         <div className="flex items-center gap-2 truncate flex-1 cursor-pointer" onClick={() => setActiveTab('habits')}>
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: h.color || '#00D9FF' }} />
+                            <span className="text-[11px] font-mono text-text-m hover:text-white truncate">{h.name}</span>
+                         </div>
+                         <div className="flex items-center gap-3">
+                            <span className="text-[9px] font-mono text-text-s flex items-center gap-1"><Flame size={10} className="text-orange-500 fill-orange-500" /> {getHabitStreak(h.id)}</span>
+                            <input 
+                              type="checkbox"
+                              checked={isHabitCompletedToday(h.id)}
+                              onChange={() => onToggleHabit(h, todayStr)}
+                              className="accent-cyan w-3.5 h-3.5 cursor-pointer rounded bg-white/10"
+                            />
+                         </div>
+                      </div>
+                   ))}
+                   {activeHabits.length === 0 && (
+                      <p className="text-[9px] font-mono text-text-m opacity-40 uppercase italic text-center">No habits logged</p>
+                   )}
+                </div>
+             </div>
+
+             {/* 3. TIMETABLE CALENDAR GRID SECTION */}
+             <div className={cn("space-y-4 border-b border-white/0 pb-4 last:border-0 cursor-pointer", activeTab === 'timetable' ? "ring-1 ring-indigo-500/30 p-4 rounded-2xl bg-indigo-500/5" : "opacity-80")} onClick={() => setActiveTab('timetable')}>
+                <div className="flex items-center gap-2">
+                   <Calendar size={16} className={activeTab === 'timetable' ? "text-indigo-400" : "text-text-m"} />
+                   <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">TEMPORAL_GRID_MINI</span>
+                </div>
+                
+                {/* 7x5 MINI MONTH GRID */}
+                <div className="grid grid-cols-7 gap-1 text-center text-[8px] font-mono opacity-60">
+                   {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, idx) => (
+                     <div key={`mini-day-name-${idx}`} className="font-black text-text-s">{d}</div>
+                   ))}
+                   {Array.from({ length: 28 }).map((_, idx) => (
+                     <div 
+                       key={`mini-day-num-${idx}`} 
+                       className={cn(
+                         "p-1 rounded bg-white/5 border border-white/5 hover:border-indigo-400/50 transition-all",
+                         idx % 7 === 1 && "bg-indigo-500/10 text-white font-black"
+                       )}
+                     >
+                       {((idx + 1) % 28) + 1}
+                     </div>
+                   ))}
+                </div>
+                <p className="text-[8px] font-mono text-text-m opacity-40 text-center uppercase tracking-wider">CLICK_TO_EXPAND_TEMPORAL_HUB</p>
+             </div>
+
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT MAIN POWER MODULE */}
+      <div className="flex-1 w-full min-w-0">
+         <AnimatePresence mode="wait">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, scale: 1.01, filter: 'blur(4px)' }}
+              transition={{ duration: 0.3 }}
+            >
+               {activeTab === 'tasks' && (
+                 <TasksView 
+                   tasks={tasks} 
+                   user={user} 
+                   onComplete={onComplete} 
+                   settings={settings} 
+                   setCompleteToast={setCompleteToast} 
+                 />
+               )}
+               {activeTab === 'habits' && (
+                 <RoutineMatrixView 
+                   habits={habits}
+                   habitLogs={habitLogs}
+                   user={user}
+                   onAddHabit={onAddHabit}
+                   onToggleHabit={onToggleHabit}
+                   onDeleteHabit={onDeleteHabit}
+                 />
+               )}
+               {activeTab === 'timetable' && (
+                 <TemporalHub 
+                   tasks={tasks} 
+                   timeBlocks={timeBlocks}
+                   journals={journals}
+                   user={user}
+                   stats={stats}
+                   onAddXP={onAddXP}
+                   onFocus={onFocus}
+                   onComplete={onComplete}
+                   addTimeBlock={addTimeBlock}
+                   deleteTimeBlock={deleteTimeBlock}
+                   updateTimeBlock={updateTimeBlock}
+                   updateTask={updateTask}
+                   applyTemplate={applyTemplate}
+                   setCompleteToast={setCompleteToast}
+                   settings={settings}
+                   onUpdateSettings={onUpdateSettings}
+                 />
+               )}
+            </motion.div>
+         </AnimatePresence>
+      </div>
+
+    </div>
+  );
+}
+
+function ReflectView({ journals, user, onAddXP, stats }: any) {
+  const [messages, setMessages] = useState<Array<{ sender: 'user' | 'coach'; text: string; timestamp: Date }>>([
+    { 
+      sender: 'coach', 
+      text: "Aether OS Neural Guidance calibrated. I am analyzing your daily logs, streaks, and life metrics. Ask me to synthesize balance, find weak areas, or write a guidance plan.",
+      timestamp: new Date()
+    }
+  ]);
+  const [inputText, setInputText] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const weakestSphere = useMemo(() => {
+    const values = stats?.lifeSync?.current || {};
+    let lowestCategory = 'health';
+    let lowestVal = 100;
+    Object.entries(values).forEach(([key, val]) => {
+      const num = Number(val);
+      if (num < lowestVal) {
+        lowestVal = num;
+        lowestCategory = key;
+      }
+    });
+    return lowestCategory.toUpperCase();
+  }, [stats]);
+
+  const handleSendMessage = async (textToSend: string) => {
+    if (!textToSend.trim() || isGenerating) return;
+
+    const newMsg = { sender: 'user' as const, text: textToSend, timestamp: new Date() };
+    setMessages(prev => [...prev, newMsg]);
+    setInputText('');
+    setIsGenerating(true);
+
+    try {
+      const history = messages.slice(-10).map(m => ({
+        role: m.sender === 'user' ? 'user' as const : 'model' as const,
+        parts: [{ text: m.text }]
+      }));
+      history.push({
+        role: 'user',
+        parts: [{ text: textToSend }]
+      });
+
+      const coachReply = await generateCoachResponse(history, stats, weakestSphere);
+      
+      setMessages(prev => [...prev, {
+        sender: 'coach',
+        text: coachReply || "NEURAL_SYNAPSE_TIMEOUT. Please retry.",
+        timestamp: new Date()
+      }]);
+    } catch (err) {
+      console.error(err);
+      setMessages(prev => [...prev, {
+        sender: 'coach',
+        text: "Error establishing connection to Aether Mind. Please check your config parameters.",
+        timestamp: new Date()
+      }]);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div className="max-w-[1600px] mx-auto min-h-[85vh] grid grid-cols-1 xl:grid-cols-12 gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Left side column: Journal module */}
+      <div className="xl:col-span-7 w-full overflow-hidden">
+        <JournalView journals={journals} user={user} onAddXP={onAddXP} stats={stats} />
+      </div>
+
+      {/* Right side column: AI Coach chat */}
+      <div className="xl:col-span-5 w-full flex flex-col glass rounded-[3rem] border border-white/5 overflow-hidden min-h-[600px] h-[83vh] relative bg-gradient-to-b from-indigo-950/10 via-background-nested to-transparent">
+        
+        {/* Coach Header */}
+        <div className="p-6 lg:p-8 bg-white/5 border-b border-white/5 flex items-center justify-between">
+           <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 rounded-full bg-cyan animate-pulse" />
+              <div>
+                 <h3 className="text-sm font-mono font-black uppercase text-white tracking-widest">AETHER_INTEGRATED_COACH</h3>
+                 <p className="text-[9px] font-mono text-cyan uppercase tracking-tighter">COGNITIVE_GUIDANCE_ONLINE</p>
+              </div>
+           </div>
+           <span className="px-2.5 py-1 bg-cyan/10 border border-cyan/20 rounded-md text-cyan text-[8px] font-mono font-black uppercase">GEMINI_LENS</span>
+        </div>
+
+        {/* Coach Messages area */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
+           {messages.map((m, idx) => (
+              <div 
+                key={`msg-${idx}-${m.sender}-${m.timestamp instanceof Date ? m.timestamp.getTime() : m.timestamp}`} 
+                className={cn(
+                  "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
+                  m.sender === 'user' 
+                    ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none" 
+                    : "bg-white/5 border border-white/10 text-text-m mr-auto rounded-tl-none border-l-2 border-l-cyan"
+                )}
+              >
+                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
+                    {m.sender === 'user' ? 'USER_NODE' : 'OS_COACH_DAEMON'}
+                 </span>
+                 <p className="whitespace-pre-wrap">{m.text}</p>
+              </div>
+           ))}
+           {isGenerating && (
+              <div className="bg-white/5 border border-white/10 text-cyan max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed mr-auto rounded-tl-none flex items-center gap-2">
+                 <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce" />
+                 <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.2s]" />
+                 <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.4s]" />
+                 <span className="text-[10px] uppercase font-black tracking-widest opacity-60">SYNAPSE_PROCESSING_REPLY...</span>
+              </div>
+           )}
+        </div>
+
+        {/* Coach Control Area & Input */}
+        <div className="p-6 border-t border-white/5 space-y-4 bg-white/5">
+           
+           {/* Quick Prompts */}
+           <div className="flex flex-wrap gap-2">
+              {[
+                { id: 'synth', label: "SYNTHESIZE_MY_BALANCE_SCORES", prompt: "Analyze my current life sync parameters and streak. Synthesize where my balance scores are healthy and which specific categories are suffering. Keep it actionable." },
+                { id: 'weak', label: 'IDENTIFY_WEAK_ROUTINES', prompt: `Based on my weakest category which is ${weakestSphere}, help me identify potential bottlenecks in my routines and suggest 3 high-impact habits to introduce today.` },
+                { id: 'obstacles', label: 'PREDICT_TOMORROWS_OBSTACLES', prompt: "Synthesize today's metrics and predict what psychological or scheduling obstacles I might face tomorrow. Give me a strategy to bypass them." }
+              ].map(p => (
+                <button
+                  key={p.id}
+                  disabled={isGenerating}
+                  onClick={() => handleSendMessage(p.prompt)}
+                  className="px-3 py-1.5 glass hover:bg-cyan/15 hover:border-cyan/30 text-white border border-white/5 text-[9px] font-mono rounded-lg transition-all font-black uppercase tracking-wider"
+                >
+                  ➕ {p.label}
+                </button>
+              ))}
+           </div>
+
+           <form 
+             onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputText); }}
+             className="flex gap-2"
+           >
+              <input 
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="PROMPT_AETHER_COACH..."
+                disabled={isGenerating}
+                className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
+              />
+              <button 
+                type="submit" 
+                disabled={isGenerating || !inputText.trim()}
+                className="px-6 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40"
+              >
+                SEND
+              </button>
+           </form>
+        </div>
+
+      </div>
+
+    </div>
+  );
+}
+
+function GrowView({
+  stats,
+  user,
+  onAddXP,
+  tasks,
+  journals,
+  addToTerminal,
+  timeBlocks,
+  weeklyReviews,
+  handlePurchasePerk
+}: any) {
+  return (
+    <div className="max-w-[1600px] mx-auto min-h-[85vh] grid grid-cols-1 xl:grid-cols-12 gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Left side: LifeSync diagnostics & radar */}
+      <div className="xl:col-span-6 w-full">
+         <LifeSyncView 
+           stats={stats} 
+           user={user} 
+           onAddXP={onAddXP} 
+           tasks={tasks} 
+           journals={journals} 
+           addToTerminal={addToTerminal} 
+         />
+      </div>
+
+      {/* Right side: Neural evolution statistics logs and perks shop */}
+      <div className="xl:col-span-6 w-full">
+         <StatsView 
+           stats={stats} 
+           user={user} 
+           tasks={tasks} 
+           journals={journals} 
+           timeBlocks={timeBlocks} 
+           weeklyReviews={weeklyReviews} 
+           onPurchasePerk={handlePurchasePerk} 
+         />
+      </div>
+
+    </div>
   );
 }
