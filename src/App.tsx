@@ -16,7 +16,8 @@ import {
   Bold, Italic, Underline as UnderlineIcon, ListOrdered, Heading1, Heading2, Link as LinkIcon, Eraser, Type, Palette,
   ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download, Briefcase,
   Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
-  Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon, Info
+  Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon, Info,
+  RefreshCw, Copy
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -817,6 +818,7 @@ interface Task {
   scheduledEnd?: string; // ISO
   completedAt?: string; // ISO
   adherenceStatus?: 'ontime' | 'late' | 'partial' | 'missed';
+  habitId?: string;
 }
 
 interface Perk {
@@ -1000,6 +1002,7 @@ export default function App() {
   const [isDebriefModalOpen, setIsDebriefModalOpen] = useState(false);
   const [syncFailed, setSyncFailed] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
+  const [dailyWorkSubTab, setDailyWorkSubTab] = useState<'tasks' | 'habits' | 'timetable'>('tasks');
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [xpNotifications, setXpNotifications] = useState<XPNotification[]>([]);
   const [levelUpLevel, setLevelUpLevel] = useState<number | null>(null);
@@ -2129,6 +2132,24 @@ export default function App() {
 
       await addXP(earnedXP, source, { isBoss: task.isBoss });
 
+      // If completing a task synced with a habit, automatically complete the habit log today
+      if (task.habitId) {
+        const h = habits.find((hb: any) => hb.id === task.habitId);
+        if (h) {
+          const todayStr = format(new Date(), 'yyyy-MM-dd');
+          const existingLog = habitLogs.find(l => l.habitId === h.id && l.date === todayStr);
+          if (!existingLog) {
+            await addDoc(collection(db, 'habit_logs'), {
+              userId: user.uid,
+              habitId: h.id,
+              date: todayStr,
+              completed: true,
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+      }
+
       if (todayScheduledCompleted === 5) {
         await addXP(50, 'DAILY_TEMPORAL_MASTERY_REACHED');
       }
@@ -2165,11 +2186,24 @@ export default function App() {
 
   const toggleHabit = async (habit: Habit, date: string) => {
     if (!user || !stats) return;
-    const existingLog = habitLogs.find(l => l.habitId === habit.id && l.date === date);
+    const existingLog = habitLogs.find(l => l.habitId === habit.id && l.date === date); // unified sync active
 
     try {
       if (existingLog) {
         await deleteDoc(doc(db, 'habit_logs', existingLog.id));
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const completedTask = tasks.find((t: any) => 
+          t.userId === user.uid && 
+          t.createdAt.startsWith(todayStr) && 
+          ((t.title || "").trim().toLowerCase() === habit.name.trim().toLowerCase() || t.habitId === habit.id) &&
+          t.status === 'completed'
+        );
+        if (completedTask) {
+          await updateDoc(doc(db, 'tasks', completedTask.id), {
+            status: 'pending',
+            completedAt: null
+          });
+        }
       } else {
         await addDoc(collection(db, 'habit_logs'), {
           userId: user.uid,
@@ -2178,6 +2212,21 @@ export default function App() {
           completed: true,
           timestamp: new Date().toISOString()
         });
+
+        // Sync linked task completion today!
+        const todayStr = format(new Date(), 'yyyy-MM-dd');
+        const pendingTask = tasks.find((t: any) => 
+          t.userId === user.uid && 
+          t.createdAt.startsWith(todayStr) && 
+          ((t.title || "").trim().toLowerCase() === habit.name.trim().toLowerCase() || t.habitId === habit.id) &&
+          t.status === 'pending'
+        );
+        if (pendingTask) {
+          await updateDoc(doc(db, 'tasks', pendingTask.id), {
+            status: 'completed',
+            completedAt: new Date().toISOString()
+          });
+        }
 
         const multipliers: Record<string, number> = {
           health: 1.2,
@@ -2527,6 +2576,8 @@ export default function App() {
                   onAddHabit={addHabit}
                   onToggleHabit={toggleHabit}
                   onDeleteHabit={deleteHabit}
+                  subTab={dailyWorkSubTab}
+                  setSubTab={setDailyWorkSubTab}
                 />
               )}
               {activeTab === 'reflect' && (
@@ -2588,7 +2639,18 @@ export default function App() {
           <AchievementCelebration achievement={celebratingAchievement} onClose={() => setCelebratingAchievement(null)} />
         )}
         {isManualOpen && (
-          <ManualModal isOpen={isManualOpen} onClose={() => setIsManualOpen(false)} />
+          <ManualModal 
+            isOpen={isManualOpen} 
+            onClose={() => setIsManualOpen(false)} 
+            onRedirect={(tab, subTab) => {
+              handleTabChange(tab);
+              if (subTab) {
+                setDailyWorkSubTab(subTab);
+              }
+              setIsManualOpen(false);
+            }}
+            onTriggerMotivation={() => setIsMotivationPortalOpen(true)}
+          />
         )}
         <WeeklyDebriefModal
           isOpen={isDebriefModalOpen}
@@ -3447,8 +3509,8 @@ function SystemTerminal({ logs }: { logs: any[] }) {
               <button onClick={() => setIsExpanded(false)} className="text-text-m hover:text-white"><X size={14} /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 font-mono text-[9px] space-y-2 no-scrollbar selection:bg-accent/30">
-              {logs.map((log) => (
-                <div key={log.id} className="flex gap-3 animate-in fade-in slide-in-from-left-2 transition-all">
+              {logs.map((log, i) => (
+                <div key={`${log.id || 'log'}-${i}`} className="flex gap-3 animate-in fade-in slide-in-from-left-2 transition-all">
                   <span className="opacity-30 shrink-0">[{log.time}]</span>
                   <span className={cn(
                     "truncate",
@@ -3749,7 +3811,7 @@ function RecentActivityFeed({ log }: { log?: ActivityEntry[] }) {
   return (
     <div className="space-y-3">
       {activityLog.slice(0, 5).map((activity, i) => (
-        <div key={activity.id}>
+        <div key={`${activity.id || 'activity'}-${i}`}>
           <motion.div 
             initial={{ x: -20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -4245,7 +4307,8 @@ function InventoryItem({ icon, label, active }: { icon: string; label: string; a
   );
 }
 
-function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { tasks: Task[]; user: User; onComplete: (task: Task) => void; settings: AppSettings | null; setCompleteToast: (m: string | null) => void }) {
+function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits = [] }: { tasks: Task[]; user: User; onComplete: (task: Task) => void; settings: AppSettings | null; setCompleteToast: (m: string | null) => void; habits?: any[] }) {
+  const activeHabits = (habits || []).filter((h: any) => !h.isArchived);
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high' | 'critical'>('medium');
   const [newCat, setNewCat] = useState<'health' | 'learning' | 'creative' | 'work' | 'personal' | 'routine'>('work');
@@ -4473,6 +4536,82 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
               <span className="text-[10px] font-mono font-bold text-text-m uppercase group-hover:text-accent transition-colors">CHALLENGE_MODE</span>
             </label>
           </div>
+
+          {/* ADD A HABIT CHECKLIST */}
+          <div className="col-span-2 md:col-span-2 border-t md:border-t-0 md:border-l border-white/10 pt-4 md:pt-0 md:pl-4 space-y-2">
+            <label className="text-[10px] font-bold text-cyan uppercase tracking-widest font-mono flex items-center gap-1.5 pl-1 font-black">
+              <Cpu size={12} className="text-cyan animate-pulse" />
+              ADD_HABIT_TO_TASKS
+            </label>
+            <div className="space-y-1.5 max-h-[140px] overflow-y-auto no-scrollbar bg-black/30 p-3 rounded-lg border border-white/5 text-[11px] font-mono">
+              {activeHabits.map((h: any, i: number) => {
+                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                const alreadyHasTask = tasks.some(t => 
+                  t.userId === user.uid && 
+                  t.createdAt.startsWith(todayStr) && 
+                  (t.title.trim().toLowerCase() === h.name.trim().toLowerCase() || t.habitId === h.id)
+                );
+                
+                return (
+                  <label key={`task-habit-sel-${h.id || 'habit'}-${i}`} className="flex items-center gap-3 cursor-pointer group p-1.5 rounded hover:bg-white/5 transition-all text-text-m hover:text-white">
+                    <input 
+                      type="checkbox"
+                      checked={alreadyHasTask}
+                      onChange={async (e) => {
+                        const isChecked = e.target.checked;
+                        if (isChecked) {
+                          try {
+                            const newTask = {
+                              userId: user.uid,
+                              title: h.name,
+                              priority: 'medium',
+                              status: 'pending',
+                              category: h.category || 'routine',
+                              estimate: 30,
+                              isChallenging: false,
+                              isBoss: false,
+                              habitId: h.id,
+                              createdAt: new Date().toISOString()
+                            };
+                            await addDoc(collection(db, 'tasks'), newTask);
+                            setCompleteToast(`Activated Habit as Task today: ${h.name}`);
+                            setTimeout(() => setCompleteToast(null), 3000);
+                          } catch (err) {
+                            console.error("Error creating habit task", err);
+                          }
+                        } else {
+                          try {
+                            const todayStr = format(new Date(), 'yyyy-MM-dd');
+                            const pendingLinkedTask = tasks.find(t => 
+                              t.userId === user.uid &&
+                              t.createdAt.startsWith(todayStr) && 
+                              (t.title.trim().toLowerCase() === h.name.trim().toLowerCase() || t.habitId === h.id) &&
+                              t.status === 'pending'
+                            );
+                            if (pendingLinkedTask) {
+                              await deleteDoc(doc(db, 'tasks', pendingLinkedTask.id));
+                              setCompleteToast(`De-activated Habit Task: ${h.name}`);
+                              setTimeout(() => setCompleteToast(null), 3000);
+                            }
+                          } catch (err) {
+                            console.error("Error deleting habit task", err);
+                          }
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-white/20 bg-black/40 text-cyan focus:ring-0 cursor-pointer"
+                    />
+                    <span className="truncate flex-1">{h.name.toUpperCase()}</span>
+                    {alreadyHasTask && (
+                      <span className="text-[8px] font-black font-mono bg-cyan/20 border border-cyan/40 text-cyan px-2 py-0.5 rounded tracking-widest uppercase">active</span>
+                    )}
+                  </label>
+                );
+              })}
+              {activeHabits.length === 0 && (
+                <p className="text-[9px] font-mono text-text-m opacity-40 uppercase italic text-center py-4">No active habits. Create them in Habits view first!</p>
+              )}
+            </div>
+          </div>
         </div>
 
         <button className="md:hidden w-full bg-accent px-10 py-4 text-white font-black hover:bg-white hover:text-black transition-all rounded border border-white/10 flex items-center justify-center gap-3 uppercase tracking-[0.2em]">
@@ -4501,7 +4640,8 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-4">
           {filteredTasks.length === 0 && (
             <EmptyState
               icon={<CheckCircle2 size={24} className="text-accent" />}
@@ -4636,6 +4776,93 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast }: { ta
               </div>
           </div>
         ))}
+      </div>
+
+        {/* Right integration panel */}
+        <div className="space-y-6">
+          <div className="glass p-6 rounded-2xl border-t-2 border-t-cyan/20 bg-card/40 space-y-4 premium-transition hover:border-cyan/40">
+            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+              <div className="flex items-center gap-2">
+                <Cpu size={16} className="text-cyan animate-pulse" />
+                <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">HABIT_SYNC_CENTER</span>
+              </div>
+            </div>
+            
+            <p className="text-[10px] font-mono text-text-m opacity-50 uppercase leading-relaxed">
+              Enable active habit loops to instantly deploy them as custom target protocols in today's active tasks registry.
+            </p>
+
+            <div className="space-y-2 max-h-[350px] overflow-y-auto no-scrollbar bg-black/20 p-4 rounded-xl border border-white/5 font-mono text-xs">
+              {habits.filter((h: any) => !h.isArchived).map((h: any, i: number) => {
+                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                const alreadyHasTask = tasks.some((t: any) => 
+                  t.userId === user?.uid && 
+                  t.createdAt.startsWith(todayStr) && 
+                  (((t.title || "").trim().toLowerCase() === h.name.trim().toLowerCase()) || t.habitId === h.id)
+                );
+
+                return (
+                  <label key={`tasksview-sync-panel-${h.id}-${i}`} className="flex items-center gap-3 cursor-pointer group p-2 rounded-lg hover:bg-white/5 transition-all text-text-m hover:text-white">
+                    <input 
+                      type="checkbox"
+                      checked={alreadyHasTask}
+                      onChange={async (e) => {
+                        if (!user) return;
+                        const isChecked = e.target.checked;
+                        if (isChecked) {
+                          try {
+                            const newTask = {
+                              userId: user.uid,
+                              title: h.name,
+                              priority: 'medium',
+                              status: 'pending',
+                              category: h.category || 'routine',
+                              estimate: 30,
+                              isChallenging: false,
+                              isBoss: false,
+                              habitId: h.id,
+                              createdAt: new Date().toISOString()
+                            };
+                            await addDoc(collection(db, 'tasks'), newTask);
+                            setCompleteToast(`Synced Habit as active Task today: ${h.name}`);
+                            setTimeout(() => setCompleteToast(null), 3000);
+                          } catch (err) {
+                            console.error("Error creating synced task", err);
+                          }
+                        } else {
+                          try {
+                            const todayStr = format(new Date(), 'yyyy-MM-dd');
+                            const pendingLinkedTask = tasks.find((t: any) => 
+                              t.userId === user.uid &&
+                              t.createdAt.startsWith(todayStr) && 
+                              (((t.title || "").trim().toLowerCase() === h.name.trim().toLowerCase()) || t.habitId === h.id) &&
+                              t.status === 'pending'
+                            );
+                            if (pendingLinkedTask) {
+                              await deleteDoc(doc(db, 'tasks', pendingLinkedTask.id));
+                              setCompleteToast(`De-activated Synced Habit Task: ${h.name}`);
+                              setTimeout(() => setCompleteToast(null), 3000);
+                            }
+                          } catch (err) {
+                            console.error("Error deleting synced task", err);
+                          }
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-white/20 bg-black/40 text-cyan focus:ring-0 cursor-pointer"
+                    />
+                    <span className="truncate flex-1 font-bold uppercase">{h.name}</span>
+                    {alreadyHasTask && (
+                      <span className="text-[8px] font-black font-mono bg-cyan/20 border border-cyan/40 text-cyan px-2 py-0.5 rounded tracking-widest uppercase animate-pulse">ACTIVE</span>
+                    )}
+                  </label>
+                );
+              })}
+              {habits.filter((h: any) => !h.isArchived).length === 0 && (
+                <p className="text-[9px] font-mono text-text-m opacity-40 uppercase italic text-center py-6">No active habits. Config them in Habits matrix!</p>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -4800,7 +5027,17 @@ function AchievementCelebration({ achievement, onClose }: { achievement: Achieve
   );
 }
 
-function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+function ManualModal({ 
+  isOpen, 
+  onClose,
+  onRedirect,
+  onTriggerMotivation
+}: { 
+  isOpen: boolean; 
+  onClose: () => void;
+  onRedirect: (tab: AppTab, subTab?: 'tasks' | 'habits' | 'timetable') => void;
+  onTriggerMotivation: () => void;
+}) {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const sections = [
@@ -4810,27 +5047,38 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
         {
           title: "CORE_COMMAND",
           description: "Your primary tactical command dashboard. Gathers real-time data from all modules, showcases your overall active daily status, challenge logs, and current synchronization metrics.",
-          icon: <HardDrive size={18} className="text-accent" />
+          icon: <HardDrive size={18} className="text-accent" />,
+          redirect: () => onRedirect('dashboard')
         },
         {
           title: "DAILY_WORK",
           description: "Your unified execution suite containing three major sub-systems: Priority Tasks ('Active Stack'), Habits tracking ('Routine Matrix'), and deterministic schedule planning ('Temporal Grid').",
-          icon: <CheckCircle2 size={18} className="text-success" />
+          icon: <CheckCircle2 size={18} className="text-success" />,
+          redirect: () => onRedirect('dailyWork', 'tasks')
         },
         {
           title: "REFLECT_CENTER",
           description: "Our high-fidelity markdown mental journal ('Neural Archiving') combined with direct consulting sessions via our integrated AI Coach, powering smart guidance and automated bottleneck detection.",
-          icon: <Book size={18} className="text-purple-400" />
+          icon: <Book size={18} className="text-purple-400" />,
+          redirect: () => onRedirect('reflect')
+        },
+        {
+          title: "AETHER_COACH",
+          description: "Your localized AI cognitive advisor powered by Gemini. Discuss balance, bottlenecks, or strategies directly in an interactive dialogue.",
+          icon: <Sparkles size={18} className="text-cyan" />,
+          redirect: () => onRedirect('aetherCoach')
         },
         {
           title: "GROW_SYSTEMS",
           description: "Analyzes system evolution and diagnostics. Integrates the 'Life Sync' balance matrix with historic levels, progress dashboards, unlocks, and overall XP achievements logic.",
-          icon: <TrendingUp size={18} className="text-cyan" />
+          icon: <TrendingUp size={18} className="text-cyan" />,
+          redirect: () => onRedirect('grow')
         },
         {
           title: "CONFIG_OS",
           description: "Advanced system controls. Configure core profile parameters, toggle active notifications, calibration formats, color themes, or visit the Neural Shop to trade Credits (CR) for visual perks.",
-          icon: <Settings size={18} className="text-indigo-400" />
+          icon: <Settings size={18} className="text-indigo-400" />,
+          redirect: () => onRedirect('configOs')
         }
       ]
     },
@@ -4840,22 +5088,26 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
         {
           title: "XP_ALGORITHM",
           description: "XP = Base Priority × (Duration Mult + Cat Mult) × (Streak Bonus × Multiplier). Late completions suffer a 30% XP decay.",
-          icon: <Activity size={18} className="text-warning" />
+          icon: <Activity size={18} className="text-warning" />,
+          redirect: () => onRedirect('grow')
         },
         {
           title: "LEVEL_ASCENSION",
           description: "Every 5 levels decrypts new OS capabilities (Recurring Loops, Marketplace, Deep Analytics). Level 100 triggers 'Ultimate Core Decryption'.",
-          icon: <Award size={18} className="text-white" />
+          icon: <Award size={18} className="text-white" />,
+          redirect: () => onRedirect('grow')
         },
         {
           title: "DAILY_CHALLENGES",
           description: "Recursive objectives that reset every 24 hours. Completing a challenge provides massive XP and credits (CR).",
-          icon: <Zap size={18} className="text-warning" />
+          icon: <Zap size={18} className="text-warning" />,
+          redirect: () => onRedirect('dashboard')
         },
         {
           title: "STREAK_MAINTENANCE",
           description: "Neural links are fragile. Missing a 24-hour sync window resets your primary activity streak. Higher streaks yield passive XP bonuses.",
-          icon: <Flame size={18} className="text-orange-500" />
+          icon: <Flame size={18} className="text-orange-500" />,
+          redirect: () => onRedirect('dashboard')
         }
       ]
     },
@@ -4865,22 +5117,35 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
         {
           title: "AI_SCHEDULER",
           description: "Neural-engine powered scheduling. Analyzes your 'Sync Routines' (Regular events) and pending stack to generate the most efficient temporal path.",
-          icon: <Sparkles size={18} className="text-cyan" />
+          icon: <Sparkles size={18} className="text-cyan" />,
+          redirect: () => onRedirect('dailyWork', 'timetable')
         },
         {
           title: "STIMULI_INJECTION",
           description: "Hyper-focus triggers found in the 'Boost Portal'. Add music, text, or links that help stabilize your focus sessions.",
-          icon: <Zap size={18} className="text-accent" />
+          icon: <Zap size={18} className="text-accent" />,
+          redirect: () => {
+            onRedirect('dashboard');
+            setTimeout(() => onTriggerMotivation(), 300);
+          }
         },
         {
           title: "NEURAL_SHOP",
           description: "Expend hard-earned Credits (CR) to unlock custom visual interfaces, legacy badges, and experimental difficulty mods.",
-          icon: <ShoppingBag size={18} className="text-success" />
+          icon: <ShoppingBag size={18} className="text-success" />,
+          redirect: () => onRedirect('configOs')
         },
         {
           title: "WHEEL_AUTO_SYNC",
           description: "Habit protocols now silently synchronize with the 'Wheel of Life'. Completing categorized habits boosts corresponding axes (e.g. Routine -> Sleep) in real-time.",
-          icon: <Network size={18} className="text-indigo-400" />
+          icon: <Network size={18} className="text-indigo-400" />,
+          redirect: () => onRedirect('grow')
+        },
+        {
+          title: "SMART_TASK_CONTINUITY",
+          description: "Accelerate daily setup. Automatically learns completion habits and recurrence frequencies to suggest top daily targets and provides a single-click 'Copy Yesterday' replication tool.",
+          icon: <RefreshCw size={18} className="text-cyan" />,
+          redirect: () => onRedirect('dailyWork', 'timetable')
         }
       ]
     },
@@ -4890,17 +5155,20 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
         {
           title: "NEURAL_PERK_TREE",
           description: "A recursive logic path to unlock specialized cognitive boosts, passive XP yields, and advanced interface overrides.",
-          icon: <Network size={18} className="text-cyan" />
+          icon: <Network size={18} className="text-cyan" />,
+          redirect: () => onRedirect('grow')
         },
         {
           title: "TEMPORAL_RAIDS",
           description: "High-stakes, high-reward synchronization events that challenge your focus-density against 'glitch' interference.",
-          icon: <Zap size={18} className="text-warning" />
+          icon: <Zap size={18} className="text-warning" />,
+          redirect: () => onRedirect('dailyWork', 'timetable')
         },
         {
           title: "SYSTEM_THEMES",
           description: "Real-time environment recalibration. Unlock unique aesthetic 'skins' for Aether_OS using marketplace credits.",
-          icon: <Palette size={18} className="text-accent" />
+          icon: <Palette size={18} className="text-accent" />,
+          redirect: () => onRedirect('configOs')
         }
       ]
     }
@@ -4931,7 +5199,7 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
               <div className="space-y-1">
                 <div className="flex items-center gap-2 text-cyan">
                   <HelpCircle size={16} />
-                  <span className="text-[10px] font-mono font-black uppercase tracking-[0.3em]">System_Manual_v1.2 // PROTOCOL_READY</span>
+                  <span className="text-[10px] font-mono font-black uppercase tracking-[0.3em]">System_Manual_v1.3 // SECURITY_AUDITED</span>
                 </div>
                 <h2 className="text-3xl md:text-5xl font-serif font-black text-white italic uppercase tracking-tighter">AETHER_OS_GUIDE</h2>
               </div>
@@ -4970,11 +5238,25 @@ function ManualModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
                           transition={{ delay: (catIdx * 0.1) + (idx * 0.05) }}
                           className="p-6 bg-white/2 border border-white/5 rounded-2xl space-y-3 hover:bg-white/[0.04] hover:border-white/10 transition-all group"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-white/5 rounded-lg group-hover:scale-110 transition-transform">
-                              {item.icon}
+                          <div className="flex items-center justify-between gap-4 w-full">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="p-2 bg-white/5 rounded-lg group-hover:scale-110 transition-transform shrink-0">
+                                {item.icon}
+                              </div>
+                              <h4 className="text-xs font-mono font-black text-white tracking-widest uppercase truncate">{item.title}</h4>
                             </div>
-                            <h4 className="text-xs font-mono font-black text-white tracking-widest uppercase">{item.title}</h4>
+                            {item.redirect && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  item.redirect?.();
+                                }}
+                                className="px-2.5 py-1 text-[8px] font-mono rounded-lg bg-cyan/10 hover:bg-cyan hover:text-black border border-cyan/25 text-cyan transition-all font-black uppercase tracking-wider shrink-0 active:scale-95"
+                              >
+                                LOCATE
+                              </button>
+                            )}
                           </div>
                           <p className="text-xs text-text-m font-mono leading-relaxed opacity-70 group-hover:opacity-100 transition-opacity">
                             {item.description}
@@ -5274,6 +5556,172 @@ function TemporalHub({
     initialEndTime: string;
   } | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
+
+  // --- Smart Task Continuity Engine ---
+  const smartSuggestions = useMemo(() => {
+    // Standardize title strings to find recurring tasks
+    const taskGroups: Record<string, {
+      title: string;
+      category: 'health' | 'learning' | 'creative' | 'work' | 'personal' | 'routine';
+      estimate: number;
+      priority: 'low' | 'medium' | 'high' | 'critical';
+      occurrences: Array<{ status: string; createdAt: string }>;
+    }> = {};
+
+    tasks.forEach(t => {
+      const titleClean = t.title.trim().toLowerCase();
+      if (!titleClean) return;
+
+      if (!taskGroups[titleClean]) {
+        taskGroups[titleClean] = {
+          title: t.title,
+          category: t.category || 'work',
+          estimate: t.estimate || 30,
+          priority: t.priority || 'medium',
+          occurrences: []
+        };
+      }
+      taskGroups[titleClean].occurrences.push({
+        status: t.status,
+        createdAt: t.createdAt
+      });
+    });
+
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+
+    const result = Object.entries(taskGroups).map(([cleanKey, group]) => {
+      const occurrences = group.occurrences;
+      const totalCount = occurrences.length;
+      const completedCount = occurrences.filter(o => o.status === 'completed').length;
+      
+      // Completion consistency rate (0 to 1)
+      const completionRate = totalCount > 0 ? completedCount / totalCount : 0;
+
+      // Frequency score (0 to 1) - maxes out at 8 occurrences
+      const frequencyScore = Math.min(1.0, totalCount / 8);
+
+      // Recency factor (0 to 1)
+      let recencyScore = 0.5;
+      if (occurrences.length > 0) {
+        // Find most recent occurrence ISO
+        const sortedOccs = [...occurrences].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        const latestIso = sortedOccs[0].createdAt;
+        const daysSinceLast = Math.max(0, (new Date().getTime() - new Date(latestIso).getTime()) / (86400 * 1000));
+        recencyScore = daysSinceLast <= 2 ? 1.0 : daysSinceLast <= 5 ? 0.8 : daysSinceLast <= 10 ? 0.6 : Math.max(0.1, 1 - (daysSinceLast / 30));
+      }
+
+      // Abandonment index (repeatedly abandoned should gradually decay)
+      const abandonedCount = totalCount - completedCount;
+      const abandonmentPenalty = Math.min(0.4, abandonedCount * 0.08);
+
+      // Final weighted confidence percentage (0 to 100)
+      // High completion consistency, frequent appearance, and high recency boost it!
+      let rawScore = (completionRate * 0.45) + (frequencyScore * 0.35) + (recencyScore * 0.20);
+      rawScore = Math.max(0.05, rawScore - abandonmentPenalty);
+
+      const confidence = Math.min(99, Math.max(10, Math.round(rawScore * 100)));
+
+      return {
+        title: group.title,
+        category: group.category,
+        estimate: group.estimate,
+        priority: group.priority,
+        confidence,
+        totalCount,
+        completedCount
+      };
+    });
+
+    // Filter out:
+    // 1. Tasks already existing in today's task list (to avoid offering redundant suggestions)
+    // 2. Sort by confidence descending
+    // 3. Slice to top 4 recommendations
+    return result
+      .filter(s => {
+        const isAlreadyToday = tasks.some(t => t.createdAt.startsWith(todayStr) && t.title.trim().toLowerCase() === s.title.trim().toLowerCase());
+        return !isAlreadyToday;
+      })
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, 4);
+  }, [tasks]);
+
+  const handleAddSuggestedTask = async (s: any) => {
+    try {
+      const newTask = {
+        userId: user.uid,
+        title: s.title,
+        priority: s.priority || 'medium',
+        status: 'pending',
+        category: s.category || 'work',
+        estimate: s.estimate || 30,
+        subTasks: [],
+        createdAt: new Date().toISOString()
+      };
+      await addDoc(collection(db, 'tasks'), newTask);
+      onAddXP(15, 'SUGGESTED_TASK_ADDED');
+      setCompleteToast(`Activated Suggestion: ${s.title}`);
+      setTimeout(() => setCompleteToast(null), 3000);
+    } catch (err) {
+      console.error(err);
+      setCompleteToast('Failed to add suggested protocol');
+      setTimeout(() => setCompleteToast(null), 3000);
+    }
+  };
+
+  const handleCopyYesterday = async () => {
+    try {
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const yesterdayStr = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+      
+      const yesterdaysTasks = tasks.filter(t => t.createdAt.startsWith(yesterdayStr));
+      
+      if (yesterdaysTasks.length === 0) {
+        setCompleteToast('No tasks found from yesterday');
+        setTimeout(() => setCompleteToast(null), 3000);
+        return;
+      }
+
+      const todayTasks = tasks.filter(t => t.createdAt.startsWith(todayStr));
+      
+      const tasksToCopy = yesterdaysTasks.filter(yTask => {
+        // Is it already on today's list?
+        const isDuplicate = todayTasks.some(tTask => tTask.title.trim().toLowerCase() === yTask.title.trim().toLowerCase());
+        return !isDuplicate;
+      });
+
+      if (tasksToCopy.length === 0) {
+        setCompleteToast('All yesterday protocols already present today');
+        setTimeout(() => setCompleteToast(null), 3000);
+        return;
+      }
+
+      const { writeBatch } = await import('firebase/firestore');
+      const batch = writeBatch(db);
+      
+      tasksToCopy.forEach(t => {
+        const newTaskRef = doc(collection(db, 'tasks'));
+        batch.set(newTaskRef, {
+          userId: user.uid,
+          title: t.title,
+          priority: t.priority || 'medium',
+          status: 'pending', // Reset completion status
+          category: t.category || 'work',
+          estimate: t.estimate || 30,
+          subTasks: [],
+          createdAt: new Date().toISOString()
+        });
+      });
+
+      await batch.commit();
+      onAddXP(10 * tasksToCopy.length, 'COPY_YESTERDAY_SYNC');
+      setCompleteToast(`Duplicated ${tasksToCopy.length} protocol loads from yesterday`);
+      setTimeout(() => setCompleteToast(null), 3000);
+    } catch (err) {
+      console.error(err);
+      setCompleteToast('Error syncing yesterday');
+      setTimeout(() => setCompleteToast(null), 3000);
+    }
+  };
 
   // Sync scheduled tasks into the timetable
   const allBlocks = useMemo(() => {
@@ -5736,9 +6184,9 @@ function TemporalHub({
 
       {viewMode === 'month' && renderMonthView()}
       {(viewMode === 'week' || viewMode === 'day') && (
-        <div className="grid grid-cols-1 gap-6">
-          {/* Protocol Buffer (Unscheduled Tasks) */}
-          <div className="glass p-6 rounded-3xl border border-white/5 bg-white/2 relative overflow-hidden group">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column: Protocol Buffer */}
+          <div className="lg:col-span-2 glass p-6 rounded-3xl border border-white/5 bg-white/2 relative overflow-hidden group">
             <div className="absolute top-0 right-0 w-64 h-64 bg-cyan/2 rounded-full -translate-y-32 translate-x-32 blur-3xl" />
             <div className="flex items-center justify-between mb-4 relative z-10">
               <div className="flex items-center gap-3">
@@ -5796,8 +6244,80 @@ function TemporalHub({
             </div>
           </div>
 
-          {viewMode === 'week' && renderTimetableView(eachDayOfInterval({ start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) }))}
-          {viewMode === 'day' && renderTimetableView([currentDate])}
+          {/* Right Column: Smart Continuity Engine */}
+          <div className="lg:col-span-1 glass p-6 rounded-3xl border border-white/5 bg-white/2 relative overflow-hidden group flex flex-col justify-between">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-accent/2 rounded-full -translate-y-32 translate-x-32 blur-3xl" />
+            <div className="relative z-10 w-full">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center border border-accent/20 shrink-0">
+                    <RefreshCw size={14} className="text-accent" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-[11px] font-mono font-black text-white uppercase tracking-wider truncate">Smart_Continuity</h3>
+                    <p className="text-[8px] font-mono text-text-m uppercase opacity-50 truncate">Cognitive learning systems</p>
+                  </div>
+                </div>
+                
+                <button
+                  type="button"
+                  onClick={handleCopyYesterday}
+                  className="px-2 py-1 bg-accent/10 hover:bg-accent text-white border border-accent/35 text-[8px] font-mono rounded-md transition-all font-black uppercase tracking-wider flex items-center gap-1 shrink-0 active:scale-95"
+                  title="Copy yesterday's task matrix"
+                >
+                  <Copy size={9} /> Copy Yesterday
+                </button>
+              </div>
+
+              {/* Suggested Tasks */}
+              <div className="space-y-2 mt-3 w-full">
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-[8px] font-mono text-text-p uppercase font-black tracking-widest">Suggested Protocols</span>
+                  <span className="text-[8px] font-mono text-accent uppercase font-black tracking-tighter opacity-70">LEARNING_ALIGNED</span>
+                </div>
+
+                <div className="space-y-1.5 w-full">
+                  {smartSuggestions.length === 0 ? (
+                    <div className="py-4 px-3 rounded-xl border border-dashed border-white/10 bg-black/10 text-center">
+                      <p className="text-[8px] font-mono text-text-s uppercase tracking-wider opacity-45">Awaiting user metrics...</p>
+                    </div>
+                  ) : (
+                    smartSuggestions.map((s, idx) => (
+                      <div 
+                        key={`sugg-${idx}-${s.title}`}
+                        className="py-2.5 px-3 bg-black/20 hover:bg-black/40 border border-white/5 rounded-xl flex items-center justify-between gap-3 group/item transition-all"
+                      >
+                        <div className="flex flex-col min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[11px] font-serif font-black text-white italic truncate uppercase">{s.title}</span>
+                            <span className="shrink-0 text-[7px] font-mono bg-cyan/10 text-cyan border border-cyan/25 px-1 py-0.2 rounded font-black">{s.confidence}% MATCH</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[8px] font-mono text-text-m uppercase opacity-50 truncate">NODE_{s.category}</span>
+                            <span className="w-0.5 h-0.5 rounded-full bg-white/20" />
+                            <span className="text-[8px] font-mono text-text-m opacity-50 truncate">{s.completedCount}/{s.totalCount} COMPLETED</span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAddSuggestedTask(s)}
+                          className="px-2 py-1 rounded-md bg-white/5 text-[9px] text-text-m hover:text-accent hover:bg-accent/15 border border-transparent hover:border-accent/10 transition-all font-mono font-black"
+                        >
+                          + ADD
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="lg:col-span-3">
+            {viewMode === 'week' && renderTimetableView(eachDayOfInterval({ start: startOfWeek(currentDate, { weekStartsOn: 1 }), end: endOfWeek(currentDate, { weekStartsOn: 1 }) }))}
+            {viewMode === 'day' && renderTimetableView([currentDate])}
+          </div>
         </div>
       )}
 
@@ -8221,8 +8741,11 @@ function DailyWorkView({
   onAddHabit,
   onToggleHabit,
   onDeleteHabit,
+  subTab = 'tasks',
+  setSubTab,
 }: any) {
-  const [activeTab, setActiveTab] = useState<'tasks' | 'habits' | 'timetable'>('tasks');
+  const activeTab = subTab;
+  const setActiveTab = setSubTab || (() => {});
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [quickTaskTitle, setQuickTaskTitle] = useState('');
   const [quickHabitName, setQuickHabitName] = useState('');
@@ -8330,7 +8853,7 @@ function DailyWorkView({
              </button>
           </div>
         ) : (
-          <div className="space-y-6 overflow-y-auto no-scrollbar max-h-[85vh] w-full">
+          <div className="space-y-6 w-full">
              <div className="flex items-center justify-between border-b border-white/5 pb-4">
                 <div>
                    <h3 className="text-sm font-mono font-black uppercase text-text-p tracking-wider">DAILY_WORK_CTRL</h3>
@@ -8364,9 +8887,9 @@ function DailyWorkView({
                    <button type="submit" className="p-2 bg-accent text-white rounded-xl hover:scale-105 active:scale-95 transition-all"><Plus size={16} /></button>
                 </form>
 
-                <div className="space-y-2 max-h-[180px] overflow-y-auto no-scrollbar">
-                   {pendingTasks.slice(0, 5).map((t: any) => (
-                      <div key={t.id} className="p-2 bg-white/5 rounded-lg border border-white/5 hover:border-white/10 flex items-center justify-between gap-2 group transition-all">
+                <div className="space-y-2">
+                   {pendingTasks.slice(0, 5).map((t: any, i: number) => (
+                      <div key={`pending-${t.id || 'task'}-${i}`} className="p-2 bg-white/5 rounded-lg border border-white/5 hover:border-white/10 flex items-center justify-between gap-2 group transition-all">
                          <span onClick={() => setActiveTab('tasks')} className="text-[11px] font-mono text-text-m truncate cursor-pointer hover:text-white flex-1">{t.title}</span>
                          <button 
                            onClick={() => onComplete(t)}
@@ -8377,6 +8900,84 @@ function DailyWorkView({
                          </button>
                       </div>
                    ))}
+                   {/* Sidebar Habits Sync Checklist */}
+                   <div className="border-t border-white/5 pt-3 mt-3 space-y-2">
+                      <div className="flex items-center gap-1.5 opacity-60">
+                         <Cpu size={10} className="text-cyan animate-pulse" />
+                         <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-text-p">HABITS_SYNC_BOARD</span>
+                      </div>
+                      <div className="space-y-1 max-h-[140px] overflow-y-auto no-scrollbar font-mono text-[10px] mb-4">
+                         {activeHabits.map((h: any, i: number) => {
+                            const todayStr = format(new Date(), 'yyyy-MM-dd');
+                            const alreadyHasTask = tasks.some((t: any) => 
+                               t.userId === user?.uid && 
+                               t.createdAt.startsWith(todayStr) && 
+                               (((t.title || "").trim().toLowerCase() === h.name.trim().toLowerCase()) || t.habitId === h.id)
+                            );
+                            return (
+                               <label key={`sidebar-habit-sync-${h.id || 'habit'}-${i}`} className="flex items-center gap-2 cursor-pointer group p-1.5 rounded hover:bg-white/5 transition-all text-text-m hover:text-white">
+                                  <input 
+                                     type="checkbox"
+                                     checked={alreadyHasTask}
+                                     onChange={async (e) => {
+                                        if (!user) return;
+                                        const isChecked = e.target.checked;
+                                        if (isChecked) {
+                                           try {
+                                              const newTask = {
+                                                 userId: user.uid,
+                                                 title: h.name,
+                                                 priority: 'medium',
+                                                 status: 'pending',
+                                                 category: h.category || 'routine',
+                                                 estimate: 30,
+                                                 isChallenging: false,
+                                                 isBoss: false,
+                                                 habitId: h.id,
+                                                 createdAt: new Date().toISOString()
+                                              };
+                                              await addDoc(collection(db, 'tasks'), newTask);
+                                              if (typeof setCompleteToast === 'function') {
+                                                 setCompleteToast(`Synced ${h.name} to Today's Tasks!`);
+                                                 setTimeout(() => setCompleteToast(null), 3000);
+                                              }
+                                           } catch (err) {
+                                              console.error(err);
+                                           }
+                                        } else {
+                                           try {
+                                              const todayStr = format(new Date(), 'yyyy-MM-dd');
+                                              const pendingLinkedTask = tasks.find((t: any) => 
+                                                 t.userId === user.uid &&
+                                                 t.createdAt.startsWith(todayStr) && 
+                                                 (((t.title || "").trim().toLowerCase() === h.name.trim().toLowerCase()) || t.habitId === h.id) &&
+                                                 t.status === 'pending'
+                                              );
+                                              if (pendingLinkedTask) {
+                                                 await deleteDoc(doc(db, 'tasks', pendingLinkedTask.id));
+                                                 if (typeof setCompleteToast === 'function') {
+                                                    setCompleteToast(`Removed Synced Habit Task`);
+                                                    setTimeout(() => setCompleteToast(null), 3000);
+                                                 }
+                                              }
+                                           } catch (err) {
+                                              console.error(err);
+                                           }
+                                        }
+                                     }}
+                                     className="w-3 h-3 rounded border-white/20 bg-black/40 text-cyan focus:ring-0 cursor-pointer animate-none bg-none"
+                                  />
+                                  <span className="truncate flex-1 uppercase text-text-m group-hover:text-white text-[10px]">{h.name}</span>
+                                  {alreadyHasTask && <span className="text-[7px] font-mono bg-cyan/10 text-cyan px-1.5 py-0.2 rounded font-black uppercase tracking-widest animate-pulse">ACTIVE</span>}
+                                </label>
+                             );
+                          })}
+                          {activeHabits.length === 0 && (
+                             <p className="text-[8px] font-mono text-text-m opacity-30 uppercase italic text-center py-2">No active habits</p>
+                          )}
+                      </div>
+                   </div>
+
                    {pendingTasks.length === 0 && (
                       <p className="text-[9px] font-mono text-text-m opacity-40 uppercase italic text-center">No active tasks today</p>
                    )}
@@ -8402,9 +9003,9 @@ function DailyWorkView({
                    <button type="submit" className="p-2 bg-cyan text-white rounded-xl hover:scale-105 active:scale-95 transition-all"><Plus size={16} /></button>
                 </form>
 
-                <div className="space-y-2 max-h-[180px] overflow-y-auto no-scrollbar">
-                   {activeHabits.slice(0, 5).map((h: any) => (
-                      <div key={h.id} className="p-2 bg-white/5 rounded-lg border border-white/5 hover:border-cyan/20 flex items-center justify-between gap-2 transition-all">
+                <div className="space-y-2">
+                   {activeHabits.slice(0, 5).map((h: any, i: number) => (
+                      <div key={`habit-${h.id || 'habit'}-${i}`} className="p-2 bg-white/5 rounded-lg border border-white/5 hover:border-cyan/20 flex items-center justify-between gap-2 transition-all">
                          <div className="flex items-center gap-2 truncate flex-1 cursor-pointer" onClick={() => setActiveTab('habits')}>
                             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: h.color || '#00D9FF' }} />
                             <span className="text-[11px] font-mono text-text-m hover:text-white truncate">{h.name}</span>
@@ -8458,7 +9059,7 @@ function DailyWorkView({
       </div>
 
       {/* RIGHT MAIN POWER MODULE */}
-      <div className="flex-1 w-full min-w-0 overflow-auto min-h-[600px] lg:min-h-screen">
+      <div className="flex-1 w-full min-w-0">
          <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -8474,6 +9075,7 @@ function DailyWorkView({
                    onComplete={onComplete} 
                    settings={settings} 
                    setCompleteToast={setCompleteToast} 
+                   habits={habits}
                  />
                )}
                {activeTab === 'habits' && (
