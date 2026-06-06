@@ -228,6 +228,7 @@ interface UserStats {
     lastSaved?: string;
     syncMode?: 'manual' | 'ai';
   };
+  lifeSyncCategories?: any[];
 }
 
 interface DailyChallengeTemplate {
@@ -257,12 +258,11 @@ const LIFE_CATEGORIES = [
   { id: 'MENTAL_HEALTH', label: 'MENTAL HEALTH', color: '#14b8a6' }, 
 ];
 
-function RadarChart({ values }: { values: Record<string, number> }) {
+function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<string, number>; categories?: any[] }) {
   const size = 300;
   const center = size / 2;
   const radius = (size / 2) * 0.75;
   const levels = 5;
-  const categories = LIFE_CATEGORIES;
 
   const points = categories.map((cat, i) => {
     const angle = (Math.PI * 2 * i) / categories.length - Math.PI / 2;
@@ -358,7 +358,15 @@ function RadarChart({ values }: { values: Record<string, number> }) {
   );
 }
 
+const PRESET_COLORS = [
+  '#ef4444', '#f97316', '#f59e0b', '#22c55e', 
+  '#14b8a6', '#06b6d4', '#3b82f6', '#6366f1', 
+  '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e'
+];
+
 function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: { stats: UserStats | null, user: User, onAddXP: any, tasks: Task[], journals: JournalEntry[], addToTerminal: any }) {
+  const categories = stats?.lifeSyncCategories || LIFE_CATEGORIES;
+  
   const [syncMode, setSyncMode] = useState<'manual' | 'ai'>(stats?.lifeSync?.syncMode || 'manual');
   const [values, setValues] = useState<Record<string, number>>(
     stats?.lifeSync?.current || {
@@ -370,6 +378,37 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isSyncingAI, setIsSyncingAI] = useState(false);
+
+  // Dynamic sphere management states
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [editingCategories, setEditingCategories] = useState<any[]>(categories);
+  const [newCatLabel, setNewCatLabel] = useState('');
+  const [newCatColor, setNewCatColor] = useState('#3b82f6');
+  const [activeColorUserId, setActiveColorUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEditingCategories(categories);
+  }, [stats?.lifeSyncCategories]);
+
+  const saveCategories = async (updatedList: any[]) => {
+    try {
+      const currentValues = { ...values };
+      updatedList.forEach(cl => {
+        if (currentValues[cl.id] === undefined) {
+          currentValues[cl.id] = 10;
+        }
+      });
+      await updateDoc(doc(db, 'user_stats', user.uid), {
+        lifeSyncCategories: updatedList,
+        'lifeSync.current': currentValues
+      });
+      setValues(currentValues);
+      addToTerminal?.("LIFE_SYNC: SPHERE_CONFIGURATION_UPDATED", "success");
+    } catch (err) {
+      console.error(err);
+      addToTerminal?.("LIFE_SYNC: CONFIG_SAVE_FAILED", "error");
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -385,11 +424,12 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
     }
   }, [user]);
 
-  const balanceScore = Number((Object.values(values).reduce((a, b) => a + b, 0) / 8).toFixed(1));
+  const activeValues = categories.map(cat => values[cat.id] ?? 10);
+  const balanceScore = Number((activeValues.reduce((a, b) => a + b, 0) / (categories.length || 1)).toFixed(1));
   
-  const sortedCategories = [...LIFE_CATEGORIES].sort((a, b) => values[a.id] - values[b.id]);
-  const needsFocus = sortedCategories[0];
-  const strongest = sortedCategories[sortedCategories.length - 1];
+  const sortedCategories = [...categories].sort((a, b) => (values[a.id] ?? 10) - (values[b.id] ?? 10));
+  const needsFocus = sortedCategories[0] || { id: 'NONE', label: 'NONE', color: '#888888' };
+  const strongest = sortedCategories[sortedCategories.length - 1] || { id: 'NONE', label: 'NONE', color: '#888888' };
 
   const handleSliderChange = (id: string, val: number) => {
     if (syncMode === 'ai') return; // Prevent manual change in AI mode
@@ -528,7 +568,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
         {/* Left: Radar Chart */}
         <div className="glass p-8 lg:p-12 rounded-[2rem] border border-white/5 flex flex-col items-center justify-center min-h-[400px]">
-          <RadarChart values={values} />
+          <RadarChart values={values} categories={categories} />
           
           <div className="mt-12 w-full max-w-sm space-y-4">
             <div className="flex items-center justify-between">
@@ -554,54 +594,212 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
         {/* Right: Sliders */}
         <div className="space-y-6">
           <div className="flex items-center justify-between mb-8">
-            <h3 className="text-xs font-mono font-black uppercase tracking-[0.3em] text-text-m">RATE EACH AREA (1–10)</h3>
-            <span className="text-[10px] font-mono text-success bg-success/5 border border-success/20 px-2 py-1 rounded">+75 XP REWARD</span>
+            <h3 className="text-xs font-mono font-black uppercase tracking-[0.3em] text-text-m">
+              {isConfigOpen ? "SPHERE_DESIGNER" : "RATE EACH AREA (1–10)"}
+            </h3>
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => setIsConfigOpen(!isConfigOpen)}
+                className="text-[10px] font-mono text-cyan bg-cyan/5 border border-cyan/20 hover:bg-cyan/10 px-3 py-1.5 rounded-xl transition-all font-black flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <Settings size={12} className={isConfigOpen ? "animate-spin" : ""} />
+                {isConfigOpen ? "CLOSE_DESIGNER" : "CUSTOMIZE_SPHERES"}
+              </button>
+              <span className="text-[10px] font-mono text-success bg-success/5 border border-success/20 px-2 py-1 rounded">+75 XP REWARD</span>
+            </div>
           </div>
 
           <div className="space-y-6 glass p-8 rounded-2xl border border-white/5 relative overflow-hidden">
-            {syncMode === 'ai' && (
-              <div className="absolute inset-0 z-10 bg-background/40 backdrop-blur-[2px] flex items-center justify-center p-6 text-center">
-                <div className="max-w-[200px] space-y-4">
-                   <Brain size={32} className="mx-auto text-indigo-400 mb-2 animate-pulse" />
-                   <p className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">AI_SYNC_PROTOCOL_ACTIVE</p>
-                   <p className="text-[8px] font-mono lowercase tracking-[0.2em] text-text-m opacity-60">system analyzing tasks, logs, and behavior patterns to calculate balance nodes.</p>
-                   <button 
-                    onClick={handleAiSync}
-                    disabled={isSyncingAI}
-                    className="w-full py-2 bg-indigo-500 text-white rounded-lg text-[9px] font-mono font-black uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center justify-center gap-2"
-                   >
-                     {isSyncingAI ? "RECALIBRATING..." : <><Activity size={10} /> RE-SYNC NOW</>}
-                   </button>
-                </div>
-              </div>
-            )}
-            {LIFE_CATEGORIES.map(cat => (
-              <div key={cat.id} className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                    <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">{cat.label}</span>
+            {isConfigOpen ? (
+              <div className="space-y-6 animate-in fade-in duration-300">
+                <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
+                  <p className="text-[9px] font-mono font-black uppercase tracking-wider text-text-p mb-1">ADD_NEW_ALIGNMENT_SPHERE</p>
+                  <div className="flex flex-col gap-3">
+                    <input 
+                      type="text"
+                      value={newCatLabel}
+                      onChange={(e) => setNewCatLabel(e.target.value.toUpperCase())}
+                      placeholder="ENTER NAME (E.G. GYM, DIET, LOVE)"
+                      className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 font-mono outline-none focus:border-indigo-500 w-full"
+                    />
+                    
+                    <div className="space-y-1">
+                      <p className="text-[8px] font-mono text-text-m uppercase opacity-50">Select_Sphere_Color</p>
+                      <div className="flex flex-wrap gap-1.5 bg-black/40 p-2 rounded-lg border border-white/10">
+                        {PRESET_COLORS.map(c => (
+                          <button
+                            key={`new-color-${c}`}
+                            type="button"
+                            onClick={() => setNewCatColor(c)}
+                            className={cn(
+                              "w-5 h-5 rounded-full border transition-transform cursor-pointer",
+                              newCatColor === c ? "scale-125 border-white ring-2 ring-indigo-500/50" : "border-transparent hover:scale-110"
+                            )}
+                            style={{ backgroundColor: c }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        const trimmed = newCatLabel.trim().toUpperCase();
+                        if (!trimmed) return;
+                        const safeId = trimmed.replace(/[^A-Z0-9_]/g, '_');
+                        if (editingCategories.some((c: any) => c.id === safeId)) {
+                          alert(`A sphere named ${trimmed} already exists!`);
+                          return;
+                        }
+                        const newCat = { id: safeId, label: trimmed, color: newCatColor };
+                        const updated = [...editingCategories, newCat];
+                        setEditingCategories(updated);
+                        setNewCatLabel('');
+                        saveCategories(updated);
+                      }}
+                      className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white font-mono text-[9px] font-black rounded-lg uppercase transition-all tracking-widest cursor-pointer active:scale-95"
+                    >
+                      + ADD_ALIGNMENT_SPHERE
+                    </button>
                   </div>
-                  <span className="text-xs font-mono font-black" style={{ color: cat.color }}>{values[cat.id] || 10}</span>
                 </div>
-                <input 
-                  type="range"
-                  min="1"
-                  max="10"
-                  step="0.5"
-                  value={values[cat.id] || 10}
-                  onChange={(e) => handleSliderChange(cat.id, parseFloat(e.target.value))}
-                  disabled={syncMode === 'ai'}
-                  className={cn(
-                    "w-full h-1.5 bg-white/5 rounded-full appearance-none accent-indigo-500",
-                    syncMode === 'manual' ? "cursor-pointer" : "cursor-not-allowed opacity-30"
-                  )}
-                  style={{
-                    accentColor: cat.color
-                  }}
-                />
+
+                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 no-scrollbar">
+                  <p className="text-[9px] font-mono font-black uppercase tracking-wider text-text-p">ACTIVE_SPHERES</p>
+                  {editingCategories.map((cat: any, index: number) => (
+                    <div key={cat.id} className="p-3 bg-white/5 rounded-xl border border-white/5 space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 flex-1">
+                          <button
+                            type="button"
+                            onClick={() => setActiveColorUserId(activeColorUserId === cat.id ? null : cat.id)}
+                            className="w-4 h-4 rounded-full ring-2 ring-white/15 hover:scale-115 transition-transform shrink-0 cursor-pointer"
+                            style={{ backgroundColor: cat.color }}
+                            title="Click to edit color"
+                          />
+                          <input 
+                            type="text"
+                            value={cat.label}
+                            onChange={(e) => {
+                              const updated = [...editingCategories];
+                              updated[index] = { ...cat, label: e.target.value.toUpperCase() };
+                              setEditingCategories(updated);
+                              saveCategories(updated);
+                            }}
+                            className="bg-transparent border-b border-transparent hover:border-white/10 focus:border-indigo-500 text-white font-mono text-xs uppercase outline-none px-1 py-0.5 w-full font-black"
+                          />
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <button 
+                            type="button"
+                            disabled={editingCategories.length <= 3}
+                            onClick={() => {
+                              if (editingCategories.length <= 3) return;
+                              const updated = editingCategories.filter((c: any) => c.id !== cat.id);
+                              setEditingCategories(updated);
+                              saveCategories(updated);
+                            }}
+                            className="text-white/40 hover:text-red-400 p-1.5 rounded-lg hover:bg-white/5 transition-all disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer"
+                            title="Delete this sphere"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {activeColorUserId === cat.id && (
+                        <div className="flex flex-wrap gap-1.5 p-2 bg-black/50 rounded-lg border border-white/5 animate-in fade-in duration-200">
+                          {PRESET_COLORS.map(c => (
+                            <button
+                              key={`color-${cat.id}-${c}`}
+                              type="button"
+                              onClick={() => {
+                                const updated = [...editingCategories];
+                                updated[index] = { ...cat, color: c };
+                                setEditingCategories(updated);
+                                saveCategories(updated);
+                                setActiveColorUserId(null);
+                              }}
+                              className={cn(
+                                "w-4.5 h-4.5 rounded-full border transition-all cursor-pointer",
+                                cat.color === c ? "border-white scale-125 ring-2 ring-indigo-500/50" : "border-white/10 hover:scale-110"
+                              )}
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    onClick={() => {
+                      if (confirm("Reset layout to standard default spheres?")) {
+                        setEditingCategories(LIFE_CATEGORIES);
+                        saveCategories(LIFE_CATEGORIES);
+                      }
+                    }}
+                    className="flex-1 py-2.5 border border-white/10 text-white/50 hover:text-white hover:bg-white/5 text-[8px] font-mono font-black uppercase rounded-lg tracking-widest transition-all cursor-pointer"
+                  >
+                    RESTORE_DEFAULT_SPHERES
+                  </button>
+                  <button
+                    onClick={() => setIsConfigOpen(false)}
+                    className="flex-1 py-2.5 bg-white/15 hover:bg-white/20 text-white text-[8px] font-mono font-black uppercase rounded-lg tracking-widest transition-all cursor-pointer"
+                  >
+                    CLOSE_EDITING
+                  </button>
+                </div>
               </div>
-            ))}
+            ) : (
+              <>
+                {syncMode === 'ai' && (
+                  <div className="absolute inset-0 z-10 bg-background/40 backdrop-blur-[2px] flex items-center justify-center p-6 text-center">
+                    <div className="max-w-[200px] space-y-4">
+                       <Brain size={32} className="mx-auto text-indigo-400 mb-2 animate-pulse" />
+                       <p className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">AI_SYNC_PROTOCOL_ACTIVE</p>
+                       <p className="text-[8px] font-mono lowercase tracking-[0.2em] text-text-m opacity-60">system analyzing tasks, logs, and behavior patterns to calculate balance nodes.</p>
+                       <button 
+                        onClick={handleAiSync}
+                        disabled={isSyncingAI}
+                        className="w-full py-2 bg-indigo-500 text-white rounded-lg text-[9px] font-mono font-black uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                       >
+                         {isSyncingAI ? "RECALIBRATING..." : <><Activity size={10} /> RE-SYNC NOW</>}
+                       </button>
+                    </div>
+                  </div>
+                )}
+                {categories.map(cat => (
+                  <div key={cat.id} className="space-y-3 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: cat.color }} />
+                        <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">{cat.label}</span>
+                      </div>
+                      <span className="text-xs font-mono font-black" style={{ color: cat.color }}>{values[cat.id] || 10}</span>
+                    </div>
+                    <input 
+                      type="range"
+                      min="1"
+                      max="10"
+                      step="0.5"
+                      value={values[cat.id] || 10}
+                      onChange={(e) => handleSliderChange(cat.id, parseFloat(e.target.value))}
+                      disabled={syncMode === 'ai'}
+                      className={cn(
+                        "w-full h-1.5 bg-white/5 rounded-full appearance-none accent-indigo-500 transition-all",
+                        syncMode === 'manual' ? "cursor-pointer" : "cursor-not-allowed opacity-30"
+                      )}
+                      style={{
+                        accentColor: cat.color
+                      }}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
@@ -2247,10 +2445,9 @@ export default function App() {
           routine: 'SLEEP'
         };
         const axis = axisMap[habit.category];
-        if (axis) {
-          const currentLifeValues = stats.lifeSync?.current || {
-            GYM: 10, DIET: 10, LOVE: 4, STUDIES: 10, FINANCE: 10, SLEEP: 10, SOCIAL: 10, MENTAL_HEALTH: 10
-          };
+        const categories = stats.lifeSyncCategories || LIFE_CATEGORIES;
+        if (axis && categories.some((c: any) => c.id === axis)) {
+          const currentLifeValues = stats.lifeSync?.current || {};
           const newVal = Math.min(10, (currentLifeValues[axis] || 0) + 1);
           if (newVal !== currentLifeValues[axis]) {
              await updateDoc(doc(db, 'user_stats', user.uid), {
@@ -2767,7 +2964,7 @@ export default function App() {
         onNavigate={handleTabChange}
         activeTab={activeTab}
       />
-      <SystemTerminal logs={terminalLogs} />
+
       
       {false && (
         <div>
@@ -3499,60 +3696,7 @@ function CommandPalette({ isOpen, onClose, onNavigate, activeTab }: { isOpen: bo
   );
 }
 
-function SystemTerminal({ logs }: { logs: any[] }) {
-  const [isExpanded, setIsExpanded] = useState(false);
 
-  return (
-    <div className={cn(
-      "fixed bottom-24 lg:bottom-8 right-8 z-[60] transition-all duration-500",
-      isExpanded ? "w-80 h-96" : "w-12 h-12"
-    )}>
-      <motion.div 
-        layout
-        className={cn(
-          "h-full w-full glass rounded-2xl border border-white/10 overflow-hidden flex flex-col shadow-2xl backdrop-blur-2xl",
-          isExpanded ? "bg-black/90" : "bg-black/40 hover:scale-110 cursor-pointer"
-        )}
-      >
-        {!isExpanded ? (
-          <button onClick={() => setIsExpanded(true)} className="h-full w-full flex items-center justify-center text-accent">
-            <Terminal size={20} />
-          </button>
-        ) : (
-          <>
-            <div className="p-3 border-b border-white/5 flex items-center justify-between bg-white/5">
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                <span className="text-[9px] font-mono font-black text-white uppercase tracking-widest">LOGS_NODE_ARCHIVE</span>
-              </div>
-              <button onClick={() => setIsExpanded(false)} className="text-text-m hover:text-white"><X size={14} /></button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 font-mono text-[9px] space-y-2 no-scrollbar selection:bg-accent/30">
-              {logs.map((log, i) => (
-                <div key={`${log.id || 'log'}-${i}`} className="flex gap-3 animate-in fade-in slide-in-from-left-2 transition-all">
-                  <span className="opacity-30 shrink-0">[{log.time}]</span>
-                  <span className={cn(
-                    "truncate",
-                    log.type === 'success' ? 'text-success' : 
-                    log.type === 'warn' ? 'text-warning' : 
-                    log.type === 'error' ? 'text-accent font-black' : 'text-text-m'
-                  )}>
-                    {log.msg}
-                  </span>
-                </div>
-              ))}
-              {logs.length === 0 && (
-                <div className="opacity-10 py-20 text-center uppercase tracking-widest text-[8px]">
-                  IDLE_LISTENING...
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </motion.div>
-    </div>
-  );
-}
 
 function DailyChallengeWidget({ stats }: { stats: UserStats | null }) {
   const challenge = stats?.dailyChallenge;
@@ -3886,27 +4030,6 @@ function UpcomingAndQuickAccess({ tasks, journals, setActiveTab }: { tasks: Task
           )}
         </div>
       </section>
-
-      <section className="glass rounded-xl border border-white/5 overflow-hidden">
-        <div className="p-4 bg-white/5 border-b border-white/5 flex items-center justify-between">
-           <h3 className="text-[10px] font-mono font-black uppercase tracking-widest text-text-m">Recent_Neural_Logs</h3>
-           <button onClick={() => setActiveTab('reflect')} className="text-[8px] font-mono text-cyan hover:underline">ACCESS_ARCHIVE</button>
-        </div>
-        <div className="p-2 space-y-1">
-           {journals.slice(0, 2).map((j, i) => (
-             <div key={j.id} className="p-3 hover:bg-white/5 rounded border-b border-white/5 last:border-0">
-                <div className="flex justify-between items-center mb-1">
-                   <div className="flex items-center gap-2">
-                      <span className="text-lg">{MOODS.find(m => m.id === j.mood)?.emoji}</span>
-                      <span className="text-[10px] font-mono text-text-p uppercase tracking-tighter opacity-70">ENTRY_{i+1}</span>
-                   </div>
-                   <span className="text-[8px] font-mono text-text-m opacity-40">{new Date(j.createdAt).toLocaleDateString()}</span>
-                </div>
-                <p className="text-xs text-text-m truncate font-mono opacity-50 italic">"{j.content.slice(0, 50)}..."</p>
-             </div>
-           ))}
-        </div>
-      </section>
     </div>
   );
 }
@@ -4166,7 +4289,7 @@ function MotivationPortal({
   );
 }
 
-function LifeSyncOverview({ lifeSync, setActiveTab }: { lifeSync?: UserStats['lifeSync'], setActiveTab: any }) {
+function LifeSyncOverview({ lifeSync, setActiveTab, categories = LIFE_CATEGORIES }: { lifeSync?: UserStats['lifeSync'], setActiveTab: any, categories?: any[] }) {
   if (!lifeSync) return (
     <div 
       onClick={() => setActiveTab('grow')}
@@ -4181,7 +4304,8 @@ function LifeSyncOverview({ lifeSync, setActiveTab }: { lifeSync?: UserStats['li
   );
 
   const values = lifeSync.current;
-  const balanceScore = Number((Object.values(values).reduce((a, b) => a + b, 0) / 8).toFixed(1));
+  const activeVals = categories.map(cat => values[cat.id] ?? 10);
+  const balanceScore = Number((activeVals.reduce((a, b) => a + b, 0) / (categories.length || 1)).toFixed(1));
   
   return (
     <motion.div 
@@ -4205,15 +4329,15 @@ function LifeSyncOverview({ lifeSync, setActiveTab }: { lifeSync?: UserStats['li
           </div>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-3">
-          {LIFE_CATEGORIES.map(cat => {
+          {categories.map(cat => {
             const val = values[cat.id] || 0;
             return (
-              <div key={cat.id} className="flex flex-col gap-1 items-start min-w-[60px]">
-                 <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full" style={{ width: `${val * 10}%`, backgroundColor: cat.color }} />
-                 </div>
-                 <span className="text-[8px] font-mono font-bold" style={{ color: cat.color }}>{cat.label}</span>
-              </div>
+               <div key={cat.id} className="flex flex-col gap-1 items-start min-w-[60px]">
+                  <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+                     <div className="h-full" style={{ width: `${val * 10}%`, backgroundColor: cat.color }} />
+                  </div>
+                  <span className="text-[8px] font-mono font-bold" style={{ color: cat.color }}>{cat.label}</span>
+               </div>
             );
           })}
         </div>
@@ -4252,7 +4376,7 @@ function Dashboard({
 
       <ProfileCard stats={stats} user={user} />
       
-      <LifeSyncOverview lifeSync={stats?.lifeSync} setActiveTab={setActiveTab} />
+      <LifeSyncOverview lifeSync={stats?.lifeSync} setActiveTab={setActiveTab} categories={stats?.lifeSyncCategories || LIFE_CATEGORIES} />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Col: Main Stream */}
