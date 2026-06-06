@@ -266,7 +266,8 @@ function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<s
 
   const points = categories.map((cat, i) => {
     const angle = (Math.PI * 2 * i) / categories.length - Math.PI / 2;
-    const value = values[cat.id] || 1;
+    const rawVal = values[cat.id];
+    const value = (typeof rawVal === 'number' && !isNaN(rawVal)) ? rawVal : 5;
     const r = (value / 10) * radius;
     return {
       x: center + r * Math.cos(angle),
@@ -390,11 +391,12 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
     setEditingCategories(categories);
   }, [stats?.lifeSyncCategories]);
 
-  const saveCategories = async (updatedList: any[]) => {
+  const saveCategories = async (updatedList: any[], valuesOverride?: Record<string, number>) => {
     try {
       const currentValues: Record<string, number> = {};
+      const activeVals = valuesOverride || values;
       updatedList.forEach(cl => {
-        currentValues[cl.id] = values[cl.id] !== undefined ? values[cl.id] : 10;
+        currentValues[cl.id] = activeVals[cl.id] !== undefined ? activeVals[cl.id] : 5;
       });
       await updateDoc(doc(db, 'user_stats', user.uid), {
         lifeSyncCategories: updatedList,
@@ -681,7 +683,9 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
                               const updated = [...editingCategories];
                               updated[index] = { ...cat, label: e.target.value.toUpperCase() };
                               setEditingCategories(updated);
-                              saveCategories(updated);
+                            }}
+                            onBlur={() => {
+                              saveCategories(editingCategories);
                             }}
                             className="bg-transparent border-b border-transparent hover:border-white/10 focus:border-indigo-500 text-white font-mono text-xs uppercase outline-none px-1 py-0.5 w-full font-black"
                           />
@@ -696,7 +700,11 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
                               if (editingCategories.length <= 3) return;
                               const updated = editingCategories.filter((c: any) => c.id !== cat.id);
                               setEditingCategories(updated);
-                              saveCategories(updated);
+                              // Also remove the deleted category's value from local state
+                              const newValues = { ...values };
+                              delete newValues[cat.id];
+                              setValues(newValues);
+                              saveCategories(updated, newValues);
                             }}
                             className="text-red-400/80 hover:text-red-400 bg-red-500/5 hover:bg-red-500/15 border border-red-500/10 hover:border-red-500/30 p-2 rounded-xl transition-all disabled:opacity-20 disabled:pointer-events-none cursor-pointer active:scale-90 flex items-center justify-center shrink-0"
                             title="Delete this sphere"
@@ -710,7 +718,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
                         <div className="flex flex-wrap gap-1.5 p-2 bg-black/50 rounded-lg border border-white/5 animate-in fade-in duration-200">
                           {PRESET_COLORS.map(c => (
                             <button
-                              key={`color-${cat.id}-${c}`}
+                              key={`color-${cat.id || index}-${index}-${c}`}
                               type="button"
                               onClick={() => {
                                 const updated = [...editingCategories];
