@@ -2432,47 +2432,77 @@ export default function App() {
         </button>
       </div>
 
-      {/* Sidebar / Nav */}
-      <nav className={cn(
-        "fixed bottom-0 left-0 right-0 lg:left-0 lg:top-0 lg:bottom-0 glass border-t lg:border-t-0 lg:border-r border-border-subtle z-50 flex lg:flex-col items-center justify-start lg:justify-start gap-2 lg:gap-2 min-h-[72px] lg:h-auto py-2 lg:py-8 px-4 lg:px-4 overflow-x-auto lg:overflow-x-hidden no-scrollbar transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
-        isNavExpanded ? "lg:w-64" : "lg:w-20"
-      )}>
-        {/* Menu Toggle for Desktop */}
+      {/* Mobile Bottom Navigation Bar (5 icon buttons) */}
+      <nav id="mobile-nav" className="fixed bottom-0 left-0 right-0 h-16 bg-black/90 glass border-t border-border-subtle z-50 flex md:hidden items-center justify-around px-2 py-1 select-none">
         <button 
-          onClick={() => setIsNavExpanded(!isNavExpanded)}
-          className="hidden lg:flex p-3 text-text-m hover:text-white transition-colors mb-8 self-center lg:self-start lg:ml-1 group"
+          onClick={() => handleTabChange('dashboard')} 
+          className={cn("flex flex-col items-center justify-center py-1 px-2 text-text-m hover:text-white transition-all active:scale-95 flex-1 min-h-[44px]", activeTab === 'dashboard' ? "text-accent" : "text-text-s")}
         >
-          <Menu size={20} className={cn("lg:w-6 lg:h-6 transition-transform", isNavExpanded && "rotate-90 text-accent")} />
+          <HardDrive size={18} className={cn("transition-transform", activeTab === 'dashboard' ? "scale-110 text-accent text-glow-accent" : "text-text-s")} />
+          <span className="text-[10px] font-mono mt-0.5 font-bold tracking-tight">CORE</span>
         </button>
+        <button 
+          onClick={() => handleTabChange('dailyWork')} 
+          className={cn("flex flex-col items-center justify-center py-1 px-2 text-text-m hover:text-white transition-all active:scale-95 flex-1 min-h-[44px]", activeTab === 'dailyWork' ? "text-accent" : "text-text-s")}
+        >
+          <CheckCircle2 size={18} className={cn("transition-transform", activeTab === 'dailyWork' ? "scale-110 text-accent text-glow-accent" : "text-text-s")} />
+          <span className="text-[10px] font-mono mt-0.5 font-bold tracking-tight">WORK</span>
+        </button>
+        <button 
+          onClick={() => handleTabChange('reflect')} 
+          className={cn("flex flex-col items-center justify-center py-1 px-2 text-text-m hover:text-white transition-all active:scale-95 flex-1 min-h-[44px]", activeTab === 'reflect' ? "text-accent" : "text-text-s")}
+        >
+          <Book size={18} className={cn("transition-transform", activeTab === 'reflect' ? "scale-110 text-accent text-glow-accent" : "text-text-s")} />
+          <span className="text-[10px] font-mono mt-0.5 font-bold tracking-tight">REFLECT</span>
+        </button>
+        <button 
+          onClick={() => handleTabChange('grow')} 
+          className={cn("flex flex-col items-center justify-center py-1 px-2 text-text-m hover:text-white transition-all active:scale-95 flex-1 min-h-[44px]", activeTab === 'grow' ? "text-accent" : "text-text-s")}
+        >
+          <TrendingUp size={18} className={cn("transition-transform", activeTab === 'grow' ? "scale-110 text-accent text-glow-accent" : "text-text-s")} />
+          <span className="text-[10px] font-mono mt-0.5 font-bold tracking-tight">GROW</span>
+        </button>
+        <button 
+          onClick={() => handleTabChange('aetherCoach')} 
+          className={cn("flex flex-col items-center justify-center py-1 px-2 text-text-m hover:text-white transition-all active:scale-95 flex-1 min-h-[44px]", activeTab === 'aetherCoach' ? "text-accent" : "text-text-s")}
+        >
+          <Sparkles size={18} className={cn("transition-transform", activeTab === 'aetherCoach' ? "scale-110 text-cyan text-glow-cyan" : "text-text-s")} />
+          <span className="text-[10px] font-mono mt-0.5 font-bold tracking-tight text-cyan">COACH</span>
+        </button>
+      </nav>
 
-        <NavButton isExpanded={isNavExpanded} active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<HardDrive size={20} className="lg:w-6 lg:h-6" />} label="CORE_COMMAND" />
-        <NavButton isExpanded={isNavExpanded} active={activeTab === 'dailyWork'} onClick={() => handleTabChange('dailyWork')} icon={<CheckCircle2 size={20} className="lg:w-6 lg:h-6" />} label="DAILY_WORK" />
-        <NavButton isExpanded={isNavExpanded} active={activeTab === 'reflect'} onClick={() => handleTabChange('reflect')} icon={<Book size={20} className="lg:w-6 lg:h-6" />} label="REFLECT" />
-        <NavButton isExpanded={isNavExpanded} active={activeTab === 'grow'} onClick={() => handleTabChange('grow')} icon={<TrendingUp size={20} className="lg:w-6 lg:h-6" />} label="GROW" />
-        <NavButton isExpanded={isNavExpanded} active={activeTab === 'aetherCoach'} onClick={() => handleTabChange('aetherCoach')} icon={<Sparkles size={20} className="lg:w-6 lg:h-6 text-cyan" />} label="AETHER_COACH" />
-        <NavButton isExpanded={isNavExpanded} active={activeTab === 'configOs'} onClick={() => handleTabChange('configOs')} icon={<Settings size={20} className="lg:w-6 lg:h-6" />} label="CONFIG_OS" />
+      {/* Sidebar / Nav for Tablet & Desktop */}
+      <nav className="fixed left-0 top-0 bottom-0 glass border-r border-border-subtle z-50 hidden md:flex flex-col items-center justify-start gap-4 py-8 px-2 md:w-16 lg:w-56 transition-all duration-300 select-none">
+        {/* Brand System */}
+        <div className="flex items-center gap-2 mb-4 hidden lg:flex">
+          <Cpu className="text-accent animate-pulse" size={16} />
+          <span className="text-xs font-mono font-black tracking-widest text-text-p uppercase">AETHER_OS</span>
+        </div>
+        <div className="flex items-center justify-center mb-4 md:flex lg:hidden w-8 h-8 rounded-full bg-accent/10">
+          <Cpu className="text-accent animate-pulse" size={16} />
+        </div>
+
+        <NavButton active={activeTab === 'dashboard'} onClick={() => handleTabChange('dashboard')} icon={<HardDrive size={18} className="lg:w-5 lg:h-5" />} label="CORE_COMMAND" />
+        <NavButton active={activeTab === 'dailyWork'} onClick={() => handleTabChange('dailyWork')} icon={<CheckCircle2 size={18} className="lg:w-5 lg:h-5" />} label="DAILY_WORK" />
+        <NavButton active={activeTab === 'reflect'} onClick={() => handleTabChange('reflect')} icon={<Book size={18} className="lg:w-5 lg:h-5" />} label="REFLECT" />
+        <NavButton active={activeTab === 'grow'} onClick={() => handleTabChange('grow')} icon={<TrendingUp size={18} className="lg:w-5 lg:h-5" />} label="GROW" />
+        <NavButton active={activeTab === 'aetherCoach'} onClick={() => handleTabChange('aetherCoach')} icon={<Sparkles size={18} className="lg:w-5 lg:h-5 text-cyan" />} label="AETHER_COACH" />
+        <NavButton active={activeTab === 'configOs'} onClick={() => handleTabChange('configOs')} icon={<Settings size={18} className="lg:w-5 lg:h-5" />} label="CONFIG_OS" />
         
         <button 
           onClick={() => signOut(auth)}
-          className={cn(
-            "p-3 text-text-m hover:text-danger transition-all lg:mt-auto group shrink-0 flex items-center gap-3 w-full rounded-xl lg:rounded-none",
-            isNavExpanded ? "px-4" : "justify-center"
-          )}
+          className="p-3 text-text-m hover:text-danger hover:bg-neutral-900/40 transition-all mt-auto group shrink-0 flex items-center gap-3 w-full rounded-xl justify-center lg:justify-start lg:px-5 min-h-[44px]"
         >
-          <LogOut size={20} className="lg:w-6 lg:h-6 group-hover:scale-110 transition-transform" />
-          {isNavExpanded && (
-            <span className="text-[10px] font-mono font-black uppercase text-text-m group-hover:text-danger hidden lg:block tracking-widest">
-              TERMINATE_SESSION
-            </span>
-          )}
+          <LogOut size={18} className="lg:w-5 lg:h-5 group-hover:scale-110 transition-transform" />
+          <span className="text-[10px] font-mono font-black uppercase text-text-m group-hover:text-danger hidden lg:block tracking-widest">
+            TERMINATE
+          </span>
           <span className="sr-only">TERMINATE_SESSION</span>
         </button>
       </nav>
 
-      <main className={cn(
-        "pb-32 lg:pb-8 pt-4 lg:pt-8 px-4 max-w-7xl mx-auto transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
-        isNavExpanded ? "lg:pl-[18rem]" : "lg:pl-28"
-      )}>
+      <div className="min-h-screen pb-24 md:pb-0 md:pl-16 lg:pl-56 transition-all duration-300">
+        <main className="pb-16 pt-4 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full transition-all duration-300">
         {activeTab !== 'dashboard' && (
           <header className="flex flex-col md:flex-row md:items-center justify-between mb-8 lg:mb-12 gap-4 lg:gap-6 glass p-4 lg:p-6 rounded-xl border border-border-subtle premium-transition">
             <div className="flex items-center gap-3 lg:gap-4">
@@ -2622,6 +2652,7 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
+    </div>
 
       <MotivationPortal 
         isOpen={isMotivationPortalOpen} 
@@ -2886,20 +2917,19 @@ function AITimetableModal({
 
 // --- Components ---
 
-function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge, isExpanded }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; locked?: boolean; unlockLevel?: number; badge?: string; isExpanded?: boolean }) {
+function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; locked?: boolean; unlockLevel?: number; badge?: string }) {
   return (
     <button 
       onClick={locked ? undefined : onClick}
       className={cn(
-        "relative p-4 transition-all group shrink-0 flex items-center gap-4 w-full rounded-xl lg:rounded-r-none lg:bg-transparent",
-        active ? "text-accent bg-accent/10 lg:bg-accent/5 lg:border-l-4 lg:border-accent" : (locked ? "text-text-s/30 cursor-not-allowed" : "text-text-m hover:text-text-p hover:bg-white/5 lg:hover:bg-white/5 lg:hover:border-l-4 lg:hover:border-white/10"),
-        isExpanded ? "px-5" : "justify-center"
+        "relative p-3 lg:p-4 transition-all group shrink-0 flex items-center md:justify-center lg:justify-start gap-4 w-full rounded-xl min-h-[44px]",
+        active ? "text-accent bg-accent/10 lg:bg-transparent lg:border-l-4 lg:border-accent" : (locked ? "text-text-s/30 cursor-not-allowed" : "text-text-m hover:text-text-p hover:bg-white/5")
       )}
     >
-      <div className={cn("relative z-10", active && "accent-glow text-accent", locked && "opacity-40 grayscale")}>
+      <div className={cn("relative z-10 shrink-0", active && "accent-glow text-accent", locked && "opacity-40 grayscale")}>
         {icon}
         {badge && (
-          <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-accent text-white text-[9px] font-mono font-black rounded-sm border border-white/20 animate-pulse">
+          <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-accent text-white text-[10px] font-mono font-black rounded-sm border border-white/20 animate-pulse">
             {badge}
           </span>
         )}
@@ -2910,35 +2940,24 @@ function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge, i
         )}
       </div>
       
-      {isExpanded && (
-        <motion.span 
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          className={cn(
-            "text-xs lg:text-sm uppercase font-bold tracking-widest whitespace-nowrap hidden lg:block overflow-hidden transition-all duration-300",
-            locked ? "text-text-s/50" : (active ? "text-accent" : "text-text-m")
-          )}
-        >
-          {locked ? `LOCKED (LVL ${unlockLevel})` : label}
-        </motion.span>
-      )}
+      <span className={cn(
+        "text-[10px] lg:text-xs uppercase font-black tracking-widest whitespace-nowrap hidden lg:block overflow-hidden transition-all duration-300 truncate",
+        locked ? "text-text-s/50" : (active ? "text-accent text-glow-accent" : "text-text-m")
+      )}>
+        {locked ? `LOCKED (LVL ${unlockLevel})` : label}
+      </span>
 
-      {/* Legacy Tooltip behavior when not expanded */}
-      {!isExpanded && (
-        <span className={cn(
-          "absolute left-full ml-4 px-2 py-1 text-[10px] uppercase font-bold opacity-0 group-hover:opacity-100 transition-opacity hidden lg:block whitespace-nowrap pointer-events-none z-50",
-          locked ? "bg-black/60 text-text-m border border-white/10" : "bg-accent text-white"
-        )}>
-          {locked ? `LOCKED (LVL ${unlockLevel})` : label}
-        </span>
-      )}
+      {/* Legacy Tooltip behavior when collapsed on tablet but hidden on desktop */}
+      <span className={cn(
+        "absolute left-full ml-4 px-2 py-1 text-[10px] uppercase font-bold opacity-0 group-hover:opacity-100 transition-opacity hidden md:group-hover:block lg:group-hover:hidden whitespace-nowrap pointer-events-none z-50 bg-black/90 border border-white/10 text-white"
+      )}>
+        {locked ? `LOCKED (LVL ${unlockLevel})` : label}
+      </span>
 
       {active && (
-        <motion.div 
-          layoutId="nav-pill"
+        <div 
           className={cn(
-            "absolute inset-0 bg-accent/10 transition-all",
-            !isExpanded && "lg:bg-transparent lg:border-r-2 lg:border-accent -right-4 lg:right-[-2px]"
+            "absolute inset-0 bg-accent/10 transition-all rounded-xl lg:rounded-none lg:bg-transparent lg:border-r-2 lg:border-accent -right-4 lg:right-[-2px] hidden lg:block"
           )}
         />
       )}
@@ -3679,7 +3698,7 @@ function ProfileCard({ stats, user }: { stats: UserStats | null, user: User }) {
           </div>
 
           <div className="space-y-2 max-w-md mx-auto md:mx-0 w-full">
-             <div className="flex justify-between text-[7px] sm:text-[10px] font-mono uppercase gap-2">
+             <div className="flex justify-between text-[10px] font-mono uppercase gap-2">
                 <span className="text-text-m truncate">XP_BARRIER: {Math.floor(levelProgress)}%</span>
                 <span className="text-text-s whitespace-nowrap">{currentXP.toLocaleString()}/{nextLevelXP.toLocaleString()} XP</span>
              </div>
@@ -3912,11 +3931,11 @@ function AchievementsSummary({ stats }: { stats: UserStats | null }) {
                   <div className="p-2 bg-white/5 rounded grayscale group-hover:grayscale-0">{ach.icon}</div>
                   <div className="min-w-0">
                      <h4 className="text-[10px] font-black font-mono text-white uppercase truncate">{ach.title}</h4>
-                     <p className="text-[8px] font-mono text-text-m truncate leading-tight">{ach.description}</p>
+                     <p className="text-[10px] font-mono text-text-m truncate leading-tight">{ach.description}</p>
                   </div>
                </div>
                <div className="space-y-1">
-                  <div className="flex justify-between text-[7px] font-mono text-text-s uppercase">
+                  <div className="flex justify-between text-[10px] font-mono text-text-s uppercase">
                      <span>EST_SYNC: 43%</span>
                      <span>+{ach.xpReward} XP</span>
                   </div>
@@ -6290,12 +6309,12 @@ function TemporalHub({
                         <div className="flex flex-col min-w-0">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <span className="text-[11px] font-serif font-black text-white italic truncate uppercase">{s.title}</span>
-                            <span className="shrink-0 text-[7px] font-mono bg-cyan/10 text-cyan border border-cyan/25 px-1 py-0.2 rounded font-black">{s.confidence}% MATCH</span>
+                            <span className="shrink-0 text-[10px] font-mono bg-cyan/10 text-cyan border border-cyan/25 px-1 py-0.5 rounded font-black">{s.confidence}% MATCH</span>
                           </div>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[8px] font-mono text-text-m uppercase opacity-50 truncate">NODE_{s.category}</span>
+                            <span className="text-[10px] font-mono text-text-m uppercase opacity-50 truncate">NODE_{s.category}</span>
                             <span className="w-0.5 h-0.5 rounded-full bg-white/20" />
-                            <span className="text-[8px] font-mono text-text-m opacity-50 truncate">{s.completedCount}/{s.totalCount} COMPLETED</span>
+                            <span className="text-[10px] font-mono text-text-m opacity-50 truncate">{s.completedCount}/{s.totalCount} COMPLETED</span>
                           </div>
                         </div>
 
@@ -6649,9 +6668,9 @@ function RoutineMatrixView({
                   <div key={habit.id}>
                     <motion.div 
                       layoutId={habit.id}
-                      className="glass rounded-2xl border border-white/5 bg-white/2 overflow-hidden group hover:border-cyan/30 transition-all cursor-pointer"
+                      className="glass rounded-2xl border border-white/5 bg-white/2 overflow-hidden group hover:border-cyan/30 transition-all cursor-pointer active:scale-[0.98]"
                     >
-                    <div className="p-4 flex items-center justify-between">
+                    <div className="p-4 sm:p-5 md:p-6 flex items-center justify-between min-h-[60px]">
                       <div className="flex items-center gap-4 flex-1" onClick={() => setSelectedHabit(habit)}>
                         <div 
                           className="w-10 h-10 rounded-lg flex items-center justify-center border transition-all"
@@ -6728,8 +6747,8 @@ function RoutineMatrixView({
                </div>
              </div>
 
-             <div className="relative z-10">
-                <div className="flex gap-2.5 overflow-x-auto pb-4 no-scrollbar">
+             <div className="relative z-10 w-full overflow-x-auto scrollbar-hide no-scrollbar">
+                <div className="flex gap-2 pb-4 min-w-[700px] w-full">
                   {/* Grid Labels: Days */}
                   <div className="flex flex-col justify-around text-[10px] font-mono text-text-m opacity-40 pr-3 uppercase pb-2">
                     <span>Mon</span>
@@ -6742,20 +6761,20 @@ function RoutineMatrixView({
                   </div>
 
                   {/* Grid Columns (Weeks) */}
-                  <div className="flex gap-1.5">
+                  <div className="flex gap-0.5 sm:gap-1">
                     {Array.from({ length: 52 }).map((_, weekIdx) => (
-                      <div key={`heatmap-week-${weekIdx}`} className="flex flex-col gap-1.5">
+                      <div key={`heatmap-week-${weekIdx}`} className="flex flex-col gap-0.5 sm:gap-1">
                         {Array.from({ length: 7 }).map((_, dayIdx) => {
                           const dataIdx = weekIdx * 7 + dayIdx;
                           const dayData = heatmapData[dataIdx];
-                          if (!dayData) return <div key={`heatmap-day-empty-${weekIdx}-${dayIdx}`} className="w-4 h-4 rounded-sm bg-transparent" />;
+                          if (!dayData) return <div key={`heatmap-day-empty-${weekIdx}-${dayIdx}`} className="w-3 h-3 sm:w-4 sm:h-4 rounded-sm bg-transparent" />;
                           
                           return (
                             <div 
                               key={`heatmap-day-${weekIdx}-${dayIdx}`}
                               title={`${dayData.date} - ${dayData.count} habits completed`}
                               className={cn(
-                                "w-4 h-4 rounded-sm border border-black/5 flex items-center justify-center text-[7px] font-mono transition-all hover:scale-135 hover:z-20 hover:shadow-md cursor-help",
+                                "w-3 h-3 sm:w-4 sm:h-4 rounded-sm border border-black/5 flex items-center justify-center transition-all hover:scale-135 hover:z-20 hover:shadow-md cursor-help",
                                 getIntensity(dayData.count)
                               )}
                             />
@@ -6852,12 +6871,12 @@ function RoutineMatrixView({
       {/* Add Habit Modal */}
       <AnimatePresence>
         {isAddModalOpen && (
-          <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 bg-background/90 backdrop-blur-xl">
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-0 sm:p-4 md:p-6 bg-background/95 backdrop-blur-xl">
              <motion.div 
                initial={{ opacity: 0, scale: 0.95 }}
                animate={{ opacity: 1, scale: 1 }}
                exit={{ opacity: 0, scale: 0.95 }}
-               className="w-full max-w-2xl glass p-8 rounded-[2rem] border border-white/10 shadow-2xl relative"
+               className="w-full h-full sm:h-auto sm:max-w-lg md:max-w-2xl glass p-5 sm:p-6 md:p-8 rounded-none sm:rounded-[2rem] border-0 sm:border border-white/10 shadow-2xl relative overflow-y-auto max-h-screen sm:max-h-[90vh]"
              >
                 <div className="flex items-center gap-3 mb-8">
                   <div className="p-3 bg-cyan/10 rounded-xl border border-cyan/20">
@@ -7390,9 +7409,9 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
            </div>
 
            <aside className="space-y-8 lg:col-span-1">
-              <div className="glass p-8 xl:p-12 rounded-[2.5rem] border border-white/5 bg-black/40 space-y-10 xl:space-y-12 transition-all duration-300">
+              <div className="glass p-4 sm:p-6 md:p-8 rounded-[2rem] border border-white/5 bg-black/40 space-y-6 sm:space-y-8 md:space-y-10 transition-all duration-300">
                  <div>
-                    <label className="text-[11px] font-mono text-text-m uppercase tracking-[0.3em] font-black border-l-2 border-accent pl-3 mb-6 block">Mood_Index</label>
+                    <label className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-[0.25em] font-black border-l-2 border-accent pl-3 mb-4 sm:mb-6 block">Mood_Index</label>
                     <div className="grid grid-cols-5 gap-2">
                        {MOODS.map((m) => (
                          <button 
@@ -7408,18 +7427,18 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
                          </button>
                        ))}
                     </div>
-                    {mood && <p className="text-[10px] font-mono text-accent text-center mt-4 uppercase font-black tracking-widest">STATE: {mood.toUpperCase()}</p>}
+                    {mood && <p className="text-[10px] sm:text-xs font-mono text-accent text-center mt-4 uppercase font-black tracking-widest">STATE: {mood.toUpperCase()}</p>}
                  </div>
 
                  <div>
-                    <label className="text-[11px] font-mono text-text-m uppercase tracking-[0.3em] font-black border-l-2 border-success pl-3 mb-6 block">Neural_Tags</label>
+                    <label className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-[0.25em] font-black border-l-2 border-success pl-3 mb-4 sm:mb-6 block">Neural_Tags</label>
                     <div className="flex flex-wrap gap-2">
                        {MOOD_TAGS.map(tag => (
                          <button 
                            key={tag}
                            onClick={() => setSelectedTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag])}
                            className={cn(
-                             "px-3 py-1.5 rounded-lg border text-[10px] font-mono font-black uppercase transition-all",
+                             "px-3 py-1.5 rounded-lg border text-[10px] sm:text-xs font-mono font-black uppercase transition-all",
                              selectedTags.includes(tag) ? "bg-success text-black border-success" : "border-white/10 text-text-m hover:border-success/30 hover:text-success"
                            )}
                          >
@@ -7429,24 +7448,24 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
                     </div>
                  </div>
 
-                 <div className="pt-8 border-t border-white/5">
-                    <label className="text-[11px] font-mono text-text-m uppercase tracking-[0.3em] font-black border-l-2 border-warning pl-3 mb-8 block">Archive_Stats</label>
-                    <div className="space-y-6">
-                       <div className="flex justify-between items-center glass p-4 xl:p-5 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
-                          <span className="text-[11px] font-mono text-text-m uppercase tracking-wider">Total_Words</span>
-                          <span className="text-base font-mono font-black text-white">{(totalWordsWritten / 1000).toFixed(1)}K</span>
+                 <div className="pt-6 sm:pt-8 border-t border-white/5">
+                    <label className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-[0.25em] font-black border-l-2 border-warning pl-3 mb-6 sm:mb-8 block">Archive_Stats</label>
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                       <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
+                          <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Total_Words</span>
+                          <span className="text-sm sm:text-base font-mono font-black text-white">{(totalWordsWritten / 1000).toFixed(1)}K</span>
                        </div>
-                       <div className="flex justify-between items-center glass p-4 xl:p-5 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
-                          <span className="text-[11px] font-mono text-text-m uppercase tracking-wider">Avg_Recall</span>
-                          <span className="text-base font-mono font-black text-white">{avgEntryLength} W/Entry</span>
+                       <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
+                          <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Avg_Recall</span>
+                          <span className="text-sm sm:text-base font-mono font-black text-white">{avgEntryLength} W</span>
                        </div>
-                       <div className="flex justify-between items-center glass p-4 xl:p-5 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
-                          <span className="text-[11px] font-mono text-text-m uppercase tracking-wider">Peak_Sync_Time</span>
-                          <span className="text-base font-mono font-black text-white">{peakTimeStr}</span>
+                       <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300 col-span-2">
+                          <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Peak_Sync_Time</span>
+                          <span className="text-sm sm:text-base font-mono font-black text-white">{peakTimeStr}</span>
                        </div>
-                       <div className="flex justify-between items-center glass p-4 xl:p-5 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
-                          <span className="text-[11px] font-mono text-text-m uppercase tracking-wider">Journal_Streak</span>
-                          <span className="text-base font-mono font-black text-warning flex items-center gap-1.5"><Flame size={14} fill="currentColor" /> {stats?.journalStreak || 0}d</span>
+                       <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300 col-span-2">
+                          <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Journal_Streak</span>
+                          <span className="text-sm sm:text-base font-mono font-black text-warning flex items-center gap-1.2"><Flame size={14} fill="currentColor" /> {stats?.journalStreak || 0}d</span>
                        </div>
                     </div>
                  </div>
@@ -7547,11 +7566,10 @@ function AchievementCard({
   }
 
   return (
-    <motion.div 
-      whileHover={{ y: -5 }}
+    <div 
       onClick={onClick}
       className={cn(
-        "glass p-6 rounded-xl border-t-4 flex flex-col items-center text-center relative overflow-hidden cursor-pointer group transition-all h-full",
+        "glass p-6 rounded-xl border-t-4 flex flex-col items-center text-center relative overflow-hidden cursor-pointer group transition-all duration-300 hover:-translate-y-1 hover:shadow-lg h-full",
         unlocked ? rarityBorders[achievement.rarity] : "border-t-white/5"
       )}
     >
@@ -7592,7 +7610,7 @@ function AchievementCard({
            <span className={cn("text-[8px] font-mono font-black uppercase tracking-widest", rarityColors[achievement.rarity])}>{achievement.rarity}_PROTOCOL</span>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -7934,218 +7952,220 @@ function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews, on
              {activeSubTab === 'evolution' ? 'MONTH_OVER_MONTH_SYNC_ANALYSIS' : activeSubTab === 'achievements' ? `Neural_Growth: ${completionRate}% Complete` : 'PURCHASE_CRITICAL_SYSTEM_UPGRADES'}
            </p>
         </div>
-        <div className="flex bg-white/5 p-1 rounded-xl border border-white/5">
+        <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/5 gap-1.5 shadow-sm">
            <button 
              onClick={() => setActiveSubTab('evolution')}
-             className={cn("px-4 py-2 rounded-lg font-mono text-[10px] font-black uppercase tracking-widest transition-all", activeSubTab === 'evolution' ? "bg-accent text-white" : "text-text-m hover:text-white")}
+             className={cn(
+               "px-6 py-2.5 rounded-xl font-mono text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center min-w-[70px] lg:min-w-[100px]",
+               activeSubTab === 'evolution' ? "bg-accent text-white shadow-[0_0_20px_rgba(255,69,0,0.3)]" : "text-text-m hover:text-white hover:bg-white/5"
+             )}
            >
              Evolution
            </button>
            <button 
              onClick={() => setActiveSubTab('achievements')}
-             className={cn("px-4 py-2 rounded-lg font-mono text-[10px] font-black uppercase tracking-widest transition-all", activeSubTab === 'achievements' ? "bg-accent text-white" : "text-text-m hover:text-white")}
+             className={cn(
+               "px-6 py-2.5 rounded-xl font-mono text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center min-w-[70px] lg:min-w-[100px]",
+               activeSubTab === 'achievements' ? "bg-accent text-white shadow-[0_0_20px_rgba(255,69,0,0.3)]" : "text-text-m hover:text-white hover:bg-white/5"
+             )}
            >
              Archive
            </button>
            <button 
              onClick={() => setActiveSubTab('perks')}
-             className={cn("px-4 py-2 rounded-lg font-mono text-[10px] font-black uppercase tracking-widest transition-all", activeSubTab === 'perks' ? "bg-accent text-white" : "text-text-m hover:text-white")}
+             className={cn(
+               "px-6 py-2.5 rounded-xl font-mono text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center min-w-[70px] lg:min-w-[100px]",
+               activeSubTab === 'perks' ? "bg-accent text-white shadow-[0_0_20px_rgba(255,69,0,0.3)]" : "text-text-m hover:text-white hover:bg-white/5"
+             )}
            >
              Perks
            </button>
         </div>
       </div>
 
-      {activeSubTab === 'evolution' && (
-        <div className="space-y-12">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <EvolutionMetric label="Routine_Sync (Habits)" current={curHabits} previous={prevHabits} icon={<Flame size={20} />} />
-            <EvolutionMetric label="Protocol_Execution (Tasks)" current={curTasks} previous={prevTasks} icon={<CheckCircle2 size={20} />} />
-            <EvolutionMetric label="Temporal_Adherence (Calendar)" current={curCalendar} previous={prevCalendar} icon={<Calendar size={20} />} />
-            <EvolutionMetric label="Neural_Archival (Journal)" current={curJournals} previous={prevJournals} icon={<Book size={20} />} />
-          </div>
-
-          <div className="glass p-10 rounded-[3rem] border border-white/5 bg-accent/5 relative overflow-hidden">
-             <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
-                <TrendingUp size={120} className="text-accent" />
-             </div>
-             <div className="max-w-2xl space-y-6">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/20 rounded-full">
-                   <Sparkles size={12} className="text-accent" />
-                   <span className="text-[10px] font-mono text-accent font-black uppercase tracking-widest">NEURAL_MOTIVATION_CORE</span>
-                </div>
-                <h3 className="text-3xl font-serif font-black text-white italic leading-tight uppercase">
-                  {curTasks > prevTasks ? "Your neural streams are expanding. Synchronization with reality is at peak efficiency." : "Stagnation is merely a calibration phase. Refactor your protocols and initialize a new push."}
-                </h3>
-                <p className="text-sm font-mono text-text-m opacity-60 leading-relaxed uppercase">
-                  Consistency is the only variable that matters. Monitor your deltas above and ensure the next cycle outperforms the previous. You are building a legend, one protocol at a time.
-                </p>
-             </div>
-          </div>
-
-          {/* PAST DEBRIEFS SECTION */}
-          <div className="space-y-4 mt-8">
-             <h3 className="text-xs font-mono font-black text-text-p uppercase tracking-[0.2em] px-2">WEEKLY_REVIEWS (WEEKLY_DEBRIEFS)</h3>
-             {weeklyReviews.length === 0 ? (
-               <EmptyState
-                 icon={<Book size={20} className="text-accent" />}
-                 title="NO_PAST_DEBRIEFS_FOUND"
-               />
-             ) : (
-               <div className="grid grid-cols-1 gap-4">
-                 {weeklyReviews.map(review => (
-                   <WeeklyReviewItem key={review.id} review={review} />
-                 ))}
-               </div>
-             )}
-          </div>
-
+      {/* Evolution Subtab */}
+      <div className={cn("space-y-12", activeSubTab === 'evolution' ? "block animate-in fade-in duration-300" : "hidden")}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <EvolutionMetric label="Routine_Sync (Habits)" current={curHabits} previous={prevHabits} icon={<Flame size={20} />} />
+          <EvolutionMetric label="Protocol_Execution (Tasks)" current={curTasks} previous={prevTasks} icon={<CheckCircle2 size={20} />} />
+          <EvolutionMetric label="Temporal_Adherence (Calendar)" current={curCalendar} previous={prevCalendar} icon={<Calendar size={20} />} />
+          <EvolutionMetric label="Neural_Archival (Journal)" current={curJournals} previous={prevJournals} icon={<Book size={20} />} />
         </div>
-      )}
 
-      {activeSubTab === 'achievements' && (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-             <div className="glass p-6 rounded-2xl border-b-4 border-accent bg-accent/5">
-                <h3 className="text-[10px] font-mono text-accent uppercase font-black mb-1">Total_Archived</h3>
-                <p className="text-4xl font-serif font-black text-white italic">{earnedCount} <span className="text-sm opacity-40">/ {ACHIEVEMENTS.length}</span></p>
+        <div className="glass p-10 rounded-[3rem] border border-white/5 bg-accent/5 relative overflow-hidden">
+           <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+              <TrendingUp size={120} className="text-accent" />
+           </div>
+           <div className="max-w-2xl space-y-6">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/20 rounded-full">
+                 <Sparkles size={12} className="text-accent" />
+                 <span className="text-[10px] font-mono text-accent font-black uppercase tracking-widest">NEURAL_MOTIVATION_CORE</span>
+              </div>
+              <h3 className="text-3xl font-serif font-black text-white italic leading-tight uppercase">
+                {curTasks > prevTasks ? "Your neural streams are expanding. Synchronization with reality is at peak efficiency." : "Stagnation is merely a calibration phase. Refactor your protocols and initialize a new push."}
+              </h3>
+              <p className="text-sm font-mono text-text-m opacity-60 leading-relaxed uppercase">
+                Consistency is the only variable that matters. Monitor your deltas above and ensure the next cycle outperforms the previous. You are building a legend, one protocol at a time.
+              </p>
+           </div>
+        </div>
+
+        {/* PAST DEBRIEFS SECTION */}
+        <div className="space-y-4 mt-8">
+           <h3 className="text-xs font-mono font-black text-text-p uppercase tracking-[0.2em] px-2">WEEKLY_REVIEWS (WEEKLY_DEBRIEFS)</h3>
+           {weeklyReviews.length === 0 ? (
+             <EmptyState
+               icon={<Book size={20} className="text-accent" />}
+               title="NO_PAST_DEBRIEFS_FOUND"
+             />
+           ) : (
+             <div className="grid grid-cols-1 gap-4">
+               {weeklyReviews.map(review => (
+                 <WeeklyReviewItem key={review.id} review={review} />
+               ))}
              </div>
-             <div className="glass p-6 rounded-2xl border-b-4 border-cyan bg-cyan/5">
-                <h3 className="text-[10px] font-mono text-cyan uppercase font-black mb-1">Sync_Efficiency</h3>
-                <p className="text-4xl font-serif font-black text-white italic">{completionRate}%</p>
-             </div>
-             <div className="glass p-6 rounded-2xl border-b-4 border-warning bg-warning/5">
-                <h3 className="text-[10px] font-mono text-warning uppercase font-black mb-1">Rarity_Core</h3>
-                <div className="flex gap-2 mt-2">
-                   {Object.entries(rarityStats).map(([r, count]) => (
-                      <div key={r} title={`${r}: ${count}`} className={cn(
-                        "h-1 flex-1 rounded-full",
-                        r === 'common' ? 'bg-white/20' : r === 'uncommon' ? 'bg-blue-400' : r === 'rare' ? 'bg-purple-400' : 'bg-warning'
-                      )} />
-                   ))}
-                </div>
-                <p className="text-[9px] font-mono text-text-s uppercase mt-2 opacity-50">Distribution_Stable</p>
-             </div>
-             <div className="glass p-6 rounded-2xl border-b-4 border-success bg-success/5">
-                <h3 className="text-[10px] font-mono text-success uppercase font-black mb-1">Next_Milestone</h3>
-                <p className="text-xs font-mono text-white uppercase italic mt-2">5 more for LEVEL_UP</p>
-             </div>
+           )}
+        </div>
+      </div>
+
+      {/* Archive (Achievements) Subtab */}
+      <div className={cn("space-y-12", activeSubTab === 'achievements' ? "block animate-in fade-in duration-300" : "hidden")}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+           <div className="glass p-6 rounded-2xl border-b-4 border-accent bg-accent/5">
+              <h3 className="text-[10px] font-mono text-accent uppercase font-black mb-1">Total_Archived</h3>
+              <p className="text-4xl font-serif font-black text-white italic">{earnedCount} <span className="text-sm opacity-40">/ {ACHIEVEMENTS.length}</span></p>
+           </div>
+           <div className="glass p-6 rounded-2xl border-b-4 border-cyan bg-cyan/5">
+              <h3 className="text-[10px] font-mono text-cyan uppercase font-black mb-1">Sync_Efficiency</h3>
+              <p className="text-4xl font-serif font-black text-white italic">{completionRate}%</p>
+           </div>
+           <div className="glass p-6 rounded-2xl border-b-4 border-warning bg-warning/5">
+              <h3 className="text-[10px] font-mono text-warning uppercase font-black mb-1">Rarity_Core</h3>
+              <div className="flex gap-2 mt-2">
+                 {Object.entries(rarityStats).map(([r, count]) => (
+                    <div key={r} title={`${r}: ${count}`} className={cn(
+                      "h-1 flex-1 rounded-full",
+                      r === 'common' ? 'bg-white/20' : r === 'uncommon' ? 'bg-blue-400' : r === 'rare' ? 'bg-purple-400' : 'bg-warning'
+                    )} />
+                 ))}
+              </div>
+              <p className="text-[9px] font-mono text-text-s uppercase mt-2 opacity-50">Distribution_Stable</p>
+           </div>
+           <div className="glass p-6 rounded-2xl border-b-4 border-success bg-success/5">
+              <h3 className="text-[10px] font-mono text-success uppercase font-black mb-1">Next_Milestone</h3>
+              <p className="text-xs font-mono text-white uppercase italic mt-2">5 more for LEVEL_UP</p>
+           </div>
+        </div>
+
+        <div className="space-y-8">
+          <div className="flex flex-wrap items-center gap-4 border-b border-white/5 pb-4">
+             <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>ALL_PROTOCOLS</FilterButton>
+             <FilterButton active={filter === 'earned'} onClick={() => setFilter('earned')}>SYNCED</FilterButton>
+             <FilterButton active={filter === 'locked'} onClick={() => setFilter('locked')}>LOCKED</FilterButton>
+             <div className="w-px h-6 bg-white/10 mx-2" />
+             <select 
+               value={rarityFilter} 
+               onChange={(e) => setRarityFilter(e.target.value as any)}
+               className="bg-transparent border-0 text-[10px] font-mono text-text-m uppercase outline-none cursor-pointer focus:text-white"
+             >
+               <option value="all" className="bg-background">ALL_RARITIES</option>
+               <option value="common" className="bg-background">COMMON</option>
+               <option value="uncommon" className="bg-background">UNCOMMON</option>
+               <option value="rare" className="bg-background">RARE</option>
+               <option value="legendary" className="bg-background">LEGENDARY</option>
+             </select>
+             <select 
+               value={categoryFilter} 
+               onChange={(e) => setCategoryFilter(e.target.value as any)}
+               className="bg-transparent border-0 text-[10px] font-mono text-text-m uppercase outline-none cursor-pointer focus:text-white ml-2"
+             >
+               <option value="all" className="bg-background">ALL_CATEGORIES</option>
+               <option value="milestone" className="bg-background">MILESTONES</option>
+               <option value="streak" className="bg-background">STREAKS</option>
+               <option value="skill" className="bg-background">SKILLS</option>
+               <option value="hidden" className="bg-background">HIDDEN</option>
+             </select>
           </div>
 
-          <div className="space-y-8">
-            <div className="flex flex-wrap items-center gap-4 border-b border-white/5 pb-4">
-               <FilterButton active={filter === 'all'} onClick={() => setFilter('all')}>ALL_PROTOCOLS</FilterButton>
-               <FilterButton active={filter === 'earned'} onClick={() => setFilter('earned')}>SYNCED</FilterButton>
-               <FilterButton active={filter === 'locked'} onClick={() => setFilter('locked')}>LOCKED</FilterButton>
-               <div className="w-px h-6 bg-white/10 mx-2" />
-               <select 
-                 value={rarityFilter} 
-                 onChange={(e) => setRarityFilter(e.target.value as any)}
-                 className="bg-transparent border-0 text-[10px] font-mono text-text-m uppercase outline-none cursor-pointer focus:text-white"
-               >
-                 <option value="all" className="bg-background">ALL_RARITIES</option>
-                 <option value="common" className="bg-background">COMMON</option>
-                 <option value="uncommon" className="bg-background">UNCOMMON</option>
-                 <option value="rare" className="bg-background">RARE</option>
-                 <option value="legendary" className="bg-background">LEGENDARY</option>
-               </select>
-               <select 
-                 value={categoryFilter} 
-                 onChange={(e) => setCategoryFilter(e.target.value as any)}
-                 className="bg-transparent border-0 text-[10px] font-mono text-text-m uppercase outline-none cursor-pointer focus:text-white ml-2"
-               >
-                 <option value="all" className="bg-background">ALL_CATEGORIES</option>
-                 <option value="milestone" className="bg-background">MILESTONES</option>
-                 <option value="streak" className="bg-background">STREAKS</option>
-                 <option value="skill" className="bg-background">SKILLS</option>
-                 <option value="hidden" className="bg-background">HIDDEN</option>
-               </select>
-            </div>
-
-            <div className={cn(
-              "grid gap-6",
-              viewMode === 'grid' ? "grid-cols-2 md:grid-cols-4 lg:grid-cols-5" : "grid-cols-1 md:grid-cols-2"
-            )}>
-              {filteredAchievements.map((achievement) => (
-                <div key={achievement.id}>
-                  <AchievementCard 
-                    achievement={achievement}
-                    unlocked={stats.unlockedAchievements?.includes(achievement.id)}
-                    {...getAchievementProgress(achievement)}
-                    onClick={() => setSelectedAchievement(achievement)}
-                    viewMode={viewMode}
-                  />
-                </div>
-              ))}
-            </div>
+          <div className={cn(
+            "grid gap-6",
+            viewMode === 'grid' ? "grid-cols-2 md:grid-cols-4 lg:grid-cols-5" : "grid-cols-1 md:grid-cols-2"
+          )}>
+            {filteredAchievements.map((achievement) => (
+              <div key={achievement.id}>
+                <AchievementCard 
+                  achievement={achievement}
+                  unlocked={stats.unlockedAchievements?.includes(achievement.id)}
+                  {...getAchievementProgress(achievement)}
+                  onClick={() => setSelectedAchievement(achievement)}
+                  viewMode={viewMode}
+                />
+              </div>
+            ))}
           </div>
-        </>
-      )}
+        </div>
+      </div>
 
-      {activeSubTab === 'perks' && (
-        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-20">
-           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {PERKS.map((perk, i) => {
-                const isUnlocked = stats.unlockedPerks?.includes(perk.id);
-                const canAfford = (stats.coins || 0) >= perk.cost;
-                
-                return (
-                  <motion.div 
-                    key={perk.id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.1 }}
+      {/* Perks Subtab */}
+      <div className={cn("space-y-10 pb-20", activeSubTab === 'perks' ? "block animate-in fade-in duration-300" : "hidden")}>
+         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {PERKS.map((perk, i) => {
+              const isUnlocked = stats.unlockedPerks?.includes(perk.id);
+              const canAfford = (stats.coins || 0) >= perk.cost;
+              
+              return (
+                <div 
+                  key={perk.id}
+                  className={cn(
+                    "glass p-8 rounded-[2.5rem] border flex flex-col justify-between group transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden h-80",
+                    isUnlocked ? "border-success/30 bg-success/5 shadow-[0_0_30px_rgba(34,197,94,0.1)]" : "border-white/5 hover:border-accent/40"
+                  )}
+                >
+                  <div className="absolute top-0 right-0 p-8 opacity-5 grayscale group-hover:grayscale-0 group-hover:scale-125 transition-all">
+                     {perk.icon}
+                  </div>
+                  
+                  <div className="space-y-4 relative z-10">
+                     <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "p-3 rounded-2xl",
+                          isUnlocked ? "bg-success/20 text-success shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "bg-white/5 text-accent"
+                        )}>
+                           {perk.icon}
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-serif font-black text-white italic transition-colors group-hover:text-accent uppercase">{perk.name}</h3>
+                          <p className="text-[10px] font-mono text-text-m uppercase opacity-60 font-black">COST_{perk.cost}_CR</p>
+                        </div>
+                     </div>
+                     <p className="text-sm font-mono leading-relaxed text-text-m group-hover:text-text-p transition-colors">{perk.description}</p>
+                  </div>
+
+                  <button 
+                    disabled={isUnlocked || !canAfford}
+                    onClick={() => onPurchasePerk(perk.id)}
                     className={cn(
-                      "glass p-8 rounded-[2.5rem] border flex flex-col justify-between group transition-all relative overflow-hidden h-80",
-                      isUnlocked ? "border-success/30 bg-success/5 shadow-[0_0_30px_rgba(34,197,94,0.1)]" : "border-white/5 hover:border-accent/40"
+                      "w-full py-4 rounded-2xl font-mono text-[10px] font-black uppercase tracking-widest transition-all relative z-10 cursor-pointer",
+                      isUnlocked ? "bg-success/10 text-success border border-success/20 cursor-default" :
+                      canAfford ? "bg-white text-black hover:bg-accent hover:text-white" :
+                      "bg-white/5 text-text-m border border-white/10 opacity-50 cursor-not-allowed"
                     )}
                   >
-                    <div className="absolute top-0 right-0 p-8 opacity-5 grayscale group-hover:grayscale-0 group-hover:scale-125 transition-all">
-                       {perk.icon}
-                    </div>
-                    
-                    <div className="space-y-4 relative z-10">
-                       <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "p-3 rounded-2xl",
-                            isUnlocked ? "bg-success/20 text-success shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "bg-white/5 text-accent"
-                          )}>
-                             {perk.icon}
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-serif font-black text-white italic transition-colors group-hover:text-accent uppercase">{perk.name}</h3>
-                            <p className="text-[10px] font-mono text-text-m uppercase opacity-60 font-black">COST_{perk.cost}_CR</p>
-                          </div>
-                       </div>
-                       <p className="text-sm font-mono leading-relaxed text-text-m group-hover:text-text-p transition-colors">{perk.description}</p>
-                    </div>
+                    {isUnlocked ? "PROTOCOL_ACTIVE" : canAfford ? "AUTHORIZE_SYNAPSE_PURGE" : "INSUFFICIENT_CREDITS"}
+                  </button>
+                </div>
+              );
+            })}
+         </div>
 
-                    <button 
-                      disabled={isUnlocked || !canAfford}
-                      onClick={() => onPurchasePerk(perk.id)}
-                      className={cn(
-                        "w-full py-4 rounded-2xl font-mono text-[10px] font-black uppercase tracking-widest transition-all relative z-10",
-                        isUnlocked ? "bg-success/10 text-success border border-success/20 cursor-default" :
-                        canAfford ? "bg-white text-black hover:bg-accent hover:text-white" :
-                        "bg-white/5 text-text-m border border-white/10 opacity-50 cursor-not-allowed"
-                      )}
-                    >
-                      {isUnlocked ? "PROTOCOL_ACTIVE" : canAfford ? "AUTHORIZE_SYNAPSE_PURGE" : "INSUFFICIENT_CREDITS"}
-                    </button>
-                  </motion.div>
-                );
-              })}
-           </div>
-
-           <div className="glass p-12 rounded-[3.5rem] border border-white/5 text-center space-y-6 relative overflow-hidden bg-accent/5">
-              <Network size={48} className="mx-auto text-accent animate-pulse" />
-              <div className="space-y-2">
-                 <h3 className="text-3xl font-serif font-black text-white italic uppercase tracking-widest">Neural_Pathways</h3>
-                 <p className="text-xs font-mono text-text-m uppercase max-w-lg mx-auto opacity-60">Perks provide permanent cognitive enhancements. These upgrades are integrated directly into the Aether_OS Kernel and cannot be revoked once active.</p>
-              </div>
-           </div>
-        </div>
-      )}
+         <div className="glass p-12 rounded-[3.5rem] border border-white/5 text-center space-y-6 relative overflow-hidden bg-accent/5">
+            <Network size={48} className="mx-auto text-accent animate-pulse" />
+            <div className="space-y-2">
+               <h3 className="text-3xl font-serif font-black text-white italic uppercase tracking-widest">Neural_Pathways</h3>
+               <p className="text-xs font-mono text-text-m uppercase max-w-lg mx-auto opacity-60">Perks provide permanent cognitive enhancements. These upgrades are integrated directly into the Aether_OS Kernel and cannot be revoked once active.</p>
+            </div>
+         </div>
+      </div>
     </div>
   );
 }
@@ -8824,13 +8844,46 @@ function DailyWorkView({
   };
 
   return (
-    <div className="max-w-[1600px] mx-auto min-h-[80vh] flex flex-col lg:flex-row gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-[1600px] mx-auto min-h-[80vh] flex flex-col md:flex-row gap-4 sm:gap-6 md:gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* LEFT SIDEBAR PANEL (Collapsible) */}
+      {/* Top Tab Switcher on Mobile (sm and below) */}
+      <div className="flex md:hidden items-center justify-between p-1 bg-white/5 border border-white/10 rounded-xl mb-4 gap-1 w-full shrink-0 select-none">
+        <button 
+          onClick={() => setActiveTab('tasks')} 
+          className={cn(
+            "flex-1 py-2 text-xs font-mono font-black uppercase text-center rounded-lg transition-all min-h-[44px] flex items-center justify-center",
+            activeTab === 'tasks' ? "bg-accent text-white" : "text-text-m hover:text-white"
+          )}
+        >
+          Tasks
+        </button>
+        <button 
+          onClick={() => setActiveTab('habits')} 
+          className={cn(
+            "flex-1 py-2 text-xs font-mono font-black uppercase text-center rounded-lg transition-all min-h-[44px] flex items-center justify-center",
+            activeTab === 'habits' ? "bg-cyan text-black font-extrabold" : "text-text-m hover:text-white"
+          )}
+        >
+          Habits
+        </button>
+        <button 
+          onClick={() => setActiveTab('timetable')} 
+          className={cn(
+            "flex-1 py-2 text-xs font-mono font-black uppercase text-center rounded-lg transition-all min-h-[44px] flex items-center justify-center",
+            activeTab === 'timetable' ? "bg-indigo-500 text-white" : "text-text-m hover:text-white"
+          )}
+        >
+          Timetable
+        </button>
+      </div>
+
+      {/* LEFT SIDEBAR PANEL (Collapsible, Hidden on Mobile) */}
       <div 
         className={cn(
-          "glass border border-white/5 rounded-[2rem] p-6 lg:p-8 flex flex-col gap-6 transition-all duration-500 relative shrink-0",
-          isSidebarCollapsed ? "lg:w-20 lg:p-4" : "lg:w-[320px] lg:min-w-[320px]"
+          "hidden md:flex glass border border-white/5 rounded-[2rem] p-4 lg:p-6 flex-col gap-6 transition-all duration-500 relative shrink-0",
+          isSidebarCollapsed 
+            ? "md:w-16 md:min-w-[64px] md:p-2" 
+            : "md:w-48 md:min-w-[192px] lg:w-64 lg:min-w-[200px]"
         )}
       >
         <button 
@@ -8889,7 +8942,7 @@ function DailyWorkView({
 
                 <div className="space-y-2">
                    {pendingTasks.slice(0, 5).map((t: any, i: number) => (
-                      <div key={`pending-${t.id || 'task'}-${i}`} className="p-2 bg-white/5 rounded-lg border border-white/5 hover:border-white/10 flex items-center justify-between gap-2 group transition-all">
+                      <div key={`pending-${t.id || 'task'}-${i}`} className="py-2 px-1 border-b border-white/5 flex items-center justify-between gap-2 group transition-all hover:bg-white/2">
                          <span onClick={() => setActiveTab('tasks')} className="text-[11px] font-mono text-text-m truncate cursor-pointer hover:text-white flex-1">{t.title}</span>
                          <button 
                            onClick={() => onComplete(t)}
@@ -8968,12 +9021,12 @@ function DailyWorkView({
                                      className="w-3 h-3 rounded border-white/20 bg-black/40 text-cyan focus:ring-0 cursor-pointer animate-none bg-none"
                                   />
                                   <span className="truncate flex-1 uppercase text-text-m group-hover:text-white text-[10px]">{h.name}</span>
-                                  {alreadyHasTask && <span className="text-[7px] font-mono bg-cyan/10 text-cyan px-1.5 py-0.2 rounded font-black uppercase tracking-widest animate-pulse">ACTIVE</span>}
+                                  {alreadyHasTask && <span className="text-[10px] font-mono bg-cyan/10 text-cyan px-1.5 py-0.5 rounded font-black uppercase tracking-widest animate-pulse">ACTIVE</span>}
                                 </label>
                              );
                           })}
                           {activeHabits.length === 0 && (
-                             <p className="text-[8px] font-mono text-text-m opacity-30 uppercase italic text-center py-2">No active habits</p>
+                             <p className="text-[10px] font-mono text-text-m opacity-30 uppercase italic text-center py-2">No active habits</p>
                           )}
                       </div>
                    </div>
@@ -9005,7 +9058,7 @@ function DailyWorkView({
 
                 <div className="space-y-2">
                    {activeHabits.slice(0, 5).map((h: any, i: number) => (
-                      <div key={`habit-${h.id || 'habit'}-${i}`} className="p-2 bg-white/5 rounded-lg border border-white/5 hover:border-cyan/20 flex items-center justify-between gap-2 transition-all">
+                      <div key={`habit-${h.id || 'habit'}-${i}`} className="py-2 px-1 border-b border-white/5 flex items-center justify-between gap-2 group transition-all hover:bg-white/2">
                          <div className="flex items-center gap-2 truncate flex-1 cursor-pointer" onClick={() => setActiveTab('habits')}>
                             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: h.color || '#00D9FF' }} />
                             <span className="text-[11px] font-mono text-text-m hover:text-white truncate">{h.name}</span>

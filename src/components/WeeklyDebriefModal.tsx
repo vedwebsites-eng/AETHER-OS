@@ -76,33 +76,33 @@ export function WeeklyDebriefModal({
             initial={{ scale: 0.9, opacity: 0, y: 30 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.9, opacity: 0, y: 30 }}
-            className="glass w-full max-w-2xl max-h-[90vh] rounded-[2.5rem] border border-white/10 overflow-hidden flex flex-col relative z-20 shadow-2xl bg-background"
+            className="glass w-full h-full sm:h-auto sm:max-w-lg md:max-w-2xl rounded-none sm:rounded-[2.5rem] border-0 sm:border border-white/10 overflow-hidden flex flex-col relative z-20 shadow-2xl bg-background max-h-screen sm:max-h-[90vh]"
           >
-            <div className="p-8 border-b border-white/5 flex items-center justify-between bg-white/2">
+            <div className="p-5 sm:p-6 md:p-8 border-b border-white/5 flex items-center justify-between bg-white/2">
               <div className="flex items-center gap-3">
                 <Sparkles size={24} className="text-accent animate-pulse" />
                 <div>
-                  <h2 className="text-3xl font-serif font-black text-white italic uppercase tracking-tighter">DEBRIEF_PROTOCOL</h2>
-                  <p className="text-[10px] font-mono text-text-m uppercase tracking-widest opacity-60">
+                  <h2 className="text-xl sm:text-2xl md:text-3xl font-serif font-black text-white italic uppercase tracking-tighter">DEBRIEF_PROTOCOL</h2>
+                  <p className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-widest opacity-60">
                     System analysis of completed cognitive cycles
                   </p>
                 </div>
               </div>
-              <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
+              <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center">
                 <X size={20} className="text-text-m" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar">
+            <div className="flex-1 overflow-y-auto p-5 sm:p-6 md:p-8 space-y-6 no-scrollbar">
               {isAnalyzing ? (
                 <div className="py-20 text-center space-y-4">
                   <div className="w-12 h-12 border-2 border-t-accent border-r-transparent rounded-full animate-spin mx-auto" />
-                  <p className="text-xs font-mono text-accent uppercase tracking-widest">INTERROGATING_AI_NODES...</p>
+                  <p className="text-xs sm:text-sm font-mono text-accent uppercase tracking-widest">INTERROGATING_AI_NODES...</p>
                 </div>
               ) : (
                 <>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono font-black text-accent uppercase tracking-widest">
+                    <label className="text-[10px] sm:text-xs font-mono font-black text-accent uppercase tracking-widest">
                       WHAT_WENT_WELL
                     </label>
                     <textarea
@@ -113,7 +113,7 @@ export function WeeklyDebriefModal({
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono font-black text-danger uppercase tracking-widest">
+                    <label className="text-[10px] sm:text-xs font-mono font-black text-danger uppercase tracking-widest">
                       WHAT_DIDNT_GO
                     </label>
                     <textarea
@@ -124,7 +124,7 @@ export function WeeklyDebriefModal({
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-mono font-black text-cyan uppercase tracking-widest">
+                    <label className="text-[10px] sm:text-xs font-mono font-black text-cyan uppercase tracking-widest">
                       NEXT_WEEK_FOCUS
                     </label>
                     <textarea
@@ -138,17 +138,17 @@ export function WeeklyDebriefModal({
               )}
             </div>
 
-            <div className="p-8 bg-white/2 border-t border-white/5 flex gap-4">
+            <div className="p-5 sm:p-6 md:p-8 bg-white/2 border-t border-white/5 flex gap-4">
               <button
                 onClick={handleSubmit}
                 disabled={isAnalyzing}
-                className="flex-1 py-4 bg-accent text-white font-mono font-black text-xs rounded-xl hover:shadow-[0_0_20px_rgba(255,51,102,0.3)] transition-all uppercase tracking-widest flex items-center justify-center gap-2"
+                className="flex-1 py-4 min-h-[44px] bg-accent text-white font-mono font-black text-xs sm:text-sm rounded-xl hover:shadow-[0_0_20px_rgba(255,51,102,0.3)] transition-all uppercase tracking-widest flex items-center justify-center gap-2"
               >
                 <CheckSquare size={16} /> SAVE_DEBRIEF (+100 XP)
               </button>
               <button
                 onClick={onClose}
-                className="px-6 py-4 bg-white/5 border border-white/10 text-text-m font-mono font-black text-xs rounded-xl hover:bg-white/10 transition-all uppercase tracking-widest"
+                className="px-6 py-4 min-h-[44px] bg-white/5 border border-white/10 text-text-m font-mono font-black text-xs sm:text-sm rounded-xl hover:bg-white/10 transition-all uppercase tracking-widest"
               >
                 SKIP_WEEK
               </button>
