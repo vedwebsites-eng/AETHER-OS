@@ -49,7 +49,7 @@ service cloud.firestore {
              data.priority in ['low', 'medium', 'high', 'critical'] &&
              data.status in ['pending', 'completed'] &&
              data.createdAt is string && data.createdAt.size() <= 100 &&
-             data.category in ['health', 'learning', 'creative', 'work', 'personal', 'routine'] &&
+             data.category is string && data.category.size() <= 100 &&
              data.estimate is int;
     }
 
@@ -99,7 +99,7 @@ service cloud.firestore {
     function isValidHabit(data) {
       return data.userId is string && data.userId.size() <= 128 &&
              data.name is string && data.name.size() <= 200 &&
-             data.category in ['health', 'learning', 'creative', 'work', 'personal', 'routine'] &&
+             data.category is string && data.category.size() <= 100 &&
              data.frequency is string && data.frequency.size() <= 500 &&
              data.createdAt is string && data.createdAt.size() <= 100;
     }
