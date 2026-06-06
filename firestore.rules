@@ -38,7 +38,8 @@ service cloud.firestore {
              (!('activityLog' in data) || data.activityLog is list) &&
              (!('streakHistory' in data) || data.streakHistory is list) &&
              (!('adherenceHistory' in data) || data.adherenceHistory is list) &&
-             (!('lifeSync' in data) || data.lifeSync is map);
+             (!('lifeSync' in data) || data.lifeSync is map) &&
+             (!('lifeSyncCategories' in data) || data.lifeSyncCategories is list);
     }
 
     // Task Validation
@@ -132,7 +133,7 @@ service cloud.firestore {
       // Action-Based Updates
       allow update: if isOwner(userId) && isVerified() && isValidUserStats(incoming()) && (
         // Action: Daily Sync / Stats Update / XP Gain / Pomodoro
-        (incoming().diff(existing()).affectedKeys().hasOnly(['currentStreak', 'lastActiveDate', 'experience', 'dailyChallenge', 'streakHistory', 'coins', 'level', 'totalTasksCompleted', 'activityLog', 'unlockedAchievements', 'unlockedItems', 'totalWordsWritten', 'journalStreak', 'lastJournalDate', 'reflectionPromptsAnswered', 'scheduleMasteryLevel', 'scheduledTasksCount', 'punctualStreak', 'adherenceHistory', 'unlockedFeatures', 'lifeSync', 'pomodoroSessions', 'pomodoroToday'])) ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['currentStreak', 'lastActiveDate', 'experience', 'dailyChallenge', 'streakHistory', 'coins', 'level', 'totalTasksCompleted', 'activityLog', 'unlockedAchievements', 'unlockedItems', 'totalWordsWritten', 'journalStreak', 'lastJournalDate', 'reflectionPromptsAnswered', 'scheduleMasteryLevel', 'scheduledTasksCount', 'punctualStreak', 'adherenceHistory', 'unlockedFeatures', 'lifeSync', 'pomodoroSessions', 'pomodoroToday', 'lifeSyncCategories'])) ||
         // Action: Perk Purchase
         (incoming().diff(existing()).affectedKeys().hasOnly(['coins', 'unlockedPerks'])) ||
         // Action: Daily Briefing Update

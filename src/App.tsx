@@ -304,7 +304,7 @@ function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<s
           const angle = (Math.PI * 2 * i) / categories.length - Math.PI / 2;
           return (
             <line
-              key={`radar-axis-${cat.id}`}
+              key={`radar-axis-${cat.id || i}-${i}`}
               x1={center}
               y1={center}
               x2={center + radius * Math.cos(angle)}
@@ -333,7 +333,7 @@ function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<s
           const y = center + labelDist * Math.sin(angle);
           
           return (
-            <g key={`radar-group-${cat.id}`}>
+            <g key={`radar-group-${cat.id || i}-${i}`}>
               <circle 
                 cx={center + radius * Math.cos(angle)} 
                 cy={center + radius * Math.sin(angle)} 
@@ -392,11 +392,9 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
 
   const saveCategories = async (updatedList: any[]) => {
     try {
-      const currentValues = { ...values };
+      const currentValues: Record<string, number> = {};
       updatedList.forEach(cl => {
-        if (currentValues[cl.id] === undefined) {
-          currentValues[cl.id] = 10;
-        }
+        currentValues[cl.id] = values[cl.id] !== undefined ? values[cl.id] : 10;
       });
       await updateDoc(doc(db, 'user_stats', user.uid), {
         lifeSyncCategories: updatedList,
@@ -666,7 +664,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
                 <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 no-scrollbar">
                   <p className="text-[9px] font-mono font-black uppercase tracking-wider text-text-p">ACTIVE_SPHERES</p>
                   {editingCategories.map((cat: any, index: number) => (
-                    <div key={cat.id} className="p-3 bg-white/5 rounded-xl border border-white/5 space-y-3">
+                    <div key={`editing-cat-${cat.id || index}-${index}`} className="p-3 bg-white/5 rounded-xl border border-white/5 space-y-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5 flex-1">
                           <button
@@ -692,6 +690,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
                         <div className="flex items-center gap-2">
                           <button 
                             type="button"
+                            id={`sphere-delete-btn-${cat.id.toLowerCase()}`}
                             disabled={editingCategories.length <= 3}
                             onClick={() => {
                               if (editingCategories.length <= 3) return;
@@ -699,7 +698,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
                               setEditingCategories(updated);
                               saveCategories(updated);
                             }}
-                            className="text-white/40 hover:text-red-400 p-1.5 rounded-lg hover:bg-white/5 transition-all disabled:opacity-20 disabled:hover:bg-transparent cursor-pointer"
+                            className="text-red-400/80 hover:text-red-400 bg-red-500/5 hover:bg-red-500/15 border border-red-500/10 hover:border-red-500/30 p-2 rounded-xl transition-all disabled:opacity-20 disabled:pointer-events-none cursor-pointer active:scale-90 flex items-center justify-center shrink-0"
                             title="Delete this sphere"
                           >
                             <Trash2 size={13} />
@@ -771,8 +770,8 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
                     </div>
                   </div>
                 )}
-                {categories.map(cat => (
-                  <div key={cat.id} className="space-y-3 animate-in fade-in duration-200">
+                {categories.map((cat, i) => (
+                  <div key={`slider-cat-${cat.id || i}-${i}`} className="space-y-3 animate-in fade-in duration-200">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: cat.color }} />
@@ -4329,10 +4328,10 @@ function LifeSyncOverview({ lifeSync, setActiveTab, categories = LIFE_CATEGORIES
           </div>
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-3">
-          {categories.map(cat => {
+          {categories.map((cat, i) => {
             const val = values[cat.id] || 0;
             return (
-               <div key={cat.id} className="flex flex-col gap-1 items-start min-w-[60px]">
+               <div key={`overview-cat-${cat.id || i}-${i}`} className="flex flex-col gap-1 items-start min-w-[60px]">
                   <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
                      <div className="h-full" style={{ width: `${val * 10}%`, backgroundColor: cat.color }} />
                   </div>
