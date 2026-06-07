@@ -2323,6 +2323,32 @@ export default function App() {
 
       await batch.commit();
 
+      // Update activity streak on task completion
+      const lastActive = stats.lastActiveDate?.split('T')[0];
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+      if (lastActive !== today) {
+        // First activity of the day — update streak
+        let newStreak = stats.currentStreak;
+        if (lastActive === yesterdayStr) {
+          newStreak += 1;
+          // Streak milestone bonuses
+          if (newStreak === 7) await addXP(200, 'STREAK_MILESTONE_7');
+          if (newStreak === 30) await addXP(500, 'STREAK_MILESTONE_30');
+          if (newStreak === 100) await addXP(1000, 'STREAK_MILESTONE_100');
+        } else if (lastActive !== today) {
+          newStreak = 1; // Reset if gap > 1 day
+        }
+
+        await updateDoc(doc(db, 'user_stats', user.uid), {
+          currentStreak: newStreak,
+          lastActiveDate: now.toISOString(),
+          streakHistory: [...(stats.streakHistory || []), today]
+        });
+      }
+
       // Award XP separately as it has its own complex multi-field logic
       let earnedXP = calculateTaskXP(task, stats.currentStreak) + schedulingBonus + speedBonus;
       
@@ -2350,6 +2376,30 @@ export default function App() {
               date: todayStr,
               completed: true,
               timestamp: new Date().toISOString()
+            });
+
+            // Recalculate habit streak after logging
+            const allLogs = habitLogs
+              .filter(l => l.habitId === h.id && l.completed)
+              .map(l => l.date)
+              .sort()
+              .reverse();
+
+            let habitStreak = 0;
+            let checkDate = new Date();
+            for (let i = 0; i < 365; i++) {
+              const dateStr = checkDate.toISOString().split('T')[0];
+              if (allLogs.includes(dateStr) || dateStr === todayStr) {
+                habitStreak++;
+                checkDate.setDate(checkDate.getDate() - 1);
+              } else {
+                break;
+              }
+            }
+
+            await updateDoc(doc(db, 'habits', h.id), {
+              currentStreak: habitStreak,
+              lastCompletedDate: todayStr
             });
           }
         }
@@ -2417,6 +2467,24 @@ export default function App() {
           completed: true,
           timestamp: new Date().toISOString()
         });
+
+        // After creating the habit_log doc successfully:
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const lastActive = stats.lastActiveDate?.split('T')[0];
+        const yesterday = format(subDays(new Date(), 1), 'yyyy-MM-dd');
+
+        if (lastActive !== today) {
+          let newStreak = stats.currentStreak;
+          if (lastActive === yesterday) {
+            newStreak += 1;
+          } else {
+            newStreak = 1;
+          }
+          await updateDoc(doc(db, 'user_stats', user.uid), {
+            currentStreak: newStreak,
+            lastActiveDate: new Date().toISOString()
+          });
+        }
 
         // Sync linked task completion today!
         const todayStr = format(new Date(), 'yyyy-MM-dd');
