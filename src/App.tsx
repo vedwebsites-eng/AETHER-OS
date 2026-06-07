@@ -3454,187 +3454,176 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
     setTimeout(onEnter, 2000);
   };
 
-  return (
-    <div className="min-h-screen bg-[#040406] flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
-      {/* Background Ambience - Black, Blue, and hints of Red */}
-      <div className="absolute inset-x-0 top-0 h-full w-full z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_30%,rgba(30,58,138,0.15),transparent_50%),radial-gradient(circle_at_80%_70%,rgba(153,27,27,0.1),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(15,23,42,0.3)_0%,transparent_70%)]" />
-        <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-      </div>
-
-      <div className="absolute inset-0 cyber-grid opacity-5 pointer-events-none" />
-      <div className="absolute inset-0 bg-scanlines opacity-[0.02] pointer-events-none" />
-      
-      <motion.div 
-        key="landing-content"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-        className="max-w-5xl relative z-10 flex flex-col items-center"
+  if (isInitializing) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-[#080808] flex flex-col items-center justify-center gap-8 px-8 text-center"
       >
-        {/* Logo Section placeholder */}
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2, duration: 1 }}
-          className="mb-14 relative"
-        >
-          <div className="w-32 h-32 md:w-40 md:h-40 rounded-[2.5rem] bg-gradient-to-br from-white/10 to-transparent border border-white/10 flex items-center justify-center backdrop-blur-xl group cursor-pointer overflow-hidden shadow-2xl">
-            <div className="absolute inset-0 bg-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-            
-            {/* Logo Placeholder - Will be replaced by User's Logo */}
-            <div className="relative z-10 flex flex-col items-center gap-2">
-              <HardDrive size={64} className="text-white/80 group-hover:text-accent transition-all duration-700 group-hover:scale-110" />
-              <span className="text-[8px] font-mono tracking-[0.5em] text-white/20 uppercase">AETHER_CORE</span>
-            </div>
-
-            <motion.div 
-              animate={{ rotate: 360 }}
-              transition={{ repeat: Infinity, duration: 20, ease: "linear" }}
-              className="absolute -inset-4 border border-accent/20 rounded-full border-dashed opacity-20"
-            />
-          </div>
-          
-          <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 bg-white/5 border border-white/10 rounded-full backdrop-blur-md">
-            <div className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-            <span className="text-[8px] font-mono text-white/40 tracking-widest uppercase">System_Active</span>
-          </div>
-        </motion.div>
-
-        <div className="space-y-6 mb-20">
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="flex items-center justify-center gap-8 opacity-40"
-          >
-            <div className="h-[1px] w-24 bg-gradient-to-r from-transparent to-white" />
-            <span className="text-[9px] font-mono text-white uppercase tracking-[1em] font-black">NEURAL_OPERATING_SYSTEM</span>
-            <div className="h-[1px] w-24 bg-gradient-to-l from-transparent to-white" />
-          </motion.div>
-          
-          <h1 className="text-8xl md:text-[14rem] font-serif font-black uppercase tracking-tighter leading-[0.75] text-white flex flex-col">
-            <motion.span 
-              initial={{ opacity: 0, x: -50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.6, duration: 1 }}
-              className="relative"
-            >
-              AETHER
-            </motion.span>
-            <motion.span 
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.8, duration: 1 }}
-              className="text-accent italic translate-x-4 md:translate-x-8"
-            >
-              OS
-            </motion.span>
-          </h1>
-          
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1, duration: 1 }}
-            className="text-lg md:text-2xl text-white/40 font-mono tracking-[0.6em] uppercase max-w-2xl mx-auto pt-8 border-t border-white/5"
-          >
-            Precision / Protocol / Productivity
-          </motion.p>
+        <p className="text-[10px] font-mono text-white/30 uppercase tracking-[0.5em]">Booting AetherOS...</p>
+        <div className="w-64 h-[1px] bg-white/10 relative overflow-hidden">
+          <motion.div
+            initial={{ width: '0%' }}
+            animate={{ width: '100%' }}
+            transition={{ duration: 2, ease: 'easeInOut' }}
+            className="absolute top-0 left-0 h-full bg-[#C8651B]"
+            style={{ boxShadow: '0 0 12px rgba(200,101,27,0.8)' }}
+          />
         </div>
-
-        <div className="flex flex-col items-center gap-12 w-full max-w-md">
-          {!isInitializing ? (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.2, duration: 0.8 }}
-              className="w-full space-y-12"
-            >
-              <div className="flex flex-col md:flex-row items-center justify-center gap-10">
-                <div className="flex flex-col items-start gap-1">
-                  <span className="text-[9px] font-mono text-white/30 uppercase tracking-widest">Network_Stability</span>
-                  <div className="flex items-center gap-3">
-                    <div className={`h-2 w-2 rounded-full ${dbStatus === 'online' ? 'bg-success shadow-[0_0_15px_rgba(34,197,94,0.5)]' : 'bg-danger animate-pulse'}`} />
-                    <span className="text-xs font-mono text-white/80 uppercase tracking-widest">{dbStatus === 'online' ? 'Verified' : 'Establishing...'}</span>
-                  </div>
-                </div>
-                
-                <div className="hidden md:block h-8 w-[1px] bg-white/10" />
-
-                <div className="flex flex-col items-start gap-1">
-                  <span className="text-[9px] font-mono text-white/30 uppercase tracking-widest">Encryption_Level</span>
-                  <div className="flex items-center gap-3">
-                    <ShieldCheck className="text-cyan w-4 h-4" />
-                    <span className="text-xs font-mono text-white/80 uppercase tracking-widest">AES_512_X</span>
-                  </div>
-                </div>
-              </div>
-
-              <motion.button 
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleEnter}
-                disabled={dbStatus === 'checking'}
-                className="w-full group relative overflow-hidden bg-white py-8 rounded-[1.5rem] transition-all shadow-[0_40px_80px_rgba(0,0,0,0.4)]"
-              >
-                <div className="absolute inset-0 bg-accent translate-y-full group-hover:translate-y-0 transition-transform duration-700 ease-[0.16, 1, 0.3, 1]" />
-                <div className="relative z-10 flex items-center justify-center gap-4 text-black group-hover:text-white transition-colors duration-700">
-                  <span className="text-sm font-mono font-black tracking-[0.5em] uppercase">INITIALIZE_BOOT_SEQUENCE</span>
-                  <ChevronRight className="w-5 h-5 group-hover:translate-x-2 transition-transform duration-700" />
-                </div>
-              </motion.button>
-
-              <div className="flex justify-between w-full opacity-20 px-2">
-                <p className="text-[9px] font-mono uppercase tracking-[0.2em]">Build: 4.8.0-STABLE</p>
-                <p className="text-[9px] font-mono uppercase tracking-[0.2em]">User: VED_G</p>
-              </div>
-            </motion.div>
-          ) : (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="space-y-10 w-full"
-            >
-              <div className="relative w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                <motion.div 
-                  initial={{ width: 0 }}
-                  animate={{ width: '100%' }}
-                  transition={{ duration: 2, ease: "easeInOut" }}
-                  className="h-full bg-accent shadow-[0_0_25px_rgba(255,69,0,0.6)]"
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-8 text-[10px] font-mono text-white/30 uppercase text-left tracking-widest leading-relaxed">
-                <div className="space-y-2">
-                  <p className="flex justify-between"><span className="text-white/10">[0.002]</span> MOUNTING_FS</p>
-                  <p className="flex justify-between"><span className="text-white/10">[0.045]</span> LOADING_NEURAL_MAP</p>
-                  <p className="flex justify-between"><span className="text-white/10">[0.120]</span> ESTABLISHING_AUTH</p>
-                </div>
-                <motion.p 
-                  animate={{ opacity: [0.2, 1, 0.2] }}
-                  transition={{ repeat: Infinity, duration: 0.8 }}
-                  className="text-right text-accent font-black self-end"
-                >
-                  DECRYPTING...
-                </motion.p>
-              </div>
-            </motion.div>
-          )}
-        </div>
+        <p className="text-[9px] font-mono text-white/20 uppercase tracking-widest">Synchronizing Neural Nodes</p>
       </motion.div>
+    );
+  }
 
-      {/* Decorative Ornaments */}
-      <div className="absolute top-20 left-20 hidden lg:block opacity-10 pointer-events-none">
-        <div className="p-8 border-l border-t border-white/40 w-40 h-40" />
-      </div>
-      <div className="absolute bottom-20 right-20 hidden lg:block opacity-10 pointer-events-none">
-        <div className="p-8 border-r border-b border-white/40 w-40 h-40 text-right font-mono text-[10px] uppercase flex flex-col justify-end gap-2 tracking-[0.5em]">
-          <span>GRID_LOCKED</span>
-          <span>40.7128° N, 74.0060° W</span>
+  return (
+    <div className="min-h-screen bg-[#080808] text-white flex flex-col justify-between selection:bg-[#C8651B]/30 relative overflow-hidden">
+      {/* Top Nav */}
+      <header className="h-16 px-8 md:px-16 flex items-center justify-between border-b border-white/5 bg-[#080808] z-30 shrink-0 w-full animate-fade-in">
+        <div className="font-serif font-black text-xl text-[#C8651B]">AETHEROS</div>
+        <div className="flex items-center gap-6">
+          <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest hover:text-white transition-colors cursor-pointer">Features</span>
+          <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest hover:text-white transition-colors cursor-pointer">About</span>
+        </div>
+        <button 
+          onClick={handleEnter}
+          disabled={dbStatus === 'checking'}
+          className="border border-[#C8651B] text-white text-[10px] font-mono px-5 py-2 rounded-full hover:bg-[#C8651B] transition-all duration-300 disabled:opacity-50"
+        >
+          INITIALIZE →
+        </button>
+      </header>
+
+      {/* Hero Section */}
+      <div className="flex flex-col md:flex-row min-h-[calc(100vh-8rem)] flex-grow w-full items-center">
+        {/* Left Side */}
+        <div className="w-full md:w-1/2 flex flex-col justify-center px-8 md:px-16 py-16 text-left">
+          <p className="text-[10px] font-mono text-[#C8651B] uppercase tracking-[0.5em] mb-6">OUR VERSION</p>
+          <h1 className="font-serif font-black uppercase leading-[0.85] text-[5rem] md:text-[8rem] lg:text-[10rem]">
+            <motion.span
+              initial={{ opacity: 0, x: -40 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3, duration: 0.8 }}
+              className="block text-white"
+            >AETHER</motion.span>
+            <motion.span
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.5, duration: 0.8 }}
+              className="block text-[#C8651B] italic"
+            >OS</motion.span>
+          </h1>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className="text-sm text-white/40 font-mono max-w-xs mt-8 leading-relaxed"
+          >
+            The operating system for your self-improvement.<br/>
+            Habits. Tasks. AI Coach. One dashboard.
+          </motion.p>
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1 }}
+            onClick={handleEnter}
+            disabled={dbStatus === 'checking'}
+            className="flex items-center gap-4 mt-10 group w-fit disabled:opacity-50 text-left"
+          >
+            <div className="w-12 h-12 rounded-full border border-[#C8651B] flex items-center justify-center group-hover:bg-[#C8651B] transition-all duration-500">
+              <ChevronRight className="w-5 h-5 text-[#C8651B] group-hover:text-white transition-colors duration-500" />
+            </div>
+            <span className="text-sm font-mono text-white/50 group-hover:text-white transition-colors uppercase tracking-widest">
+              Initialize Boot Sequence
+            </span>
+          </motion.button>
+        </div>
+
+        {/* Right Side */}
+        <div className="w-full md:w-1/2 relative flex items-center justify-center overflow-hidden h-[380px] md:h-full min-h-[380px]">
+          {/* Background glow circle */}
+          <div className="absolute w-[500px] h-[500px] rounded-full pointer-events-none"
+            style={{ background: 'radial-gradient(circle, rgba(200,101,27,0.12), rgba(46,107,158,0.08), transparent 70%)' }}
+          />
+
+          {/* Rotating polygon SVG (Wheel of Life shape) */}
+          <motion.svg
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 25, ease: 'linear' }}
+            width="340" height="340" viewBox="0 0 340 340"
+            className="pointer-events-none z-10"
+          >
+            <polygon
+              points="170,30 290,105 290,235 170,310 50,235 50,105"
+              fill="rgba(46,107,158,0.08)"
+              stroke="#C8651B"
+              strokeWidth="0.5"
+              strokeOpacity="0.4"
+            />
+            <polygon
+              points="170,70 255,122 255,218 170,270 85,218 85,122"
+              fill="none"
+              stroke="#2E6B9E"
+              strokeWidth="0.5"
+              strokeOpacity="0.3"
+            />
+            <polygon
+              points="170,100 230,138 230,202 170,240 110,202 110,138"
+              fill="none"
+              stroke="#C9A84C"
+              strokeWidth="0.5"
+              strokeOpacity="0.2"
+            />
+            {/* Center dot */}
+            <circle cx="170" cy="170" r="4" fill="#C8651B" opacity="0.8" />
+          </motion.svg>
+
+          {/* Three floating metric cards */}
+          <motion.div
+            animate={{ y: [0, -8, 0] }}
+            transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
+            className="absolute top-[20%] left-[5%] bg-white/5 border border-white/10 backdrop-blur-md rounded-xl px-4 py-3 z-20"
+          >
+            <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">Streak</p>
+            <p className="text-lg font-serif font-black text-[#C9A84C]">14 DAYS</p>
+          </motion.div>
+
+          <motion.div
+            animate={{ y: [0, -8, 0] }}
+            transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut', delay: 0.5 }}
+            className="absolute top-[40%] right-[10%] bg-white/5 border border-white/10 backdrop-blur-md rounded-xl px-4 py-3 z-20"
+          >
+            <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">Level</p>
+            <p className="text-lg font-serif font-black text-[#2E6B9E]">LVL 12 ↑</p>
+          </motion.div>
+
+          <motion.div
+            animate={{ y: [0, -8, 0] }}
+            transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut', delay: 1 }}
+            className="absolute bottom-[20%] left-[10%] bg-white/5 border border-white/10 backdrop-blur-md rounded-xl px-4 py-3 z-20"
+          >
+            <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">XP Today</p>
+            <p className="text-lg font-serif font-black text-[#C8651B]">+450 XP</p>
+          </motion.div>
         </div>
       </div>
+
+      {/* Bottom Strip */}
+      <footer className="h-14 border-t border-white/5 flex items-center justify-between px-8 md:px-16 z-30 bg-[#080808] shrink-0 w-full">
+        <div className="flex items-center gap-3 text-[10px] font-mono text-white/20">
+          <span>01</span>
+          <div className="w-24 h-[1px] bg-white/10" />
+          <span>03</span>
+        </div>
+        <div className="flex items-center gap-4 text-[10px] font-mono text-white/20">
+          <div className="flex items-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+            <span>NETWORK {dbStatus === 'online' ? 'VERIFIED' : 'CONNECTING'}</span>
+          </div>
+          <span className="text-white/10">|</span>
+          <span>AES-512 ENCRYPTED</span>
+        </div>
+      </footer>
     </div>
   );
 }
