@@ -10,7 +10,7 @@ import confetti from 'canvas-confetti';
 import { 
   Plus, CheckCircle2, Circle, Trophy, Book, Calendar, 
   BarChart3, LogOut, LogIn, HardDrive, Zap, Database,
-  Target, Flame, ChevronRight, X, Trash2, Edit3, 
+  Target, Flame, ChevronRight, ArrowLeft, X, Trash2, Edit3, 
   Smile, Frown, Meh, Star, BarChart, Activity, PieChart, Settings,
   Sparkles, Award, Volume2, Bell, TrendingUp, Clock, CalendarDays, Maximize2, Minimize2, Move, LayoutGrid, List,
   Bold, Italic, Underline as UnderlineIcon, ListOrdered, Heading1, Heading2, Link as LinkIcon, Eraser, Type, Palette,
@@ -3272,156 +3272,113 @@ function AuthorizationPage({ onBack, onGoogleLogin }: { onBack: () => void; onGo
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 bg-scanlines relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,69,0,0.05),transparent_70%)]" />
-      <div className="absolute inset-0 cyber-grid opacity-10 pointer-events-none" />
-      
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="max-w-md w-full glass p-10 rounded-[3rem] border border-white/10 shadow-2xl relative z-10 overflow-hidden"
+    <div className="min-h-screen bg-[#080808] flex items-center justify-center p-6 relative overflow-hidden selection:bg-[#C8651B]/30">
+      {/* Subtle background: one soft radial gradient centered */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(200,101,27,0.04),transparent_70%)] pointer-events-none" />
+
+      {/* Top — Back button */}
+      <button 
+        onClick={onBack} 
+        className="absolute top-8 left-8 flex items-center gap-2 text-[10px] font-mono text-white/20 hover:text-white/60 transition-colors uppercase tracking-widest"
       >
-        <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none group-hover:rotate-12 transition-transform">
-          <Shield size={120} className="text-accent" />
+        <ArrowLeft size={12} />
+        Back
+      </button>
+
+      {/* Clean floating form container */}
+      <div className="max-w-sm w-full px-6 relative z-10 flex flex-col">
+        {/* 1. Logo/Brand mark */}
+        <div className="mb-10">
+          <p className="text-[10px] font-mono text-white/20 uppercase tracking-[0.5em]">AetherOS</p>
         </div>
 
-        <button 
-          onClick={onBack}
-          className="mb-8 text-text-s/60 hover:text-accent transition-colors flex items-center gap-2 text-[10px] uppercase font-mono tracking-widest group"
-        >
-          <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center group-hover:border-accent group-hover:scale-110 transition-all">
-            <ChevronRight className="rotate-180" size={12} />
-          </div>
-          Abort_Session
-        </button>
-
-        <div className="text-center mb-10">
-          <motion.div 
-            animate={{ 
-              scale: [1, 1.05, 1],
-              opacity: [0.8, 1, 0.8]
-            }}
-            transition={{ repeat: Infinity, duration: 4 }}
-            className="inline-block p-4 bg-accent/5 border border-accent/20 mb-6 rounded-2xl relative shadow-[0_0_20px_rgba(255,69,0,0.1)]"
-          >
-            <ShieldCheck className="text-accent" size={32} />
-          </motion.div>
-          <h2 className="text-3xl font-serif font-black text-white italic uppercase tracking-tighter">AUTHORIZATION</h2>
-          <p className="text-[10px] font-mono text-text-m opacity-50 mt-2 uppercase tracking-[0.3em] leading-relaxed">
-            Neural_Link_Validation_Required
+        {/* 2. Heading */}
+        <div className="mb-10">
+          <h1 className="text-3xl font-serif font-black text-white mb-2">
+            {mode === 'signup' ? 'Create account.' : 'Welcome back.'}
+          </h1>
+          <p className="text-sm text-white/30 font-mono">
+            {mode === 'signup' ? 'Start your journey.' : 'Continue where you left off.'}
           </p>
         </div>
 
+        {/* 3. Google button FIRST */}
+        <button
+          onClick={onGoogleLogin}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-3 py-3.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-sm font-mono text-white/70 hover:text-white mb-6 disabled:opacity-50 cursor-pointer"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+          </svg>
+          Continue with Google
+        </button>
+
+        {/* 4. Divider */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="flex-1 h-[0.5px] bg-white/10" />
+          <span className="text-[10px] font-mono text-white/20 uppercase">or</span>
+          <div className="flex-1 h-[0.5px] bg-white/10" />
+        </div>
+
+        {/* 5. Email input */}
+        <div className="mb-4">
+          <input
+            type="email"
+            placeholder="Email address"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-sm font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-[#C8651B]/50 focus:bg-white/8 transition-all"
+          />
+        </div>
+
+        {/* 6. Password input */}
+        <div className="mb-6">
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-sm font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-[#C8651B]/50 focus:bg-white/8 transition-all"
+          />
+        </div>
+
+        {/* 7. Error message */}
         {error && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="mb-8 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-red-500 font-mono text-[10px] uppercase tracking-widest leading-relaxed flex items-start gap-3"
-          >
-            <Zap size={14} className="shrink-0 mt-0.5" />
-            <div>
-              <span className="font-black">CRITICAL_EXCEPTION:</span> {error}
-            </div>
-          </motion.div>
+          <p className="text-xs font-mono text-red-400/70 mb-4 text-center">{error}</p>
         )}
 
-        <div className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-[10px] font-mono text-text-m uppercase tracking-widest ml-1 opacity-50">NODE_IDENTIFIER</label>
-            <div className="relative group">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-text-s/40 group-focus-within:text-accent transition-colors" size={16} />
-              <input 
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="USER@AETHER.NETWORK"
-                className="w-full bg-white/2 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm font-mono text-white focus:outline-none focus:border-accent/50 focus:bg-white/5 transition-all placeholder:text-text-s/20"
-              />
-            </div>
-          </div>
+        {/* 8. Main CTA button */}
+        <button
+          onClick={() => handleAuth(mode)}
+          disabled={loading}
+          className="w-full py-3.5 rounded-xl bg-[#C8651B] hover:bg-[#b55a17] text-white text-sm font-mono font-bold tracking-widest uppercase transition-all mb-6 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+        >
+          {loading && (
+            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full shrink-0" />
+          )}
+          {mode === 'signup' ? 'Create Account' : 'Sign In'}
+        </button>
 
-          <div className="space-y-2">
-            <label className="text-[10px] font-mono text-text-m uppercase tracking-widest ml-1 opacity-50">ACCESS_PASSKEY</label>
-            <div className="relative group">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-text-s/40 group-focus-within:text-accent transition-colors" size={16} />
-              <input 
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="w-full bg-white/2 border border-white/5 rounded-2xl py-4 pl-12 pr-4 text-sm font-mono text-white focus:outline-none focus:border-accent/50 focus:bg-white/5 transition-all placeholder:text-text-s/20"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 pt-4">
-            <button 
-              onClick={() => handleAuth('login')}
-              disabled={loading}
-              className="w-full bg-accent hover:bg-danger text-white font-mono font-black py-5 rounded-2xl shadow-[0_0_20px_rgba(255,69,0,0.2)] hover:shadow-[0_0_30px_rgba(255,69,0,0.4)] transition-all active:scale-[0.98] disabled:opacity-50 text-sm tracking-[0.2em] uppercase"
-            >
-              {loading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }} className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
-                  AUTHENTICATING...
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-2">
-                  <LogIn size={18} /> INITIALIZE_SYNC
-                </div>
-              )}
-            </button>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                onClick={() => handleAuth('signup')}
-                disabled={loading}
-                className="py-4 glass border border-white/5 bg-white/2 hover:bg-white/5 text-white font-mono font-black rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 text-[10px] tracking-[0.2em] uppercase"
-              >
-                NEW_NODE
-              </button>
-              <button 
-                onClick={() => handleAuth('signin')}
-                disabled={loading}
-                className="py-4 glass border border-white/5 bg-white/2 hover:bg-white/5 text-white font-mono font-black rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 text-[10px] tracking-[0.2em] uppercase"
-              >
-                PASSCODE_RECOVERY
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 my-8">
-            <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent to-white/10" />
-            <span className="text-[9px] font-mono text-text-s/30 uppercase tracking-[0.3em]">SECURE_OAUTH</span>
-            <div className="h-[1px] flex-1 bg-gradient-to-l from-transparent to-white/10" />
-          </div>
-
-          <button 
-            onClick={onGoogleLogin}
-            disabled={loading}
-            className="w-full bg-white text-black font-mono font-black py-4 rounded-2xl flex items-center justify-center gap-4 hover:bg-gray-200 transition-all active:scale-[0.98] disabled:opacity-50 text-xs tracking-[0.1em] shadow-xl"
+        {/* 9. Mode toggle */}
+        <p className="text-center text-xs font-mono text-white/20">
+          {mode === 'signup' ? 'Already have an account? ' : "Don't have an account? "}
+          <button
+            onClick={() => setMode(mode === 'signup' ? 'login' : 'signup')}
+            className="text-white/50 hover:text-white underline underline-offset-2 transition-colors ml-1 cursor-pointer"
           >
-            <svg viewBox="0 0 24 24" className="w-5 h-5">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-            </svg>
-            LOGIN_WITH_GOOGLE_CORE
+            {mode === 'signup' ? 'Sign in' : 'Sign up'}
           </button>
-        </div>
-      </motion.div>
-      
-      <div className="absolute bottom-10 left-0 right-0 flex justify-between px-12 opacity-20 pointer-events-none">
-        <div className="space-y-1">
-          <p className="text-[8px] font-mono text-white uppercase tracking-widest">System_Security: AES_256</p>
-          <p className="text-[8px] font-mono text-white uppercase tracking-widest">Protocol_Checksum: OK</p>
-        </div>
-        <div className="text-right space-y-1">
-          <p className="text-[8px] font-mono text-white uppercase tracking-widest">Node_IP_Masked</p>
-          <p className="text-[8px] font-mono text-white uppercase tracking-widest">Session_Isolation: ACTIVE</p>
-        </div>
+        </p>
       </div>
+
+      {/* Bottom Corner */}
+      <p className="absolute bottom-8 left-1/2 -translate-x-1/2 text-[9px] font-mono text-white/10 uppercase tracking-widest text-center">
+        AetherOS v4.8 — Encrypted
+      </p>
     </div>
   );
 }
