@@ -234,3 +234,36 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
+
+/**
+ * Recursively removes all undefined fields from an object or array to prevent Firestore write errors.
+ * Optional fields with undefined values are omitted entirely from the written document structure,
+ * or converted to null if explicit placeholder retention is desired.
+ */
+export function removeUndefinedFields<T = any>(obj: T): T {
+  if (obj === undefined) {
+    return null as any;
+  }
+  if (obj === null) {
+    return null as any;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => removeUndefinedFields(item)) as any;
+  }
+  if (typeof obj === 'object') {
+    // Keep specialized class instances intact (like Firestore FieldValue/Timestamp/Date)
+    const isPlain = !obj.constructor || obj.constructor.name === 'Object';
+    if (!isPlain) {
+      return obj;
+    }
+    const cleaned: any = {};
+    for (const key of Object.keys(obj as any)) {
+      const val = (obj as any)[key];
+      if (val !== undefined) {
+        cleaned[key] = removeUndefinedFields(val);
+      }
+    }
+    return cleaned;
+  }
+  return obj;
+}

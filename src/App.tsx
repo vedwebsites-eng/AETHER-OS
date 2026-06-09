@@ -1,9 +1,9 @@
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import React, { useState, useEffect, useMemo } from 'react';
-import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFirestoreError, OperationType, removeUndefinedFields } from './lib/firebase';
 import { onAuthStateChanged, User, signOut, updateProfile } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit, getDocs } from 'firebase/firestore';
 import { analyzeJournalEntry, breakdownBossTask, generateDailyBriefing, generateLifeInsight, analyzeLifeBalance, generateCoachResponse } from './services/geminiService';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -202,6 +202,8 @@ interface UserStats {
   unlockedPerks: string[]; // IDEA 1
   activityLog?: ActivityEntry[];
   totalWordsWritten?: number;
+  dailyWordsWritten?: { count: number; date: string };
+  peakSyncTime?: string;
   streakHistory?: string[];
   journalStreak?: number;
   lastJournalDate?: string;
@@ -2889,6 +2891,9 @@ export default function App() {
                   onAddXP={addXP}
                   stats={stats}
                   setActiveTab={handleTabChange}
+                  tasks={tasks}
+                  habits={habits}
+                  habitLogs={habitLogs}
                 />
               )}
               {activeTab === 'aetherCoach' && (
@@ -7127,7 +7132,23 @@ function RoutineMatrixView({
   );
 }
 
-function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntry[]; user: User; onAddXP: (amount: number, source: string, meta?: any) => void; stats: UserStats | null }) {
+function JournalView({ 
+  journals, 
+  user, 
+  onAddXP, 
+  stats,
+  tasks = [],
+  habits = [],
+  habitLogs = []
+}: { 
+  journals: JournalEntry[]; 
+  user: User; 
+  onAddXP: (amount: number, source: string, meta?: any) => void; 
+  stats: UserStats | null;
+  tasks?: Task[];
+  habits?: Habit[];
+  habitLogs?: HabitLog[];
+}) {
   const [activeSubTab, setActiveSubTab] = useState<'entry' | 'history' | 'insights'>('entry');
   const [content, setContent] = useState('');
   const [mood, setMood] = useState<JournalEntry['mood']>('happy');
@@ -7179,7 +7200,7 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
         }
       }
 
-      const journalData = {
+      const journalData = removeUndefinedFields({
         userId: user.uid,
         content,
         mood,
@@ -7187,7 +7208,7 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
         createdAt: new Date().toISOString(),
         isReflection: usePrompt,
         wordCount,
-        promptId: usePrompt ? currentPrompt : undefined,
+        promptId: usePrompt ? currentPrompt : null,
         cognitiveSignature: await (async () => {
           try {
             return await analyzeJournalEntry(content);
@@ -7196,7 +7217,21 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
             return null;
           }
         })()
-      };
+      });
+
+      // Calculate updated peak sync time including today's entry
+      const now = new Date();
+      const updatedJournals = todayEntry 
+        ? journals.map(j => j.id === todayEntry.id ? { ...j, createdAt: now.toISOString() } : j)
+        : [...journals, { createdAt: now.toISOString() }];
+      
+      const updatedHourlyCounts = updatedJournals.reduce((acc, j) => {
+        const hour = new Date(j.createdAt).getHours();
+        acc[hour] = (acc[hour] || 0) + 1;
+        return acc;
+      }, {} as Record<number, number>);
+      const updatedPeakHour = Object.entries(updatedHourlyCounts).sort((a,b) => (b[1] as number) - (a[1] as number))[0]?.[0];
+      const updatedPeakTimeStr = updatedPeakHour ? `${updatedPeakHour.padStart(2, '0')}:00` : 'N/A';
 
       const batch = writeBatch(db);
 
@@ -7208,14 +7243,121 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
       }
       
       const statsRef = doc(db, 'user_stats', user.uid);
-      batch.update(statsRef, { 
+      batch.update(statsRef, removeUndefinedFields({ 
         totalWordsWritten: (stats?.totalWordsWritten || 0) + (todayEntry ? (wordCount - todayEntry.wordCount) : wordCount),
+        dailyWordsWritten: { count: wordCount, date: today },
+        peakSyncTime: updatedPeakTimeStr,
         journalStreak: newStreak,
         lastJournalDate: today,
         reflectionPromptsAnswered: (stats?.reflectionPromptsAnswered || 0) + (usePrompt && !todayEntry?.isReflection ? 1 : 0)
-      });
+      }));
 
       await batch.commit();
+
+      // Sync everything done in the day into the calendar (time_blocks)
+      try {
+        const todayStartStr = `${today}T00:00:00.000Z`;
+        const todayEndStr = `${today}T23:59:59.999Z`;
+        
+        const timeBlocksRef = collection(db, 'time_blocks');
+        const q = query(
+          timeBlocksRef,
+          where('userId', '==', user.uid),
+          where('startTime', '>=', todayStartStr),
+          where('startTime', '<=', todayEndStr)
+        );
+        
+        const snapshot = await getDocs(q);
+        const deleteBatch = writeBatch(db);
+        snapshot.docs.forEach((docSnap) => {
+          const dData = docSnap.data();
+          if (dData.notes === 'AUTO_SYNCED_CALENDAR_LOAD') {
+            deleteBatch.delete(docSnap.ref);
+          }
+        });
+        await deleteBatch.commit();
+
+        const syncBatch = writeBatch(db);
+        
+        // 1. completed daily work (tasks)
+        const completedTasksToday = tasks.filter((t: any) => 
+          t.status === 'completed' && 
+          t.completedAt && 
+          t.completedAt.startsWith(today)
+        );
+        completedTasksToday.forEach((t: any) => {
+          const blockRef = doc(collection(db, 'time_blocks'));
+          const completedTime = t.completedAt || new Date().toISOString();
+          syncBatch.set(blockRef, {
+            userId: user.uid,
+            title: `✅ WORK: ${t.title.toUpperCase()}`,
+            type: 'task',
+            startTime: new Date(new Date(completedTime).getTime() - 30 * 60 * 1000).toISOString(),
+            endTime: completedTime,
+            color: '#C8651B', // Metallic Orange
+            notes: 'AUTO_SYNCED_CALENDAR_LOAD',
+            completed: true
+          });
+        });
+
+        // 2. completed habits
+        const completedHabitsToday = habitLogs.filter((l: any) => 
+          l.date === today && 
+          l.completed
+        );
+        completedHabitsToday.forEach((l: any) => {
+          const habit = habits.find((h: any) => h.id === l.habitId);
+          if (habit) {
+            const blockRef = doc(collection(db, 'time_blocks'));
+            const logTime = l.timestamp || new Date().toISOString();
+            syncBatch.set(blockRef, {
+              userId: user.uid,
+              title: `⚡ HABIT: ${habit.name.toUpperCase()}`,
+              type: 'routine',
+              startTime: new Date(new Date(logTime).getTime() - 15 * 60 * 1000).toISOString(),
+              endTime: logTime,
+              color: habit.color || '#2E6B9E', // Metallic Blue
+              notes: 'AUTO_SYNCED_CALENDAR_LOAD',
+              completed: true
+            });
+          }
+        });
+
+        // 3. Today's journal
+        const journalBlockRef = doc(collection(db, 'time_blocks'));
+        syncBatch.set(journalBlockRef, {
+          userId: user.uid,
+          title: `📜 JOURNAL: ${mood.toUpperCase()} ENTRY (${wordCount} WORDS)`,
+          type: 'event',
+          startTime: new Date(new Date().getTime() - 20 * 60 * 1000).toISOString(),
+          endTime: new Date().toISOString(),
+          color: '#C9A84C', // Metallic Yellow
+          notes: 'AUTO_SYNCED_CALENDAR_LOAD',
+          completed: true
+        });
+
+        // 4. Wheel of Life balance
+        const categoriesList = stats?.lifeSyncCategories || LIFE_CATEGORIES;
+        const currentValues = stats?.lifeSync?.current || {};
+        const activeVals = categoriesList.map((cat: any) => currentValues[cat.id] ?? 10);
+        const curBalance = Number((activeVals.reduce((a: number, b: number) => a + b, 0) / (categoriesList.length || 1)).toFixed(1));
+
+        const wolBlockRef = doc(collection(db, 'time_blocks'));
+        syncBatch.set(wolBlockRef, {
+          userId: user.uid,
+          title: `🎡 WHEEL OF LIFE: BALANCED AT ${curBalance}/10`,
+          type: 'routine',
+          startTime: new Date(new Date().getTime() - 10 * 60 * 1000).toISOString(),
+          endTime: new Date().toISOString(),
+          color: '#2E6B9E', // Metallic Blue
+          notes: 'AUTO_SYNCED_CALENDAR_LOAD',
+          completed: true
+        });
+
+        await syncBatch.commit();
+      } catch (calendarErr) {
+        console.error("Calendar Sync Error", calendarErr);
+      }
 
       if (!todayEntry) {
         setContent('');
@@ -7239,6 +7381,8 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
   const potentialXP = XP_MAP.JOURNAL_BASE + Math.floor(wordCount / XP_MAP.JOURNAL_WORD_RATE) + XP_MAP.JOURNAL_MOOD_BONUS + (usePrompt ? XP_MAP.JOURNAL_PROMPT_BONUS : 0);
 
   // Stats for the sidebar
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const dailyWords = stats?.dailyWordsWritten?.date === todayStr ? (stats?.dailyWordsWritten?.count || 0) : 0;
   const totalEntries = journals.length;
   const totalWordsWritten = journals.reduce((acc, j) => acc + (j.wordCount || 0), 0);
   const avgEntryLength = totalEntries > 0 ? Math.round(totalWordsWritten / totalEntries) : 0;
@@ -7597,6 +7741,10 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
                     <label className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-[0.25em] font-black border-l-2 border-warning pl-3 mb-6 sm:mb-8 block">Archive_Stats</label>
                     <div className="grid grid-cols-2 gap-3 sm:gap-4">
                        <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
+                          <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Daily_Words</span>
+                          <span className="text-sm sm:text-base font-mono font-black text-white">{dailyWords} W</span>
+                       </div>
+                       <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
                           <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Total_Words</span>
                           <span className="text-sm sm:text-base font-mono font-black text-white">{(totalWordsWritten / 1000).toFixed(1)}K</span>
                        </div>
@@ -7606,7 +7754,7 @@ function JournalView({ journals, user, onAddXP, stats }: { journals: JournalEntr
                        </div>
                        <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300 col-span-2">
                           <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Peak_Sync_Time</span>
-                          <span className="text-sm sm:text-base font-mono font-black text-white">{peakTimeStr}</span>
+                          <span className="text-sm sm:text-base font-mono font-black text-white">{stats?.peakSyncTime || peakTimeStr}</span>
                        </div>
                        <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300 col-span-2">
                           <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Journal_Streak</span>
@@ -9314,7 +9462,7 @@ function DailyWorkView({
   );
 }
 
-function ReflectView({ journals, user, onAddXP, stats, setActiveTab }: any) {
+function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habits, habitLogs }: any) {
   return (
     <div className="max-w-[1600px] mx-auto min-h-[85vh] flex flex-col gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
       
@@ -9331,7 +9479,15 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab }: any) {
 
       {/* Journal View taking the full available width of the screen */}
       <div className="w-full font-sans">
-         <JournalView journals={journals} user={user} onAddXP={onAddXP} stats={stats} />
+         <JournalView 
+            journals={journals} 
+            user={user} 
+            onAddXP={onAddXP} 
+            stats={stats} 
+            tasks={tasks}
+            habits={habits}
+            habitLogs={habitLogs}
+         />
       </div>
 
     </div>
