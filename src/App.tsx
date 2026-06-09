@@ -4069,8 +4069,8 @@ function UpcomingAndQuickAccess({ tasks, journals, setActiveTab }: { tasks: Task
           {nextTasks.length === 0 ? (
             <p className="p-4 text-[10px] font-mono text-text-m opacity-40 uppercase italic text-center">NO_PENDING_OBJECTIVES</p>
           ) : (
-            nextTasks.map((t) => (
-              <div key={t.id} className="p-3 hover:bg-white/5 rounded flex justify-between items-center group cursor-default">
+            nextTasks.map((t, idx) => (
+              <div key={`${t.id || 'upcoming'}-${idx}`} className="p-3 hover:bg-white/5 rounded flex justify-between items-center group cursor-default">
                  <span className="text-sm font-serif font-black uppercase text-text-p truncate max-w-[150px] italic">{t.title}</span>
                  <span className="text-[10px] font-mono text-text-m opacity-40 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                    {t.scheduledStart ? new Date(t.scheduledStart).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'ASAP'}
@@ -4098,8 +4098,8 @@ function AchievementsSummary({ stats }: { stats: UserStats | null }) {
            <button className="text-[8px] font-mono text-purple-400 hover:underline">VIEW_LIBRARY</button>
         </div>
         <div className="p-4 space-y-6">
-          {topLocked.map((ach) => (
-            <div key={ach.id} className="space-y-2 opacity-60 hover:opacity-100 transition-opacity">
+          {topLocked.map((ach, idx) => (
+            <div key={`${ach.id || 'ach'}-${idx}`} className="space-y-2 opacity-60 hover:opacity-100 transition-opacity">
                <div className="flex items-center gap-3">
                   <div className="p-2 bg-white/5 rounded grayscale group-hover:grayscale-0">{ach.icon}</div>
                   <div className="min-w-0">
@@ -4282,8 +4282,8 @@ function MotivationPortal({
                        }}
                      />
                    )}
-                   {items.map((item) => (
-                     <div key={item.id} className="glass p-5 rounded-3xl border border-white/5 flex items-center justify-between group hover:border-white/20 transition-all">
+                   {items.map((item, idx) => (
+                     <div key={`${item.id || 'item'}-${idx}`} className="glass p-5 rounded-3xl border border-white/5 flex items-center justify-between group hover:border-white/20 transition-all">
                        <div className="flex items-center gap-5 truncate">
                           <div className={cn(
                             "p-4 rounded-2xl border transition-all",
@@ -5160,7 +5160,7 @@ function LevelUpOverlay({ level, onClose, stats }: { level: number; onClose: () 
                    initial={{ x: 20, opacity: 0 }}
                    animate={{ x: 0, opacity: 1 }}
                    transition={{ delay: 0.5 + (i * 0.1) }}
-                   key={u.id} 
+                   key={`${u.id || 'unlock'}-${i}`} 
                    className="glass p-6 rounded-2xl border-2 border-accent/30 bg-accent/5 flex items-center gap-4"
                 >
                    <Zap className="text-accent h-8 w-8" />
