@@ -1193,6 +1193,24 @@ const UNLOCKS = [
 
 const PREMIUM_BEZIER = [0.16, 1, 0.3, 1] as any;
 
+const keyTracker: Record<string, Set<string>> = {};
+const registerKeyUsed = (collectionName: string, id: any, generatedKey: string) => {
+  if (!keyTracker[collectionName]) {
+    keyTracker[collectionName] = new Set<string>();
+  }
+  const stringId = id !== undefined && id !== null ? String(id) : '';
+  if (keyTracker[collectionName].has(stringId) && stringId !== '') {
+    console.warn(`[DUPLICATE KEY WARNING] Collection: ${collectionName}, ID: ${stringId}, Key: ${generatedKey}`);
+  } else if (stringId !== '') {
+    keyTracker[collectionName].add(stringId);
+  }
+};
+const clearKeyTracker = () => {
+  for (const k of Object.keys(keyTracker)) {
+    keyTracker[k].clear();
+  }
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1221,6 +1239,8 @@ export default function App() {
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [isNodeRecalibrating, setIsNodeRecalibrating] = useState(false);
   const [isNavExpanded, setIsNavExpanded] = useState(false);
+
+  clearKeyTracker();
 
   const addToTerminal = (msg: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -3048,13 +3068,13 @@ export default function App() {
       
       {false && (
         <div>
-          {tasks.map((task) => <div key={task.id}>{task.title}</div>)}
-          {habits.map((habit) => <div key={habit.id}>{habit.name}</div>)}
-          {journals.map((journal) => <div key={journal.id}>{journal.content}</div>)}
-          {achievements.map((achievement) => <div key={achievement.id}>{achievement.title}</div>)}
-          {timeBlocks.map((block) => <div key={block.id}>{block.title}</div>)}
-          {activityLog.map((activity) => <div key={activity.id}>{activity.label}</div>)}
-          {weeklyReviews.map((review) => <div key={review.id}>{review.wentWell}</div>)}
+          {tasks.map((task, index) => <div key={`test-task-${task.id || 'task'}-${index}`}>{task.title}</div>)}
+          {habits.map((habit, index) => <div key={`test-habit-${habit.id || 'habit'}-${index}`}>{habit.name}</div>)}
+          {journals.map((journal, index) => <div key={`test-journal-${journal.id || 'journal'}-${index}`}>{journal.content}</div>)}
+          {achievements.map((achievement, index) => <div key={`test-ach-${achievement.id || 'ach'}-${index}`}>{achievement.title}</div>)}
+          {timeBlocks.map((block, index) => <div key={`test-block-${block.id || 'block'}-${index}`}>{block.title}</div>)}
+          {activityLog.map((activity, index) => <div key={`test-act-${activity.id || 'act'}-${index}`}>{activity.label}</div>)}
+          {weeklyReviews.map((review, index) => <div key={`test-review-${review.id || 'review'}-${index}`}>{review.wentWell}</div>)}
         </div>
       )}
     </div>
@@ -3065,21 +3085,25 @@ function FloatingXPRenderer({ notifications }: { notifications: XPNotification[]
   return (
     <div className="fixed top-1/3 left-1/2 -translate-x-1/2 pointer-events-none z-[100] flex flex-col items-center gap-4">
       <AnimatePresence>
-        {notifications.map(n => (
-          <motion.div
-            key={n.id}
-            initial={{ opacity: 0, y: 20, scale: 0.5 }}
-            animate={{ opacity: 1, y: -120, scale: 1.5 }}
-            exit={{ opacity: 0, filter: 'blur(10px)', scale: 2 }}
-            transition={{ duration: 1.2, ease: PREMIUM_BEZIER }}
-            className="flex flex-col items-center"
-          >
-            <span className="text-5xl font-serif font-black text-white text-glow-white italic leading-none">+{n.amount} XP</span>
-            <span className="text-[10px] font-mono font-bold text-black bg-cyan px-3 py-1 rounded-sm shadow-2xl uppercase tracking-[0.2em] mt-2 border border-white/20">
-              {n.source}
-            </span>
-          </motion.div>
-        ))}
+        {notifications.map((n, idx) => {
+          const generatedKey = `${n.id || 'notif'}-${idx}`;
+          registerKeyUsed('notifications', n.id, generatedKey);
+          return (
+            <motion.div
+              key={generatedKey}
+              initial={{ opacity: 0, y: 20, scale: 0.5 }}
+              animate={{ opacity: 1, y: -120, scale: 1.5 }}
+              exit={{ opacity: 0, filter: 'blur(10px)', scale: 2 }}
+              transition={{ duration: 1.2, ease: PREMIUM_BEZIER }}
+              className="flex flex-col items-center"
+            >
+              <span className="text-5xl font-serif font-black text-white text-glow-white italic leading-none">+{n.amount} XP</span>
+              <span className="text-[10px] font-mono font-bold text-black bg-cyan px-3 py-1 rounded-sm shadow-2xl uppercase tracking-[0.2em] mt-2 border border-white/20">
+                {n.source}
+              </span>
+            </motion.div>
+          );
+        })}
       </AnimatePresence>
     </div>
   );
@@ -4822,9 +4846,12 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
               }}
             />
           )}
-          {filteredTasks.map((task) => (
-            <div 
-              key={task.id} 
+          {filteredTasks.map((task, idx) => {
+            const generatedKey = `${task.id || 'task'}-${idx}`;
+            registerKeyUsed('tasks', task.id, generatedKey);
+            return (
+              <div 
+                key={generatedKey} 
               className={cn(
                 "p-6 glass rounded-xl transition-all flex items-center justify-between border-l-4 premium-transition group relative overflow-hidden",
                 task.status === 'completed' ? "border-success opacity-40 grayscale blur-[0.5px]" : "border-accent hover:border-cyan hover:bg-white/5"
@@ -4892,8 +4919,8 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
                 {/* Sub-tasks list */}
                 {task.subTasks && task.subTasks.length > 0 && (
                   <div className="mt-4 pl-4 border-l-2 border-white/5 space-y-2">
-                    {task.subTasks.map((st) => (
-                      <div key={`${task.id}-sub-${st.id}`} className="flex items-center gap-3">
+                    {task.subTasks.map((st, sidx) => (
+                      <div key={`${task.id}-sub-${st.id || 'sub'}-${sidx}`} className="flex items-center gap-3">
                         <button 
                           onClick={() => toggleSubTask(task, st.id)}
                           className={cn("p-1 transition-all", st.completed ? "text-success" : "text-text-m opacity-40 hover:opacity-100")}
@@ -4944,7 +4971,7 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
                 )}
               </div>
           </div>
-        ))}
+        )})}
       </div>
 
         {/* Right integration panel */}
@@ -6231,7 +6258,7 @@ function TemporalHub({
                             <div className="absolute inset-0 bg-white/2 opacity-0 group-hover/day:opacity-100 transition-opacity" />
                          </div>
                        ))}
-                       {dayBlocks.map(block => {
+                       {dayBlocks.map((block, idx) => {
                          const start = parseISO(block.startTime);
                          const end = parseISO(block.endTime);
                          const initialTop = ((start.getHours() - 5) * 60 + start.getMinutes()) * 1.6;
@@ -6247,9 +6274,12 @@ function TemporalHub({
                             routine: 'border-accent bg-accent/10 text-accent'
                          };
 
+                         const generatedKey = `${(block as any).source || 'block'}-${block.id}-${idx}`;
+                         registerKeyUsed('timetable', block.id, generatedKey);
+
                          return (
                            <motion.div 
-                             key={`${(block as any).source || 'block'}-${block.id}`}
+                             key={generatedKey}
                              whileHover={!draggingBlock ? { scale: 1.02, zIndex: 10 } : {}}
                              onMouseDown={(e) => {
                                e.stopPropagation();
@@ -6809,13 +6839,15 @@ function RoutineMatrixView({
                 onAction={() => setIsAddModalOpen(true)}
               />
             ) : (
-              activeHabits.map((habit) => {
+              activeHabits.map((habit, idx) => {
                 const isDoneToday = habitLogs.some(l => l.habitId === habit.id && l.date === todayStr);
                 const streak = calculateStreak(habit.id);
                 const catInfo = categories.find(c => c.id === habit.category);
+                const generatedKey = `${habit.id || 'habit'}-${idx}`;
+                registerKeyUsed('habits', habit.id, generatedKey);
                 
                 return (
-                  <div key={habit.id}>
+                  <div key={generatedKey}>
                     <motion.div 
                       layoutId={habit.id}
                       className="glass rounded-2xl border border-white/5 bg-white/2 overflow-hidden group hover:border-cyan/30 transition-all cursor-pointer active:scale-[0.98]"
@@ -7534,8 +7566,11 @@ function JournalView({
   const renderHistory = () => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {journals.map((journal) => (
-          <div key={journal.id}>
+        {journals.map((journal, index) => {
+          const generatedKey = `${journal.id || 'journal'}-${index}`;
+          registerKeyUsed('journals', journal.id, generatedKey);
+          return (
+            <div key={generatedKey}>
             <motion.div 
               whileHover={{ y: -5, scale: 1.02 }}
               onClick={() => { setViewDate(new Date(journal.createdAt)); setContent(journal.content); setMood(journal.mood); setSelectedTags(journal.tags || []); setActiveSubTab('entry'); }}
@@ -7560,7 +7595,7 @@ function JournalView({
               </div>
             </motion.div>
           </div>
-        ))}
+        )})}
         {journals.length === 0 && (
           <div className="col-span-full">
             <EmptyState
@@ -8384,17 +8419,21 @@ function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews, on
             "grid gap-6",
             viewMode === 'grid' ? "grid-cols-2 md:grid-cols-4 lg:grid-cols-5" : "grid-cols-1 md:grid-cols-2"
           )}>
-            {filteredAchievements.map((achievement) => (
-              <div key={achievement.id}>
-                <AchievementCard 
-                  achievement={achievement}
-                  unlocked={stats.unlockedAchievements?.includes(achievement.id)}
-                  {...getAchievementProgress(achievement)}
-                  onClick={() => setSelectedAchievement(achievement)}
-                  viewMode={viewMode}
-                />
-              </div>
-            ))}
+            {filteredAchievements.map((achievement, idx) => {
+              const generatedKey = `${achievement.id || 'achievement'}-${idx}`;
+              registerKeyUsed('achievements', achievement.id, generatedKey);
+              return (
+                <div key={generatedKey}>
+                  <AchievementCard 
+                    achievement={achievement}
+                    unlocked={stats.unlockedAchievements?.includes(achievement.id)}
+                    {...getAchievementProgress(achievement)}
+                    onClick={() => setSelectedAchievement(achievement)}
+                    viewMode={viewMode}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
