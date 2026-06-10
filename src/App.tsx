@@ -422,6 +422,10 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
       );
       return onSnapshot(q, (snapshot) => {
         if (!snapshot) return;
+        if (snapshot.empty) {
+          setHistory([]);
+          return;
+        }
         setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LifeSnapshot)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'life_snapshots'));
     }
@@ -1215,8 +1219,13 @@ const clearKeyTracker = () => {
 const initializeNewUser = async (user: User) => {
   try {
     const statsRef = doc(db, 'user_stats', user.uid);
-    const snap = await getDoc(statsRef);
-    if (snap.exists()) return; // Already initialized, skip
+    const statsSnap = await getDoc(statsRef);
+    if (statsSnap.exists()) return; // Already a real user, don't touch anything
+
+    console.log('NEW_USER_DETECTED — Initializing Firestore documents...');
+
+    // Batch write all default docs at once (atomic — all or nothing)
+    const batch = writeBatch(db);
 
     const initialStats: UserStats = {
       userId: user.uid,
@@ -1242,7 +1251,27 @@ const initializeNewUser = async (user: User) => {
       punctualStreak: 0,
       pomodoroSessions: 0,
       pomodoroToday: 0,
-      activityLog: []
+      activityLog: [],
+      dailyChallenge: undefined,
+      lifeSync: {
+        current: {
+          GYM: 5, DIET: 5, LOVE: 5,
+          STUDIES: 5, FINANCE: 5,
+          SLEEP: 5, SOCIAL: 5, MENTAL_HEALTH: 5
+        },
+        lastSaved: undefined,
+        syncMode: 'manual'
+      },
+      lifeSyncCategories: [
+        { id: 'GYM', label: 'GYM', color: '#ef4444' },
+        { id: 'DIET', label: 'DIET', color: '#f97316' },
+        { id: 'LOVE', label: 'LOVE', color: '#ec4899' },
+        { id: 'STUDIES', label: 'STUDIES', color: '#6366f1' },
+         { id: 'FINANCE', label: 'FINANCE', color: '#22c55e' },
+        { id: 'SLEEP', label: 'SLEEP', color: '#3b82f6' },
+        { id: 'SOCIAL', label: 'SOCIAL', color: '#f59e0b' },
+        { id: 'MENTAL_HEALTH', label: 'MENTAL HEALTH', color: '#14b8a6' },
+      ]
     };
 
     const defaultSettings: AppSettings = {
@@ -1256,10 +1285,13 @@ const initializeNewUser = async (user: User) => {
     };
 
     const settingsRef = doc(db, 'user_settings', user.uid);
-    await setDoc(statsRef, initialStats);
-    await setDoc(settingsRef, defaultSettings);
-  } catch (e) {
-    console.error("Error in initializeNewUser:", e);
+    batch.set(statsRef, initialStats);
+    batch.set(settingsRef, defaultSettings);
+
+    await batch.commit();
+    console.log('NEW_USER_INITIALIZED — All documents created successfully.');
+  } catch (err) {
+    console.error('INIT_ERROR:', err);
   }
 };
 
@@ -1576,11 +1608,19 @@ export default function App() {
       if (u && u.email === 'vedantsp127@gmail.com') {
         signOut(auth);
         setUser(null);
+        setStats(null);
+        setSettings(null);
       } else if (u) {
-        await initializeNewUser(u);
+        try {
+          await initializeNewUser(u);
+        } catch (err) {
+          console.error('INIT_ERROR:', err);
+        }
         setUser(u);
       } else {
-        setUser(u);
+        setUser(null);
+        setStats(null);
+        setSettings(null);
       }
       setLoading(false);
     });
@@ -1637,6 +1677,10 @@ export default function App() {
 
     const unsub = onSnapshot(q, (snapshot) => {
       if (!snapshot) return;
+      if (snapshot.empty) {
+        setTasks([]);
+        return;
+      }
       const t = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
       setTasks(t);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'tasks'));
@@ -1659,6 +1703,10 @@ export default function App() {
 
     const unsub = onSnapshot(q, (snapshot) => {
       if (!snapshot) return;
+      if (snapshot.empty) {
+        setTimeBlocks([]);
+        return;
+      }
       const b = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TimeBlock));
       setTimeBlocks(b);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'time_blocks'));
@@ -1681,6 +1729,10 @@ export default function App() {
 
     const unsub = onSnapshot(q, (snapshot) => {
       if (!snapshot) return;
+      if (snapshot.empty) {
+        setJournals([]);
+        return;
+      }
       const j = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as JournalEntry));
       setJournals(j);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'journals'));
@@ -1693,6 +1745,10 @@ export default function App() {
     );
     const motivUnsub = onSnapshot(motivQ, (snapshot) => {
       if (!snapshot) return;
+      if (snapshot.empty) {
+        setMotivationItems([]);
+        return;
+      }
       setMotivationItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MotivationItem)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'motivation_items'));
 
@@ -1716,6 +1772,10 @@ export default function App() {
     );
     const unsubHabits = onSnapshot(habitsQ, (snapshot) => {
       if (!snapshot) return;
+      if (snapshot.empty) {
+        setHabits([]);
+        return;
+      }
       setHabits(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Habit)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'habits'));
 
@@ -1727,6 +1787,10 @@ export default function App() {
     );
     const unsubLogs = onSnapshot(logsQ, (snapshot) => {
       if (!snapshot) return;
+      if (snapshot.empty) {
+        setHabitLogs([]);
+        return;
+      }
       setHabitLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HabitLog)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'habit_logs'));
 
@@ -1751,6 +1815,10 @@ export default function App() {
 
     const unsub = onSnapshot(q, (snapshot) => {
       if (!snapshot) return;
+      if (snapshot.empty) {
+        setWeeklyReviews([]);
+        return;
+      }
       setWeeklyReviews(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WeeklyReview)));
       if (syncFailed) {
         setSyncFailed(false);
@@ -2692,6 +2760,30 @@ export default function App() {
         onBack={() => setAuthChoice(false)} 
         onGoogleLogin={signInWithGoogle} 
       />
+    );
+  }
+
+  if (!stats || !settings) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <div className="flex flex-col items-center gap-6 z-10">
+          <div className="relative">
+            <motion.div 
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+              className="w-16 h-16 border-2 border-cyan/10 rounded-full border-t-cyan border-r-cyan/50 shadow-[0_0_20px_rgba(0,217,255,0.2)]"
+            />
+            <Zap size={24} className="absolute inset-0 m-auto text-cyan animate-pulse" />
+          </div>
+          <div className="space-y-2 text-center">
+            <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest animate-pulse">
+              SYNCHRONIZING_NEURAL_NODES...
+            </p>
+            <p className="text-[8px] font-mono text-text-m uppercase opacity-40">Connecting to secure encrypted cluster...</p>
+          </div>
+        </div>
+        <div className="absolute inset-0 bg-scanlines opacity-[0.05] pointer-events-none" />
+      </div>
     );
   }
 
