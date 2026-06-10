@@ -421,6 +421,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
         limit(7)
       );
       return onSnapshot(q, (snapshot) => {
+        if (!snapshot) return;
         setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LifeSnapshot)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'life_snapshots'));
     }
@@ -1211,6 +1212,57 @@ const clearKeyTracker = () => {
   }
 };
 
+const initializeNewUser = async (user: User) => {
+  try {
+    const statsRef = doc(db, 'user_stats', user.uid);
+    const snap = await getDoc(statsRef);
+    if (snap.exists()) return; // Already initialized, skip
+
+    const initialStats: UserStats = {
+      userId: user.uid,
+      level: 1,
+      experience: 0,
+      coins: 0,
+      unlockedFeatures: [],
+      totalTasksCompleted: 0,
+      currentStreak: 0,
+      lastActiveDate: new Date().toISOString(),
+      difficultyLevel: 'normal',
+      unlockedAchievements: [],
+      unlockedItems: [],
+      unlockedPerks: [],
+      totalWordsWritten: 0,
+      streakHistory: [],
+      journalStreak: 0,
+      lastJournalDate: '',
+      reflectionPromptsAnswered: 0,
+      adherenceHistory: {},
+      scheduleMasteryLevel: 0,
+      scheduledTasksCount: 0,
+      punctualStreak: 0,
+      pomodoroSessions: 0,
+      pomodoroToday: 0,
+      activityLog: []
+    };
+
+    const defaultSettings: AppSettings = {
+      difficultyMultiplier: 1.0,
+      goalTargets: { weeklyTasks: 20, weeklyJournals: 5, dailyLogin: 1 },
+      ui: { showXpPopups: true, showAchievements: true, soundVolume: 0.5, animations: 'full' },
+      display: { theme: 'cyberpunk', language: 'en', timeFormat: '24h' },
+      notifications: { taskReminders: true, achievementNotifs: true, streakReminders: true },
+      aiRoutine: ['School', 'Tuition', 'Dinner', 'Gym', 'Meditation'],
+      onboardingComplete: false
+    };
+
+    const settingsRef = doc(db, 'user_settings', user.uid);
+    await setDoc(statsRef, initialStats);
+    await setDoc(settingsRef, defaultSettings);
+  } catch (e) {
+    console.error("Error in initializeNewUser:", e);
+  }
+};
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const isFetchingBriefing = useRef(false);
@@ -1391,43 +1443,44 @@ export default function App() {
   }, [stats, settings]);
 
   useEffect(() => {
-    if (user && stats) {
-      const today = new Date().toISOString().split('T')[0];
-      const briefingLastGenerated = stats.dailyBriefing?.lastGenerated;
+    if (!user || !stats) return; // Don't run if data not loaded yet
+    if (!stats.userId) return;   // Don't run if it's an empty object
 
-      if ((!briefingLastGenerated || briefingLastGenerated !== today) && briefingAttemptedDate.current !== today && !isFetchingBriefing.current) {
-        const fetchBriefing = async () => {
-          isFetchingBriefing.current = true;
-          briefingAttemptedDate.current = today;
+    const today = new Date().toISOString().split('T')[0];
+    const briefingLastGenerated = stats.dailyBriefing?.lastGenerated;
+
+    if ((!briefingLastGenerated || briefingLastGenerated !== today) && briefingAttemptedDate.current !== today && !isFetchingBriefing.current) {
+      const fetchBriefing = async () => {
+        isFetchingBriefing.current = true;
+        briefingAttemptedDate.current = today;
+        try {
+          const activeTasks = tasks.filter(t => t.status === 'pending');
+          const content = await generateDailyBriefing(stats, activeTasks);
+          await updateDoc(doc(db, 'user_stats', user.uid), {
+            dailyBriefing: {
+              content,
+              lastGenerated: today
+            }
+          });
+        } catch (e) {
+          console.error("Briefing Generation Failed", e);
+          // Gracefully fall back to writing a stylish, lore-compliant offline protocol update
+          // This stops infinite background retries during high load or quota exhaustion
           try {
-            const activeTasks = tasks.filter(t => t.status === 'pending');
-            const content = await generateDailyBriefing(stats, activeTasks);
             await updateDoc(doc(db, 'user_stats', user.uid), {
               dailyBriefing: {
-                content,
+                content: "Aether_OS // LINK_STATUS: OFFLINE\n\nCognitive interface bandwidth currently throttled. Local neural telemetry is operating on offline fallback protocols. Prioritize direct action and stay focused on immediate daily items. Systems will attempt synchronization on next refresh loop.",
                 lastGenerated: today
               }
             });
-          } catch (e) {
-            console.error("Briefing Generation Failed", e);
-            // Gracefully fall back to writing a stylish, lore-compliant offline protocol update
-            // This stops infinite background retries during high load or quota exhaustion
-            try {
-              await updateDoc(doc(db, 'user_stats', user.uid), {
-                dailyBriefing: {
-                  content: "Aether_OS // LINK_STATUS: OFFLINE\n\nCognitive interface bandwidth currently throttled. Local neural telemetry is operating on offline fallback protocols. Prioritize direct action and stay focused on immediate daily items. Systems will attempt synchronization on next refresh loop.",
-                  lastGenerated: today
-                }
-              });
-            } catch (fsErr) {
-              console.error("Failed to write offline fallback briefing:", fsErr);
-            }
-          } finally {
-            isFetchingBriefing.current = false;
+          } catch (fsErr) {
+            console.error("Failed to write offline fallback briefing:", fsErr);
           }
-        };
-        fetchBriefing();
-      }
+        } finally {
+          isFetchingBriefing.current = false;
+        }
+      };
+      fetchBriefing();
     }
   }, [user, stats, tasks]);
 
@@ -1519,10 +1572,13 @@ export default function App() {
   };
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (u && u.email === 'vedantsp127@gmail.com') {
         signOut(auth);
         setUser(null);
+      } else if (u) {
+        await initializeNewUser(u);
+        setUser(u);
       } else {
         setUser(u);
       }
@@ -1539,21 +1595,10 @@ export default function App() {
 
     const docRef = doc(db, 'user_settings', user.uid);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setSettings(docSnap.data() as AppSettings);
-      } else {
-        // Init default settings
-        const defaultSettings: AppSettings = {
-          difficultyMultiplier: 1.0,
-          goalTargets: { weeklyTasks: 20, weeklyJournals: 5, dailyLogin: 1 },
-          ui: { showXpPopups: true, showAchievements: true, soundVolume: 0.5, animations: 'full' },
-          display: { theme: 'cyberpunk', language: 'en', timeFormat: '24h' },
-          notifications: { taskReminders: true, achievementNotifs: true, streakReminders: true },
-          aiRoutine: ['School', 'Tuition', 'Dinner', 'Gym', 'Meditation']
-        };
-        setDoc(docRef, defaultSettings).catch(e => handleFirestoreError(e, OperationType.CREATE, docRef.path));
-        setSettings(defaultSettings);
-      }
+      if (!docSnap.exists()) return; // Don't process if doc doesn't exist yet
+      const data = docSnap.data();
+      if (!data) return;
+      setSettings(data as AppSettings);
     }, (err) => handleFirestoreError(err, OperationType.GET, docRef.path));
 
     return () => unsubscribe();
@@ -1568,37 +1613,10 @@ export default function App() {
 
     const docRef = doc(db, 'user_stats', user.uid);
     const unsub = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setStats(docSnap.data() as UserStats);
-      } else {
-        const initialStats: UserStats = {
-          userId: user.uid,
-          level: 1,
-          experience: 0,
-          coins: 0,
-          unlockedFeatures: [],
-          totalTasksCompleted: 0,
-          currentStreak: 0, // Changed from 1 to 0 for a fresh start
-          lastActiveDate: new Date().toISOString(),
-          difficultyLevel: 'normal',
-          unlockedAchievements: [],
-          unlockedItems: [],
-          unlockedPerks: [],
-          totalWordsWritten: 0,
-          streakHistory: [],
-          journalStreak: 0,
-          lastJournalDate: '',
-          reflectionPromptsAnswered: 0,
-          adherenceHistory: {},
-          scheduleMasteryLevel: 0,
-          scheduledTasksCount: 0,
-          punctualStreak: 0,
-          pomodoroSessions: 0,
-          pomodoroToday: 0,
-          activityLog: []
-        };
-        setDoc(docRef, initialStats).catch(e => handleFirestoreError(e, OperationType.CREATE, `user_stats/${user.uid}`));
-      }
+      if (!docSnap.exists()) return; // Don't process if doc doesn't exist yet
+      const data = docSnap.data();
+      if (!data) return;
+      setStats(data as UserStats);
     }, (err) => handleFirestoreError(err, OperationType.GET, `user_stats/${user.uid}`));
 
     return () => unsub();
@@ -1618,6 +1636,7 @@ export default function App() {
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
+      if (!snapshot) return;
       const t = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
       setTasks(t);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'tasks'));
@@ -1639,6 +1658,7 @@ export default function App() {
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
+      if (!snapshot) return;
       const b = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TimeBlock));
       setTimeBlocks(b);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'time_blocks'));
@@ -1660,6 +1680,7 @@ export default function App() {
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
+      if (!snapshot) return;
       const j = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as JournalEntry));
       setJournals(j);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'journals'));
@@ -1671,6 +1692,7 @@ export default function App() {
       orderBy('createdAt', 'desc')
     );
     const motivUnsub = onSnapshot(motivQ, (snapshot) => {
+      if (!snapshot) return;
       setMotivationItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MotivationItem)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'motivation_items'));
 
@@ -1693,6 +1715,7 @@ export default function App() {
       where('userId', '==', user.uid)
     );
     const unsubHabits = onSnapshot(habitsQ, (snapshot) => {
+      if (!snapshot) return;
       setHabits(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Habit)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'habits'));
 
@@ -1703,6 +1726,7 @@ export default function App() {
       limit(2000) 
     );
     const unsubLogs = onSnapshot(logsQ, (snapshot) => {
+      if (!snapshot) return;
       setHabitLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HabitLog)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'habit_logs'));
 
@@ -1726,6 +1750,7 @@ export default function App() {
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
+      if (!snapshot) return;
       setWeeklyReviews(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WeeklyReview)));
       if (syncFailed) {
         setSyncFailed(false);
@@ -1743,13 +1768,22 @@ export default function App() {
   // Daily Sync (Streaks & Challenges)
   useEffect(() => {
     if (!user || !stats) return;
+    if (!stats.userId) return;
 
     const syncDaily = async () => {
       try {
         const now = new Date();
         const today = now.toISOString().split('T')[0];
-        const lastActive = stats.lastActiveDate.split('T')[0];
+        const lastActive = stats.lastActiveDate ? stats.lastActiveDate.split('T')[0] : '';
         
+        if (!lastActive) {
+          const statsRef = doc(db, 'user_stats', user.uid);
+          await updateDoc(statsRef, {
+            lastActiveDate: now.toISOString(),
+          });
+          return;
+        }
+
         if (lastActive === today) return; // Already synced today
 
         let newStreak = stats.currentStreak;
