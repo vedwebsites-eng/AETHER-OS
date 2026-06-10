@@ -37,7 +37,7 @@ service cloud.firestore {
              (!('unlockedItems' in data) || data.unlockedItems is list) &&
              (!('activityLog' in data) || data.activityLog is list) &&
              (!('streakHistory' in data) || data.streakHistory is list) &&
-             (!('adherenceHistory' in data) || data.adherenceHistory is list) &&
+             (!('adherenceHistory' in data) || data.adherenceHistory is map) &&
              (!('lifeSync' in data) || data.lifeSync is map) &&
              (!('lifeSyncCategories' in data) || data.lifeSyncCategories is list);
     }

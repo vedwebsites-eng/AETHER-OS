@@ -1,6 +1,6 @@
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFirestoreError, OperationType, removeUndefinedFields } from './lib/firebase';
 import { onAuthStateChanged, User, signOut, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit, getDocs } from 'firebase/firestore';
@@ -1213,6 +1213,8 @@ const clearKeyTracker = () => {
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const isFetchingBriefing = useRef(false);
+  const briefingAttemptedDate = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [authChoice, setAuthChoice] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
@@ -1393,8 +1395,10 @@ export default function App() {
       const today = new Date().toISOString().split('T')[0];
       const briefingLastGenerated = stats.dailyBriefing?.lastGenerated;
 
-      if (!briefingLastGenerated || briefingLastGenerated !== today) {
+      if ((!briefingLastGenerated || briefingLastGenerated !== today) && briefingAttemptedDate.current !== today && !isFetchingBriefing.current) {
         const fetchBriefing = async () => {
+          isFetchingBriefing.current = true;
+          briefingAttemptedDate.current = today;
           try {
             const activeTasks = tasks.filter(t => t.status === 'pending');
             const content = await generateDailyBriefing(stats, activeTasks);
@@ -1406,6 +1410,20 @@ export default function App() {
             });
           } catch (e) {
             console.error("Briefing Generation Failed", e);
+            // Gracefully fall back to writing a stylish, lore-compliant offline protocol update
+            // This stops infinite background retries during high load or quota exhaustion
+            try {
+              await updateDoc(doc(db, 'user_stats', user.uid), {
+                dailyBriefing: {
+                  content: "Aether_OS // LINK_STATUS: OFFLINE\n\nCognitive interface bandwidth currently throttled. Local neural telemetry is operating on offline fallback protocols. Prioritize direct action and stay focused on immediate daily items. Systems will attempt synchronization on next refresh loop.",
+                  lastGenerated: today
+                }
+              });
+            } catch (fsErr) {
+              console.error("Failed to write offline fallback briefing:", fsErr);
+            }
+          } finally {
+            isFetchingBriefing.current = false;
           }
         };
         fetchBriefing();
@@ -1502,7 +1520,12 @@ export default function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
+      if (u && u.email === 'vedantsp127@gmail.com') {
+        signOut(auth);
+        setUser(null);
+      } else {
+        setUser(u);
+      }
       setLoading(false);
     });
     return () => unsubscribe();

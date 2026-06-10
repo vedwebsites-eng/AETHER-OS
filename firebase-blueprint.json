@@ -53,7 +53,7 @@
         "unlockedPerks": { "type": "array" },
         "activityLog": { "type": "array" },
         "streakHistory": { "type": "array" },
-        "adherenceHistory": { "type": "array" },
+        "adherenceHistory": { "type": "object" },
         "lifeSync": { "type": "object" }
       },
       "required": ["userId", "level", "experience"]
