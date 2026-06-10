@@ -50,7 +50,8 @@ service cloud.firestore {
              data.status in ['pending', 'completed'] &&
              data.createdAt is string && data.createdAt.size() <= 100 &&
              data.category is string && data.category.size() <= 100 &&
-             data.estimate is int;
+             data.estimate is int &&
+             (!('xpAwarded' in data) || data.xpAwarded is bool);
     }
 
     // JournalEntry Validation
@@ -110,7 +111,9 @@ service cloud.firestore {
              data.habitId is string && data.habitId.size() <= 128 &&
              data.date is string && data.date.size() == 10 &&
              data.completed is bool &&
-             data.timestamp is string && data.timestamp.size() <= 100;
+             data.timestamp is string && data.timestamp.size() <= 100 &&
+             (!('xpAwarded' in data) || data.xpAwarded is bool) &&
+             (!('uncompletedAt' in data) || (data.uncompletedAt is string && data.uncompletedAt.size() <= 100));
     }
 
     // WeeklyReview Validation

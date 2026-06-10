@@ -54,6 +54,8 @@ interface HabitLog {
   date: string;
   completed: boolean;
   timestamp: string;
+  xpAwarded?: boolean;
+  uncompletedAt?: string;
 }
 
 interface LifeSnapshot {
@@ -1031,6 +1033,7 @@ interface Task {
   completedAt?: string; // ISO
   adherenceStatus?: 'ontime' | 'late' | 'partial' | 'missed';
   habitId?: string;
+  xpAwarded?: boolean;
 }
 
 interface Perk {
@@ -1145,6 +1148,16 @@ const MULTIPLIERS = {
   easy: 0.5,
   normal: 1,
   hard: 2
+};
+
+// Daily XP Caps (prevents grinding abuse)
+const DAILY_XP_CAPS = {
+  total: 2000,        // Max XP per day total
+  tasks: 800,         // Max XP from tasks per day
+  habits: 300,        // Max XP from habits per day
+  journal: 250,       // Max XP from journal per day
+  pomodoro: 200,      // Max XP from pomodoro per day
+  bonus: 450,         // Max XP from streaks/challenges/achievements per day
 };
 
 const NEURAL_GRADIENT = "bg-gradient-to-br from-background via-background-nested to-card";
@@ -1970,10 +1983,79 @@ export default function App() {
       }
 
       // Apply Deep Archive perk (+25% XP for journals)
-      const isJournal = source === 'NEURAL_INGEST_COMPLETE';
-      if (isJournal && stats.unlockedPerks?.includes('deep_archive')) {
+      const isDeepArchiveJournal = source === 'NEURAL_INGEST_COMPLETE';
+      if (isDeepArchiveJournal && stats.unlockedPerks?.includes('deep_archive')) {
         finalAmount = Math.round(finalAmount * 1.25);
       }
+
+      // --- DAILY XP CAP CHECK ---
+      const today = new Date().toISOString().split('T')[0];
+      const todayLogs = stats.activityLog?.filter(
+        (a: any) => a.timestamp?.startsWith(today)
+      ) || [];
+
+      // Calculate how much XP already earned today
+      const totalTodayXP = todayLogs.reduce((sum: number, a: any) => sum + (a.xp || 0), 0);
+
+      const matchesTask = (a: any) => {
+        const srcStr = (a.source || a.label || "").toUpperCase();
+        return srcStr.includes('TASK') || srcStr.includes('NEURAL_LINK') || srcStr.includes('NEURAL LINK') || srcStr.includes('TEMPORAL') || a.type === 'task';
+      };
+      const matchesHabit = (a: any) => {
+        const srcStr = (a.source || a.label || "").toUpperCase();
+        return srcStr.includes('HABIT') || a.type === 'habit';
+      };
+      const matchesJournal = (a: any) => {
+        const srcStr = (a.source || a.label || "").toUpperCase();
+        return srcStr.includes('JOURNAL') || srcStr.includes('NEURAL_INGEST') || srcStr.includes('NEURAL INGEST') || a.type === 'journal';
+      };
+      const matchesPomodoro = (a: any) => {
+        const srcStr = (a.source || a.label || "").toUpperCase();
+        return srcStr.includes('POMODORO') || srcStr.includes('FOCUS');
+      };
+
+      const taskTodayXP = todayLogs.filter(matchesTask).reduce((sum: number, a: any) => sum + (a.xp || 0), 0);
+      const habitTodayXP = todayLogs.filter(matchesHabit).reduce((sum: number, a: any) => sum + (a.xp || 0), 0);
+      const journalTodayXP = todayLogs.filter(matchesJournal).reduce((sum: number, a: any) => sum + (a.xp || 0), 0);
+      const pomodoroTodayXP = todayLogs.filter(matchesPomodoro).reduce((sum: number, a: any) => sum + (a.xp || 0), 0);
+
+      // Hard stop if total daily cap reached
+      if (totalTodayXP >= DAILY_XP_CAPS.total) {
+        addToTerminal('DAILY_XP_CAP_REACHED: Maximum XP for today achieved. Reset at midnight.', 'warn');
+        return;
+      }
+
+      // Per-source caps
+      const isTask = source.includes('TASK') || source.includes('NEURAL_LINK') || source.includes('TEMPORAL');
+      const isHabit = source.includes('HABIT');
+      const isJournal = source.includes('JOURNAL') || source.includes('NEURAL_INGEST') || source.includes('INGEST');
+      const isPomodoro = source.includes('POMODORO') || source.includes('FOCUS');
+
+      if (isTask && taskTodayXP >= DAILY_XP_CAPS.tasks) {
+        addToTerminal('TASK_XP_CAP_REACHED: Task XP limit hit for today.', 'warn');
+        return;
+      }
+      if (isHabit && habitTodayXP >= DAILY_XP_CAPS.habits) {
+        addToTerminal('HABIT_XP_CAP_REACHED: Habit XP limit hit for today.', 'warn');
+        return;
+      }
+      if (isJournal && journalTodayXP >= DAILY_XP_CAPS.journal) {
+        addToTerminal('JOURNAL_XP_CAP_REACHED: Journal XP limit hit for today.', 'warn');
+        return;
+      }
+      if (isPomodoro && pomodoroTodayXP >= DAILY_XP_CAPS.pomodoro) {
+        addToTerminal('POMODORO_XP_CAP_REACHED: Pomodoro XP limit hit for today.', 'warn');
+        return;
+      }
+
+      // Clamp final amount so it doesn't exceed remaining daily cap
+      const remainingCap = DAILY_XP_CAPS.total - totalTodayXP;
+      finalAmount = Math.min(finalAmount, remainingCap);
+      if (finalAmount <= 0) {
+        addToTerminal('DAILY_XP_CAP_REACHED: No remaining XP allocation for today.', 'warn');
+        return;
+      }
+      // --- END DAILY XP CAP CHECK ---
 
       const logMsg = `XP_ACQUIRED: +${finalAmount} FROM ${source}`;
       addToTerminal(logMsg, 'success');
@@ -1982,11 +2064,11 @@ export default function App() {
       let challengeUpdate = stats.dailyChallenge ? { ...stats.dailyChallenge } : null;
       if (challengeUpdate && !challengeUpdate.completed) {
         let progressed = false;
-        const isTask = source === 'NEURAL_LINK_ESTABLISHED' || source === 'TASK_COMPLETE_STREAK_SYNC' || source === 'TEMPORAL_ADHERENCE_BONUS';
+        const isTaskSource = source === 'NEURAL_LINK_ESTABLISHED' || source === 'TASK_COMPLETE_STREAK_SYNC' || source === 'TEMPORAL_ADHERENCE_BONUS';
         const isJournal = source === 'NEURAL_INGEST_COMPLETE';
         const isTimetable = source === 'TIMETABLE_CHECKIN' || source === 'TEMPORAL_ADHERENCE_SYNC';
 
-        if (isTask && challengeUpdate.id.startsWith('tasks')) {
+        if (isTaskSource && challengeUpdate.id.startsWith('tasks')) {
            challengeUpdate.progress += 1;
            progressed = true;
         } else if (isJournal && challengeUpdate.id.startsWith('words') && meta?.wordCount) {
@@ -1998,7 +2080,7 @@ export default function App() {
         } else if (challengeUpdate.id === 'streak_keep') {
            challengeUpdate.progress = 1;
            progressed = true;
-        } else if (challengeUpdate.id === 'perfect_day' && isTask) {
+        } else if (challengeUpdate.id === 'perfect_day' && isTaskSource) {
            const pendingTasks = tasks.filter(t => t.status === 'pending');
            if (pendingTasks.length <= 1) {
              challengeUpdate.progress = 1;
@@ -2053,8 +2135,8 @@ export default function App() {
       }
 
       // CR for every task protocol
-      const isTask = source?.includes('TASK') || source?.includes('NEURAL_LINK_ESTABLISHED') || source?.includes('TEMPORAL');
-      if (isTask) {
+      const isTaskForCoins = source?.includes('TASK') || source?.includes('NEURAL_LINK_ESTABLISHED') || source?.includes('TEMPORAL');
+      if (isTaskForCoins) {
         let coinAmount = meta?.isBoss ? 25 : 5;
         if (stats.unlockedPerks?.includes('coin_miner')) {
           coinAmount = Math.round(coinAmount * 1.15);
@@ -2230,8 +2312,10 @@ export default function App() {
   const endFocus = async () => {
     if (!focusTask) return;
     const duration = (Date.now() - focusStartTime) / (60 * 1000);
-    if (duration >= 1) {
+    if (duration >= 20) {
       await addXP(Math.round(duration * 2), 'FOCUS_SESSION_COMPLETED');
+    } else {
+      addToTerminal('SESSION_INVALID: Minimum 20 minutes required for Focus Session XP.', 'warn');
     }
     setFocusTask(null);
     setFocusStartTime(0);
@@ -2389,7 +2473,15 @@ export default function App() {
   };
 
   const handleCompleteTask = async (task: Task) => {
-    if (task.status === 'completed' || !user || !stats) return;
+    if (!user || !stats) return;
+    if (task.status === 'completed') {
+      addToTerminal('TASK_ALREADY_COMPLETED: XP already awarded for this task.', 'warn');
+      return;
+    }
+    if (task.xpAwarded === true) {
+      addToTerminal('TASK_XP_LOCKED: Cannot re-award XP for completed task.', 'warn');
+      return;
+    }
 
     try {
       playCompletionSound();
@@ -2442,7 +2534,8 @@ export default function App() {
       const taskRef = doc(db, 'tasks', task.id);
       const updateData: any = { 
         status: 'completed',
-        completedAt: now.toISOString()
+        completedAt: now.toISOString(),
+        xpAwarded: true
       };
       if (adherenceStatus) {
         updateData.adherenceStatus = adherenceStatus;
@@ -2591,8 +2684,13 @@ export default function App() {
     const existingLog = habitLogs.find(l => l.habitId === habit.id && l.date === date); // unified sync active
 
     try {
-      if (existingLog) {
-        await deleteDoc(doc(db, 'habit_logs', existingLog.id));
+      if (existingLog && existingLog.completed) {
+        // UNCOMPLETING — mark as not done, but NEVER give XP back or re-award
+        await updateDoc(doc(db, 'habit_logs', existingLog.id), {
+          completed: false,
+          uncompletedAt: new Date().toISOString()
+        });
+
         const todayStr = format(new Date(), 'yyyy-MM-dd');
         const completedTask = tasks.find((t: any) => 
           t.userId === user.uid && 
@@ -2606,12 +2704,46 @@ export default function App() {
             completedAt: null
           });
         }
+        setCompleteToast('HABIT_UNCOMPLETED');
+        setTimeout(() => setCompleteToast(null), 3000);
       } else {
+        if (existingLog) {
+          // Re-completing an uncompleted habit
+          const alreadyEarnedXP = existingLog.xpAwarded === true;
+          if (alreadyEarnedXP) {
+            addToTerminal('HABIT_XP_ALREADY_AWARDED: XP already given for this habit today.', 'warn');
+            await updateDoc(doc(db, 'habit_logs', existingLog.id), {
+              completed: true,
+              uncompletedAt: null
+            });
+
+            // Sync linked task completion today!
+            const todayStr = format(new Date(), 'yyyy-MM-dd');
+            const pendingTask = tasks.find((t: any) => 
+              t.userId === user.uid && 
+              t.createdAt.startsWith(todayStr) && 
+              ((t.title || "").trim().toLowerCase() === habit.name.trim().toLowerCase() || t.habitId === habit.id) &&
+              t.status === 'pending'
+            );
+            if (pendingTask) {
+              await updateDoc(doc(db, 'tasks', pendingTask.id), {
+                status: 'completed',
+                completedAt: new Date().toISOString()
+              });
+            }
+            setCompleteToast('HABIT_RECOMPLETED');
+            setTimeout(() => setCompleteToast(null), 3000);
+            return;
+          }
+        }
+
+        // Normal/first-time completion
         await addDoc(collection(db, 'habit_logs'), {
           userId: user.uid,
           habitId: habit.id,
           date,
           completed: true,
+          xpAwarded: true, // Mark XP as awarded
           timestamp: new Date().toISOString()
         });
 
@@ -3051,6 +3183,7 @@ export default function App() {
                   onDeleteHabit={deleteHabit}
                   subTab={dailyWorkSubTab}
                   setSubTab={setDailyWorkSubTab}
+                  addToTerminal={addToTerminal}
                 />
               )}
               {activeTab === 'reflect' && (
@@ -5649,12 +5782,13 @@ function ManualModal({
   );
 }
 
-function FocusProtocol({ stats, user, onAddXP, setCompleteToast }: { stats: UserStats | null, user: User, onAddXP: any, setCompleteToast: any }) {
+function FocusProtocol({ stats, user, onAddXP, setCompleteToast, addToTerminal }: { stats: UserStats | null, user: User, onAddXP: any, setCompleteToast: any, addToTerminal?: any }) {
   const [timerMode, setTimerMode] = React.useState<'POMODORO' | 'DEEP_WORK'>('POMODORO');
   const [phase, setPhase] = React.useState<'WORK' | 'SHORT_BREAK' | 'LONG_BREAK'>('WORK');
   const [timeLeft, setTimeLeft] = React.useState(25 * 60);
   const [isActive, setIsActive] = React.useState(false);
   const [sessionsCompleted, setSessionsCompleted] = React.useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = React.useState(0);
 
   const getPhaseDuration = (p: typeof phase, m: typeof timerMode) => {
     if (p === 'LONG_BREAK') return 15 * 60;
@@ -5691,17 +5825,29 @@ function FocusProtocol({ stats, user, onAddXP, setCompleteToast }: { stats: User
       const isLastInCycle = sessionsCompleted === 3;
       const newTotalSessions = (stats?.pomodoroSessions || 0) + 1;
       const newTodaySessions = (stats?.pomodoroToday || 0) + 1;
-      
-      await updateDoc(doc(db, 'user_stats', user.uid), {
-        pomodoroSessions: newTotalSessions,
-        pomodoroToday: newTodaySessions
-      });
 
-      onAddXP(25, 'POMODORO_SESSION_COMPLETE');
+      // Minimum 20 minutes (1200 seconds) must have elapsed to count as a real session
+      const MIN_SESSION_SECONDS = 20 * 60; // 20 minutes
+      const isPom = timerMode === 'POMODORO';
+      const requiredSeconds = isPom ? MIN_SESSION_SECONDS : 40 * 60;
+
+      if (elapsedSeconds < requiredSeconds) {
+        addToTerminal?.('SESSION_INVALID: Minimum required active focus time for XP not met.', 'warn');
+      } else {
+        await updateDoc(doc(db, 'user_stats', user.uid), {
+          pomodoroSessions: newTotalSessions,
+          pomodoroToday: newTodaySessions
+        });
+
+        onAddXP(25, 'POMODORO_SESSION_COMPLETE');
+        if (isLastInCycle) {
+          onAddXP(50, 'FOCUS_CYCLE_MASTER_BONUS');
+          setCompleteToast('FOCUS_CYCLE_PROTOCOL_COMPLETE');
+          setTimeout(() => setCompleteToast(null), 3000);
+        }
+      }
+
       if (isLastInCycle) {
-        onAddXP(50, 'FOCUS_CYCLE_MASTER_BONUS');
-        setCompleteToast('FOCUS_CYCLE_PROTOCOL_COMPLETE');
-        setTimeout(() => setCompleteToast(null), 3000);
         setPhase('LONG_BREAK');
         setTimeLeft(15 * 60);
       } else {
@@ -5711,11 +5857,13 @@ function FocusProtocol({ stats, user, onAddXP, setCompleteToast }: { stats: User
       
       setSessionsCompleted(prev => (prev + 1) % 4);
       playPhaseSound(true);
+      setElapsedSeconds(0);
     } else {
       // Break over
       setPhase('WORK');
       setTimeLeft(timerMode === 'POMODORO' ? 25 * 60 : 50 * 60);
       playPhaseSound(false);
+      setElapsedSeconds(0);
     }
     setIsActive(false);
   };
@@ -5725,6 +5873,9 @@ function FocusProtocol({ stats, user, onAddXP, setCompleteToast }: { stats: User
     if (isActive && timeLeft > 0) {
       interval = setInterval(() => {
         setTimeLeft(prev => prev - 1);
+        if (phase === 'WORK') {
+          setElapsedSeconds(prev => prev + 1);
+        }
       }, 1000);
     } else if (timeLeft === 0) {
       handleSessionComplete();
@@ -5737,6 +5888,7 @@ function FocusProtocol({ stats, user, onAddXP, setCompleteToast }: { stats: User
     setPhase('WORK');
     setTimeLeft(getPhaseDuration('WORK', timerMode));
     setSessionsCompleted(0);
+    setElapsedSeconds(0);
   };
 
   const toggleTimer = () => {
@@ -5749,6 +5901,7 @@ function FocusProtocol({ stats, user, onAddXP, setCompleteToast }: { stats: User
     setPhase('WORK');
     setTimeLeft(getPhaseDuration('WORK', m));
     setSessionsCompleted(0);
+    setElapsedSeconds(0);
   };
 
   const formatTime = (seconds: number) => {
@@ -5864,7 +6017,8 @@ function TemporalHub({
   applyTemplate,
   setCompleteToast,
   settings,
-  onUpdateSettings
+  onUpdateSettings,
+  addToTerminal
 }: { 
   tasks: Task[]; 
   timeBlocks: TimeBlock[]; 
@@ -5882,6 +6036,7 @@ function TemporalHub({
   setCompleteToast: (msg: string | null) => void;
   settings: AppSettings | null;
   onUpdateSettings: (s: Partial<AppSettings>) => Promise<void>;
+  addToTerminal?: any;
 }) {
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -6358,7 +6513,7 @@ function TemporalHub({
            </div>
         </div>
 
-        <FocusProtocol stats={stats} user={user} onAddXP={onAddXP} setCompleteToast={setCompleteToast} />
+        <FocusProtocol stats={stats} user={user} onAddXP={onAddXP} setCompleteToast={setCompleteToast} addToTerminal={addToTerminal} />
 
         <div className="relative glass rounded-3xl border border-white/5 overflow-hidden bg-black/20 flex min-h-[600px]">
            <AnimatePresence>
@@ -6989,7 +7144,7 @@ function RoutineMatrixView({
               />
             ) : (
               activeHabits.map((habit, idx) => {
-                const isDoneToday = habitLogs.some(l => l.habitId === habit.id && l.date === todayStr);
+                const isDoneToday = habitLogs.some(l => l.habitId === habit.id && l.date === todayStr && l.completed);
                 const streak = calculateStreak(habit.id);
                 const catInfo = categories.find(c => c.id === habit.category);
                 const generatedKey = `${habit.id || 'habit'}-${idx}`;
@@ -9244,6 +9399,7 @@ function DailyWorkView({
   onDeleteHabit,
   subTab = 'tasks',
   setSubTab,
+  addToTerminal,
 }: any) {
   const activeTab = subTab;
   const setActiveTab = setSubTab || (() => {});
@@ -9640,6 +9796,7 @@ function DailyWorkView({
                    setCompleteToast={setCompleteToast}
                    settings={settings}
                    onUpdateSettings={onUpdateSettings}
+                    addToTerminal={addToTerminal}
                  />
                )}
             </motion.div>
