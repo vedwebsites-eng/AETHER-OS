@@ -17,7 +17,7 @@ import {
   ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download, Briefcase,
   Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
   Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon, Info,
-  RefreshCw, Copy
+  RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -1301,6 +1301,83 @@ export default function App() {
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [motivationItems, setMotivationItems] = useState<MotivationItem[]>([]);
+  const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playMode, setPlayMode] = useState<'single' | 'playlist' | 'shuffle'>('single');
+  const [queue, setQueue] = useState<MotivationItem[]>([]);
+  const [queueIndex, setQueueIndex] = useState(0);
+
+  // Extract YouTube video ID from any YouTube URL
+  const getYoutubeId = (url: string): string | null => {
+    const match = url?.match(
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?]+)/
+    );
+    return match ? match[1] : null;
+  };
+
+  // Get YouTube thumbnail
+  const getYoutubeThumbnail = (url: string): string | null => {
+    const id = getYoutubeId(url);
+    return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : null;
+  };
+
+  // Check if URL is a YouTube link
+  const isYoutube = (url: string) =>
+    url?.includes('youtube.com') || url?.includes('youtu.be');
+
+  // Check if URL is a Spotify link
+  const isSpotify = (url: string) => url?.includes('spotify.com');
+
+  // Build YouTube embed URL with autoplay
+  const getYoutubeEmbedUrl = (url: string): string | null => {
+    const id = getYoutubeId(url);
+    return id
+      ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`
+      : null;
+  };
+
+  // Build Spotify embed URL
+  const getSpotifyEmbedUrl = (url: string): string => {
+    return url
+      .replace('spotify.com/', 'spotify.com/embed/')
+      .replace('/track/', '/track/')
+      .replace('/playlist/', '/playlist/');
+  };
+
+  // Play next in queue
+  const playNext = () => {
+    if (playMode === 'shuffle' && queue.length > 0) {
+      const next = Math.floor(Math.random() * queue.length);
+      setQueueIndex(next);
+      setCurrentlyPlaying(queue[next].id);
+    } else if (queueIndex < queue.length - 1) {
+      setQueueIndex(prev => prev + 1);
+      setCurrentlyPlaying(queue[queueIndex + 1].id);
+    } else if (playMode === 'playlist' && queue.length > 0) {
+      setQueueIndex(0);
+      setCurrentlyPlaying(queue[0].id);
+    }
+  };
+
+  // Play previous in queue
+  const playPrev = () => {
+    if (queueIndex > 0) {
+      setQueueIndex(prev => prev - 1);
+      setCurrentlyPlaying(queue[queueIndex - 1].id);
+    }
+  };
+
+  // Start playlist from a specific item
+  const startPlaylist = (startItem: MotivationItem) => {
+    const linkItems = motivationItems.filter(
+      i => i.type === 'link' || i.type === 'music'
+    );
+    setQueue(linkItems);
+    const startIdx = linkItems.findIndex(i => i.id === startItem.id);
+    setQueueIndex(startIdx >= 0 ? startIdx : 0);
+    setCurrentlyPlaying(startItem.id);
+    setIsPlaying(true);
+  };
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [weeklyReviews, setWeeklyReviews] = useState<WeeklyReview[]>([]);
@@ -3136,6 +3213,18 @@ export default function App() {
                   user={user} 
                   setActiveTab={handleTabChange} 
                   setIsMotivationPortalOpen={setIsMotivationPortalOpen} 
+                  motivationItems={motivationItems}
+                  currentlyPlaying={currentlyPlaying}
+                  isPlaying={isPlaying}
+                  playMode={playMode}
+                  queue={queue}
+                  queueIndex={queueIndex}
+                  setCurrentlyPlaying={setCurrentlyPlaying}
+                  setIsPlaying={setIsPlaying}
+                  setPlayMode={setPlayMode}
+                  setQueue={setQueue}
+                  setQueueIndex={setQueueIndex}
+                  startPlaylist={startPlaylist}
                 />
               )}
               {activeTab === 'dailyWork' && (
@@ -3219,6 +3308,17 @@ export default function App() {
         items={motivationItems}
         onAdd={addMotivationItem}
         onDelete={deleteMotivationItem}
+        currentlyPlaying={currentlyPlaying}
+        isPlaying={isPlaying}
+        playMode={playMode}
+        queue={queue}
+        queueIndex={queueIndex}
+        setCurrentlyPlaying={setCurrentlyPlaying}
+        setIsPlaying={setIsPlaying}
+        setPlayMode={setPlayMode}
+        setQueue={setQueue}
+        setQueueIndex={setQueueIndex}
+        startPlaylist={startPlaylist}
       />
 
       <AnimatePresence>
@@ -4429,17 +4529,91 @@ function MotivationPortal({
   onClose, 
   items, 
   onAdd, 
-  onDelete 
+  onDelete,
+  currentlyPlaying,
+  isPlaying,
+  playMode,
+  queue,
+  queueIndex,
+  setCurrentlyPlaying,
+  setIsPlaying,
+  setPlayMode,
+  setQueue,
+  setQueueIndex,
+  startPlaylist
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
   items: MotivationItem[]; 
   onAdd: (item: Partial<MotivationItem>) => void; 
   onDelete: (id: string) => void;
+  currentlyPlaying: string | null;
+  isPlaying: boolean;
+  playMode: 'single' | 'playlist' | 'shuffle';
+  queue: MotivationItem[];
+  queueIndex: number;
+  setCurrentlyPlaying: (id: string | null) => void;
+  setIsPlaying: (playing: boolean) => void;
+  setPlayMode: (mode: 'single' | 'playlist' | 'shuffle') => void;
+  setQueue: (queue: MotivationItem[]) => void;
+  setQueueIndex: React.Dispatch<React.SetStateAction<number>>;
+  startPlaylist: (startItem: MotivationItem) => void;
 }) {
   const [newType, setNewType] = useState<MotivationItem['type']>('link');
   const [newContent, setNewContent] = useState('');
   const [newTitle, setNewTitle] = useState('');
+
+  const getYoutubeId = (url: string): string | null => {
+    const match = url?.match(
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?]+)/
+    );
+    return match ? match[1] : null;
+  };
+
+  const getYoutubeThumbnail = (url: string): string | null => {
+    const id = getYoutubeId(url);
+    return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : null;
+  };
+
+  const isYoutube = (url: string) =>
+    url?.includes('youtube.com') || url?.includes('youtu.be');
+
+  const isSpotify = (url: string) => url?.includes('spotify.com');
+
+  const getYoutubeEmbedUrl = (url: string): string | null => {
+    const id = getYoutubeId(url);
+    return id
+      ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`
+      : null;
+  };
+
+  const getSpotifyEmbedUrl = (url: string): string => {
+    return url
+      .replace('spotify.com/', 'spotify.com/embed/')
+      .replace('/track/', '/track/')
+      .replace('/playlist/', '/playlist/');
+  };
+
+  const playNext = () => {
+    if (playMode === 'shuffle' && queue.length > 0) {
+      const next = Math.floor(Math.random() * queue.length);
+      setQueueIndex(next);
+      setCurrentlyPlaying(queue[next].id);
+    } else if (queueIndex < queue.length - 1) {
+      setQueueIndex(prev => prev + 1);
+      setCurrentlyPlaying(queue[queueIndex + 1].id);
+    } else if (playMode === 'playlist' && queue.length > 0) {
+      setQueueIndex(0);
+      setCurrentlyPlaying(queue[0].id);
+    }
+  };
+
+  const playPrev = () => {
+    if (queueIndex > 0) {
+      setQueueIndex(prev => prev - 1);
+      setCurrentlyPlaying(queue[queueIndex - 1].id);
+    }
+  };
 
   const handleAdd = () => {
     if (!newContent) return;
@@ -4522,6 +4696,108 @@ function MotivationPortal({
                 </div>
               </div>
 
+              {/* ACTIVE PLAYER */}
+              {currentlyPlaying && (() => {
+                const item = items.find(i => i.id === currentlyPlaying);
+                if (!item) return null;
+                const embedUrl = isYoutube(item.content)
+                  ? getYoutubeEmbedUrl(item.content)
+                  : isSpotify(item.content)
+                  ? getSpotifyEmbedUrl(item.content)
+                  : null;
+
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-black/40 border border-white/10 rounded-2xl overflow-hidden mb-6"
+                  >
+                    {/* YouTube/Spotify embed */}
+                    {embedUrl && (
+                      <div className="relative w-full" style={{ paddingBottom: isYoutube(item.content) ? '56.25%' : '80px' }}>
+                        <iframe
+                          src={embedUrl}
+                          className="absolute inset-0 w-full h-full"
+                          allow="autoplay; encrypted-media; picture-in-picture"
+                          allowFullScreen
+                          frameBorder="0"
+                        />
+                      </div>
+                    )}
+
+                    {/* Player controls */}
+                    <div className="p-4 flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">NOW_PLAYING</p>
+                        <p className="text-sm font-mono text-white truncate">{item.title || 'Untitled'}</p>
+                      </div>
+
+                      <div className="flex items-center gap-3 ml-4">
+                        {/* Prev */}
+                        <button
+                          onClick={playPrev}
+                          disabled={queueIndex === 0}
+                          className="p-2 rounded-full hover:bg-white/10 transition-all disabled:opacity-20 cursor-pointer"
+                        >
+                          <SkipBack size={14} className="text-white" />
+                        </button>
+
+                        {/* Play/Pause toggle */}
+                        <button
+                          onClick={() => setIsPlaying(!isPlaying)}
+                          className="w-9 h-9 rounded-full bg-[#C8651B] flex items-center justify-center hover:bg-[#b55a17] transition-all cursor-pointer"
+                        >
+                          {isPlaying
+                            ? <Pause size={14} className="text-white" />
+                            : <Play size={14} className="text-white ml-0.5" />
+                          }
+                        </button>
+
+                        {/* Next */}
+                        <button
+                          onClick={playNext}
+                          disabled={queueIndex >= queue.length - 1 && playMode === 'single'}
+                          className="p-2 rounded-full hover:bg-white/10 transition-all disabled:opacity-20 cursor-pointer"
+                        >
+                          <SkipForward size={14} className="text-white" />
+                        </button>
+
+                        {/* Close player */}
+                        <button
+                          onClick={() => { setCurrentlyPlaying(null); setIsPlaying(false); }}
+                          className="p-2 rounded-full hover:bg-white/10 transition-all ml-2 cursor-pointer"
+                        >
+                          <X size={14} className="text-white/40" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Playlist mode toggle */}
+                    <div className="px-4 pb-3 flex items-center gap-2">
+                      {(['single', 'playlist', 'shuffle'] as const).map(mode => (
+                        <button
+                          key={mode}
+                          onClick={() => setPlayMode(mode)}
+                          className={cn(
+                            "text-[8px] font-mono uppercase tracking-widest px-3 py-1 rounded-full border transition-all cursor-pointer",
+                            playMode === mode
+                              ? "border-[#C8651B] text-[#C8651B] bg-[#C8651B]/10"
+                              : "border-white/10 text-white/20 hover:text-white/50"
+                          )}
+                        >
+                          {mode === 'single' ? '⟳ SINGLE' : mode === 'playlist' ? '⏭ PLAYLIST' : '⤮ SHUFFLE'}
+                        </button>
+                      ))}
+                      {queue.length > 0 && (
+                        <span className="text-[8px] font-mono text-white/20 ml-auto">
+                          {queueIndex + 1} / {queue.length}
+                        </span>
+                      )}
+                    </div>
+                  </motion.div>
+                );
+              })()}
+
               {/* Active stimuli */}
               <div className="space-y-4">
                  <div className="flex items-center justify-between">
@@ -4540,42 +4816,90 @@ function MotivationPortal({
                        }}
                      />
                    )}
-                   {items.map((item, idx) => (
-                     <div key={`${item.id || 'item'}-${idx}`} className="glass p-5 rounded-3xl border border-white/5 flex items-center justify-between group hover:border-white/20 transition-all">
-                       <div className="flex items-center gap-5 truncate">
-                          <div className={cn(
-                            "p-4 rounded-2xl border transition-all",
-                            item.type === 'music' ? "bg-success/10 border-success/20 text-success" : 
-                            item.type === 'quote' ? "bg-warning/10 border-warning/20 text-warning" : 
-                            "bg-cyan/10 border-cyan/20 text-cyan"
-                          )}>
-                             {item.type === 'music' ? <Music size={20} /> : 
-                              item.type === 'quote' ? <Quote size={20} /> : 
-                              item.content.includes('youtube.com') || item.content.includes('youtu.be') ? <Youtube size={20} /> :
-                              item.content.includes('instagram.com') ? <Instagram size={20} /> :
-                              <LinkIcon size={20} />}
-                          </div>
-                          <div className="truncate space-y-1">
-                             <h4 className="text-sm font-serif font-black text-white italic uppercase truncate">{item.title || item.type.toUpperCase() + '_MODULE'}</h4>
-                             <div className="flex items-center gap-2">
-                               {item.type === 'link' ? (
-                                 <a href={item.content.startsWith('http') ? item.content : `https://${item.content}`} target="_blank" rel="noopener noreferrer" className="text-[10px] font-mono text-cyan/70 hover:text-cyan hover:underline truncate flex items-center gap-1">
-                                    {item.content.replace(/^https?:\/\//, '')} <ChevronRight size={10} />
-                                 </a>
-                               ) : (
-                                 <p className="text-[10px] font-mono text-text-m italic truncate">"{item.content}"</p>
-                               )}
-                             </div>
-                          </div>
-                       </div>
-                       <button 
-                         onClick={() => onDelete(item.id)}
-                         className="p-3 text-text-s hover:text-danger opacity-0 group-hover:opacity-100 transition-all bg-white/5 rounded-xl"
+                   {items.map((item) => {
+                     const isActive = currentlyPlaying === item.id;
+                     const thumbnail = getYoutubeThumbnail(item.content);
+                     const isPlayable = isYoutube(item.content) || isSpotify(item.content);
+
+                     return (
+                       <div
+                         key={item.id}
+                         className={cn(
+                           "glass p-4 rounded-2xl border transition-all flex items-center gap-4",
+                           isActive
+                             ? "border-[#C8651B]/50 bg-[#C8651B]/5"
+                             : "border-white/5 hover:border-white/20"
+                         )}
                        >
-                         <Trash2 size={16} />
-                       </button>
-                     </div>
-                   ))}
+                         {/* Thumbnail or icon */}
+                         <div className="w-12 h-12 rounded-xl overflow-hidden flex-shrink-0 relative">
+                           {thumbnail ? (
+                             <img src={thumbnail} className="w-full h-full object-cover" />
+                           ) : (
+                             <div className="w-full h-full bg-white/5 flex items-center justify-center">
+                               {item.type === 'music' ? <Music size={16} className="text-[#C8651B]" /> :
+                                item.type === 'quote' ? <Sparkles size={16} className="text-[#C9A84C]" /> :
+                                item.type === 'text' ? <FileText size={16} className="text-[#2E6B9E]" /> :
+                                <LinkIcon size={16} className="text-white/40" />}
+                             </div>
+                           )}
+                           {isActive && (
+                             <div className="absolute inset-0 bg-[#C8651B]/20 flex items-center justify-center">
+                               <div className="flex gap-0.5">
+                                 {[0,1,2].map(i => (
+                                   <motion.div
+                                     key={i}
+                                     animate={{ height: ['4px', '12px', '4px'] }}
+                                     transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.2 }}
+                                     className="w-1 bg-[#C8651B] rounded-full"
+                                   />
+                                 ))}
+                               </div>
+                             </div>
+                           )}
+                         </div>
+
+                         {/* Info */}
+                         <div className="flex-1 min-w-0">
+                           <p className="text-xs font-mono text-white truncate">{item.title || item.content}</p>
+                           <p className="text-[9px] font-mono text-white/30 uppercase mt-0.5">
+                             {item.type} {isYoutube(item.content) ? '· YOUTUBE' : isSpotify(item.content) ? '· SPOTIFY' : ''}
+                           </p>
+                         </div>
+
+                         {/* Actions */}
+                         <div className="flex items-center gap-2">
+                           {isPlayable && (
+                             <button
+                               onClick={() => startPlaylist(item)}
+                               className={cn(
+                                 "w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer",
+                                 isActive
+                                   ? "bg-[#C8651B] text-white"
+                                   : "bg-white/5 text-white/50 hover:bg-[#C8651B]/20 hover:text-[#C8651B]"
+                               )}
+                             >
+                               {isActive ? <Pause size={12} /> : <Play size={12} className="ml-0.5" />}
+                             </button>
+                           )}
+                           {!isPlayable && item.content.startsWith('http') && (
+                             <button
+                               onClick={() => window.open(item.content, '_blank')}
+                               className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-all cursor-pointer"
+                             >
+                               <ExternalLink size={12} className="text-white/50" />
+                             </button>
+                           )}
+                           <button
+                             onClick={() => onDelete(item.id)}
+                             className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-red-500/20 hover:text-red-400 transition-all cursor-pointer"
+                           >
+                             <Trash2 size={12} className="text-white/30" />
+                           </button>
+                         </div>
+                       </div>
+                     );
+                   })}
                    {items.length === 0 && (
                      <div className="text-center py-16 border-2 border-dashed border-white/5 rounded-[2.5rem]">
                         <Activity size={32} className="text-text-s mx-auto mb-4 opacity-20" />
@@ -4661,7 +4985,19 @@ function Dashboard({
   onComplete, 
   user, 
   setActiveTab,
-  setIsMotivationPortalOpen 
+  setIsMotivationPortalOpen,
+  motivationItems = [],
+  currentlyPlaying,
+  isPlaying,
+  playMode,
+  queue,
+  queueIndex,
+  setCurrentlyPlaying,
+  setIsPlaying,
+  setPlayMode,
+  setQueue,
+  setQueueIndex,
+  startPlaylist
 }: { 
   stats: UserStats | null; 
   tasks: Task[]; 
@@ -4670,7 +5006,81 @@ function Dashboard({
   user: User; 
   setActiveTab: any;
   setIsMotivationPortalOpen: (open: boolean) => void;
+  motivationItems?: MotivationItem[];
+  currentlyPlaying: string | null;
+  isPlaying: boolean;
+  playMode: 'single' | 'playlist' | 'shuffle';
+  queue: MotivationItem[];
+  queueIndex: number;
+  setCurrentlyPlaying: (id: string | null) => void;
+  setIsPlaying: (playing: boolean) => void;
+  setPlayMode: (mode: 'single' | 'playlist' | 'shuffle') => void;
+  setQueue: (queue: MotivationItem[]) => void;
+  setQueueIndex: React.Dispatch<React.SetStateAction<number>>;
+  startPlaylist: (startItem: MotivationItem) => void;
 }) {
+  const getYoutubeId = (url: string): string | null => {
+    const match = url?.match(
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?]+)/
+    );
+    return match ? match[1] : null;
+  };
+
+  const getYoutubeThumbnail = (url: string): string | null => {
+    const id = getYoutubeId(url);
+    return id ? `https://img.youtube.com/vi/${id}/mqdefault.jpg` : null;
+  };
+
+  const isYoutube = (url: string) =>
+    url?.includes('youtube.com') || url?.includes('youtu.be');
+
+  const isSpotify = (url: string) => url?.includes('spotify.com');
+
+  const getYoutubeEmbedUrl = (url: string): string | null => {
+    const id = getYoutubeId(url);
+    return id
+      ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`
+      : null;
+  };
+
+  const getSpotifyEmbedUrl = (url: string): string => {
+    return url
+      .replace('spotify.com/', 'spotify.com/embed/')
+      .replace('/track/', '/track/')
+      .replace('/playlist/', '/playlist/');
+  };
+
+  const playNext = () => {
+    if (playMode === 'shuffle' && queue.length > 0) {
+      const next = Math.floor(Math.random() * queue.length);
+      setQueueIndex(next);
+      setCurrentlyPlaying(queue[next].id);
+    } else if (queueIndex < queue.length - 1) {
+      setQueueIndex(prev => prev + 1);
+      setCurrentlyPlaying(queue[queueIndex + 1].id);
+    } else if (playMode === 'playlist' && queue.length > 0) {
+      setQueueIndex(0);
+      setCurrentlyPlaying(queue[0].id);
+    }
+  };
+
+  const playPrev = () => {
+    if (queueIndex > 0) {
+      setQueueIndex(prev => prev - 1);
+      setCurrentlyPlaying(queue[queueIndex - 1].id);
+    }
+  };
+
+  const getItemType = (item: MotivationItem) => {
+    if (item.type === 'quote') return 'quote';
+    if (item.type === 'text') return 'text';
+    const url = item.content?.toLowerCase() || '';
+    if (url.includes('youtube.com') || url.includes('youtu.be')) return 'youtube';
+    if (url.includes('spotify.com') || url.includes('soundcloud.com')) return 'audio';
+    if (url.startsWith('http')) return 'link';
+    return 'text';
+  };
+
   const isStreakAtRisk = (stats?.currentStreak || 0) > 0 && stats?.lastActiveDate?.split('T')[0] !== new Date().toISOString().split('T')[0];
 
   return (
@@ -4699,16 +5109,256 @@ function Dashboard({
              <QuickStatsGrid stats={stats} journals={journals} />
           </section>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <DailyChallengeWidget stats={stats} />
-            <section className="space-y-4">
-              <h3 className="text-xs font-mono font-black uppercase tracking-[0.3em] text-text-m flex items-center gap-2">
-                <Activity size={14} className="text-accent" />
-                NEURAL_HISTORY
-              </h3>
-              <RecentActivityFeed log={stats?.activityLog} />
-            </section>
-          </div>
+          <DailyChallengeWidget stats={stats} />
+
+          {/* NEURAL FEED */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-[10px] font-mono font-black text-white/80 uppercase tracking-widest">NEURAL_FEED</p>
+                <p className="text-[8px] font-mono text-white/20 uppercase">
+                  MOTIVATION_SYNC_ACTIVE — {motivationItems.length} ITEMS LOADED
+                </p>
+              </div>
+              <button
+                onClick={() => setIsMotivationPortalOpen(true)}
+                className="text-[9px] font-mono text-white/30 hover:text-[#C8651B] uppercase tracking-widest transition-colors cursor-pointer"
+              >
+                OPEN_VAULT →
+              </button>
+            </div>
+
+            {/* ACTIVE PLAYER IN DASHBOARD */}
+            {currentlyPlaying && (() => {
+              const item = motivationItems.find(i => i.id === currentlyPlaying);
+              if (!item) return null;
+              const embedUrl = isYoutube(item.content)
+                ? getYoutubeEmbedUrl(item.content)
+                : isSpotify(item.content)
+                ? getSpotifyEmbedUrl(item.content)
+                : null;
+
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-black/40 border border-white/10 rounded-2xl overflow-hidden mb-6"
+                >
+                  {/* YouTube/Spotify embed */}
+                  {embedUrl && (
+                    <div className="relative w-full" style={{ paddingBottom: isYoutube(item.content) ? '56.25%' : '80px' }}>
+                      <iframe
+                        src={embedUrl}
+                        className="absolute inset-0 w-full h-full"
+                        allow="autoplay; encrypted-media; picture-in-picture"
+                        allowFullScreen
+                        frameBorder="0"
+                      />
+                    </div>
+                  )}
+
+                  {/* Player controls */}
+                  <div className="p-4 flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">NOW_PLAYING</p>
+                      <p className="text-sm font-mono text-white truncate">{item.title || 'Untitled'}</p>
+                    </div>
+
+                    <div className="flex items-center gap-3 ml-4 text-white">
+                      {/* Prev */}
+                      <button
+                        onClick={playPrev}
+                        disabled={queueIndex === 0}
+                        className="p-2 rounded-full hover:bg-white/10 transition-all disabled:opacity-20 cursor-pointer"
+                      >
+                        <SkipBack size={14} />
+                      </button>
+
+                      {/* Play/Pause toggle */}
+                      <button
+                        onClick={() => setIsPlaying(!isPlaying)}
+                        className="w-9 h-9 rounded-full bg-[#C8651B] flex items-center justify-center hover:bg-[#b55a17] transition-all cursor-pointer"
+                      >
+                        {isPlaying
+                          ? <Pause size={14} className="text-white" />
+                          : <Play size={14} className="text-white ml-0.5" />
+                        }
+                      </button>
+
+                      {/* Next */}
+                      <button
+                        onClick={playNext}
+                        disabled={queueIndex >= queue.length - 1 && playMode === 'single'}
+                        className="p-2 rounded-full hover:bg-white/10 transition-all disabled:opacity-20 cursor-pointer"
+                      >
+                        <SkipForward size={14} />
+                      </button>
+
+                      {/* Close player */}
+                      <button
+                        onClick={() => { setCurrentlyPlaying(null); setIsPlaying(false); }}
+                        className="p-2 rounded-full hover:bg-white/10 transition-all ml-2 cursor-pointer text-white/40"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Playlist mode toggle */}
+                  <div className="px-4 pb-3 flex items-center gap-2">
+                    {(['single', 'playlist', 'shuffle'] as const).map(mode => (
+                      <button
+                        key={mode}
+                        onClick={() => setPlayMode(mode)}
+                        className={cn(
+                          "text-[8px] font-mono uppercase tracking-widest px-3 py-1 rounded-full border transition-all cursor-pointer",
+                          playMode === mode
+                            ? "border-[#C8651B] text-[#C8651B] bg-[#C8651B]/10"
+                            : "border-white/10 text-white/20 hover:text-white/50"
+                        )}
+                      >
+                        {mode === 'single' ? '⟳ SINGLE' : mode === 'playlist' ? '⏭ PLAYLIST' : '⤮ SHUFFLE'}
+                      </button>
+                    ))}
+                    {queue.length > 0 && (
+                      <span className="text-[8px] font-mono text-white/20 ml-auto">
+                        {queueIndex + 1} / {queue.length}
+                      </span>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })()}
+
+            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+              {motivationItems.length === 0 ? (
+                <div className="w-full flex items-center justify-center py-6 border border-dashed border-white/5 bg-white/1 rounded-xl">
+                  <p className="text-[9px] font-mono text-white/20 uppercase tracking-widest">
+                    NEURAL_FEED_EMPTY — Add items via OPEN_VAULT
+                  </p>
+                </div>
+              ) : (
+                motivationItems.map((item) => {
+                  const type = getItemType(item);
+                  if (type === 'youtube') {
+                    const isActive = currentlyPlaying === item.id;
+                    const thumbnail = getYoutubeThumbnail(item.content);
+                    return (
+                      <div 
+                        key={item.id}
+                        className={cn(
+                          "flex-shrink-0 w-48 h-28 rounded-xl border overflow-hidden cursor-pointer relative group transition-all",
+                          isActive ? "border-[#C8651B]/50 bg-[#C8651B]/5" : "border-white/10 hover:border-[#C8651B]/30"
+                        )}
+                        onClick={() => {
+                          startPlaylist(item);
+                        }}
+                      >
+                        {thumbnail ? (
+                          <img src={thumbnail} className={cn("w-full h-full object-cover transition-opacity", isActive ? "opacity-30" : "opacity-60 group-hover:opacity-80")} />
+                        ) : (
+                          <div className="w-full h-full bg-white/5" />
+                        )}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          {isActive ? (
+                            <div className="flex gap-0.5">
+                              {[0,1,2].map(i => (
+                                <motion.div
+                                  key={i}
+                                  animate={{ height: ['4px', '16px', '4px'] }}
+                                  transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.2 }}
+                                  className="w-1 bg-[#C8651B] rounded-full"
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center group-hover:scale-110 transition-transform">
+                              <Play size={12} className="text-white ml-0.5" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80">
+                          <p className="text-[9px] font-mono text-white/70 truncate">{item.title || 'VIDEO_LINK'}</p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (type === 'audio' || type === 'link') {
+                    const isActive = currentlyPlaying === item.id;
+                    const isPlayable = isYoutube(item.content) || isSpotify(item.content);
+                    return (
+                      <div 
+                        key={item.id}
+                        className={cn(
+                          "flex-shrink-0 w-48 h-28 rounded-xl border bg-white/5 p-3 flex flex-col justify-between cursor-pointer transition-all",
+                          isActive ? "border-[#C8651B]/50 bg-[#C8651B]/5" : "border-white/10 hover:border-[#C8651B]/50 hover:bg-white/8"
+                        )}
+                        onClick={() => {
+                          if (isPlayable) {
+                            startPlaylist(item);
+                          } else if (item.content.startsWith('http')) {
+                            window.open(item.content, '_blank');
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="w-8 h-8 rounded-lg bg-[#C8651B]/20 flex items-center justify-center">
+                            <Music size={14} className="text-[#C8651B]" />
+                          </div>
+                          {isActive && (
+                            <div className="flex gap-0.5">
+                              {[0,1,2].map(i => (
+                                <motion.div
+                                  key={i}
+                                  animate={{ height: ['4px', '12px', '4px'] }}
+                                  transition={{ repeat: Infinity, duration: 0.8, delay: i * 0.2 }}
+                                  className="w-0.5 bg-[#C8651B] rounded-full"
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">{type === 'audio' ? 'AUDIO_LINK' : 'EXTERNAL_LINK'}</p>
+                          <p className="text-xs font-mono text-white/70 truncate">{item.title || item.content}</p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  if (type === 'quote') {
+                    return (
+                      <div 
+                        key={item.id}
+                        className="flex-shrink-0 w-48 h-28 rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col justify-between"
+                      >
+                        <Quote size={12} className="text-[#C9A84C] opacity-50" />
+                        <p className="text-[10px] font-serif italic text-white/60 line-clamp-3 leading-snug">{item.content}</p>
+                        <p className="text-[8px] font-mono text-white/20 uppercase tracking-widest">QUOTE</p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div 
+                      key={item.id}
+                      className="flex-shrink-0 w-48 h-28 rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col justify-between"
+                    >
+                      <FileText size={12} className="text-[#2E6B9E] opacity-50" />
+                      <p className="text-[10px] font-mono text-white/60 line-clamp-3 leading-snug">{item.content}</p>
+                      <p className="text-[8px] font-mono text-white/20 uppercase tracking-widest">NOTE</p>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-xs font-mono font-black uppercase tracking-[0.3em] text-text-m flex items-center gap-2">
+              <Activity size={14} className="text-accent" />
+              NEURAL_HISTORY
+            </h3>
+            <RecentActivityFeed log={stats?.activityLog} />
+          </section>
         </div>
 
         {/* Right Col: Operations */}
