@@ -193,7 +193,6 @@ interface UserStats {
   userId: string;
   level: number;
   experience: number;
-  coins: number;
   unlockedFeatures: string[];
   totalTasksCompleted: number;
   currentStreak: number;
@@ -201,7 +200,6 @@ interface UserStats {
   difficultyLevel: 'easy' | 'normal' | 'hard';
   unlockedAchievements: string[];
   unlockedItems: string[];
-  unlockedPerks: string[]; // IDEA 1
   activityLog?: ActivityEntry[];
   totalWordsWritten?: number;
   dailyWordsWritten?: { count: number; date: string };
@@ -461,7 +459,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
         'lifeSync.lastSaved': today,
         'lifeSync.syncMode': syncMode
       });
-      onAddXP(75, 'LIFE_SYNC_LOG');
+      onAddXP(38, 'LIFE_SYNC_LOG');
       confetti({
         particleCount: 100,
         spread: 70,
@@ -1036,23 +1034,6 @@ interface Task {
   xpAwarded?: boolean;
 }
 
-interface Perk {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  cost: number;
-  type: 'xp' | 'coins' | 'utility';
-  value: number;
-}
-
-const PERKS: Perk[] = [
-  { id: 'neural_efficiency', name: 'NEURAL_EFFICIENCY', description: 'Gain +10% XP from all completed synchronization protocols.', icon: <Zap size={18} />, cost: 500, type: 'xp', value: 0.1 },
-  { id: 'coin_miner', name: 'DATA_MINER', description: 'Increase Credit yield from tasks by 15%.', icon: <Cpu size={18} />, cost: 750, type: 'coins', value: 0.15 },
-  { id: 'focus_shield', name: 'FOCUS_SHIELD', description: 'Reduces the XP penalty for late task completion by 50%.', icon: <Shield size={18} />, cost: 1000, type: 'utility', value: 0.5 },
-  { id: 'adrenaline_rush', name: 'ADRENALINE_RUSH', description: 'Increases speed-run bonuses by 50%.', icon: <Zap size={18} />, cost: 1200, type: 'xp', value: 0.5 },
-  { id: 'deep_archive', name: 'DEEP_ARCHIVE', description: 'Each journal entry rewards 25% more XP.', icon: <Book size={18} />, cost: 800, type: 'xp', value: 0.25 },
-];
 
 interface CognitiveSignature {
   emotionalState: string;
@@ -1095,7 +1076,7 @@ const MOOD_TAGS = ['stressed', 'anxious', 'energetic', 'calm', 'productive', 'cr
 
 // --- Constants ---
 const XP_MAP = {
-  PRIORITY: { low: 50, medium: 100, high: 150, critical: 200 },
+  PRIORITY: { low: 25, medium: 50, high: 75, critical: 100 },
   CATEGORY: { 
     health: 1.2, 
     learning: 1.1, 
@@ -1113,21 +1094,21 @@ const XP_MAP = {
   },
   CHALLENGING_BONUS: 1.5,
   SPEED_RUN_BONUS: 1.2,
-  JOURNAL_BASE: 50,
+  JOURNAL_BASE: 25,
   JOURNAL_WORD_RATE: 50,
-  JOURNAL_MOOD_BONUS: 10,
-  JOURNAL_CONSISTENCY_BONUS: 5,
-  JOURNAL_PROMPT_BONUS: 25,
+  JOURNAL_MOOD_BONUS: 5,
+  JOURNAL_CONSISTENCY_BONUS: 3,
+  JOURNAL_PROMPT_BONUS: 13,
   JOURNAL_LONG_FORM_MULT: 1.5,
-  STREAK_BONUS_PER_DAY: 10,
-  TIMETABLE_CHECKIN: 5,
-  SCHEDULE_TASK: 5,
-  TIMETABLE_ON_TIME: 10,
-  ADHERENCE_80: 75,
-  ADHERENCE_100: 150,
+  STREAK_BONUS_PER_DAY: 5,
+  TIMETABLE_CHECKIN: 3,
+  SCHEDULE_TASK: 3,
+  TIMETABLE_ON_TIME: 5,
+  ADHERENCE_80: 38,
+  ADHERENCE_100: 75,
   SPEED_BONUS_MULT: 1.25,
-  POMODORO_SESSION_COMPLETE: 25,
-  FOCUS_CYCLE_MASTER_BONUS: 50
+  POMODORO_SESSION_COMPLETE: 13,
+  FOCUS_CYCLE_MASTER_BONUS: 25
 };
 
 const calculateTaskXP = (task: Task, currentStreak: number = 0) => {
@@ -1152,12 +1133,12 @@ const MULTIPLIERS = {
 
 // Daily XP Caps (prevents grinding abuse)
 const DAILY_XP_CAPS = {
-  total: 2000,        // Max XP per day total
-  tasks: 800,         // Max XP from tasks per day
-  habits: 300,        // Max XP from habits per day
-  journal: 250,       // Max XP from journal per day
-  pomodoro: 200,      // Max XP from pomodoro per day
-  bonus: 450,         // Max XP from streaks/challenges/achievements per day
+  total: 50,        // Changed from 2000 → 50
+  tasks: 20,        // Changed from 800 → 20
+  habits: 10,       // Changed from 300 → 10
+  journal: 10,      // Changed from 250 → 10
+  pomodoro: 5,      // Changed from 200 → 5
+  bonus: 5,         // Changed from 450 → 5
 };
 
 const NEURAL_GRADIENT = "bg-gradient-to-br from-background via-background-nested to-card";
@@ -1226,7 +1207,6 @@ const initializeNewUser = async (user: User) => {
       userId: user.uid,
       level: 1,
       experience: 0,
-      coins: 0,
       unlockedFeatures: [],
       totalTasksCompleted: 0,
       currentStreak: 0,
@@ -1234,7 +1214,6 @@ const initializeNewUser = async (user: User) => {
       difficultyLevel: 'normal',
       unlockedAchievements: [],
       unlockedItems: [],
-      unlockedPerks: [],
       totalWordsWritten: 0,
       streakHistory: [],
       journalStreak: 0,
@@ -1447,7 +1426,7 @@ export default function App() {
       await updateDoc(statsRef, {
         lastActiveDate: new Date().toISOString(),
       });
-      await addXP(50, 'REACTIVATE_PROTOCOL');
+      await addXP(25, 'REACTIVATE_PROTOCOL');
       setCompleteToast('SYSTEM_REACTIVATED_PROTOCOL_READY');
       setIsMotivationPortalOpen(true);
     } catch (e) {
@@ -1481,7 +1460,7 @@ export default function App() {
         'lifeSync.current': wheelTarget,
         'lifeSync.lastSaved': new Date().toISOString().split('T')[0]
       });
-      await addXP(50, 'NEURAL_ONBOARDING_SEQUENCE_SUCCESS');
+      await addXP(25, 'NEURAL_ONBOARDING_SEQUENCE_SUCCESS');
 
       const settingsRef = doc(db, 'user_settings', user.uid);
       await updateDoc(settingsRef, {
@@ -1513,7 +1492,7 @@ export default function App() {
       };
 
       await setDoc(newReviewRef, reviewData);
-      await addXP(100, 'DEBRIEF_PROTOCOL_COMPLETED');
+      await addXP(50, 'DEBRIEF_PROTOCOL_COMPLETED');
       setCompleteToast('DEBRIEF_SAVED_TRAJECTORY_ALIGNMENT_AWARD_XP');
     } catch (e) {
       console.error(e);
@@ -1602,7 +1581,7 @@ export default function App() {
         userId: user.uid,
         createdAt: new Date().toISOString()
       });
-      addXP(10, 'NEURAL_BOOST_CONFIG');
+      addXP(5, 'NEURAL_BOOST_CONFIG');
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'motivation_items');
     }
@@ -1999,27 +1978,25 @@ export default function App() {
     }
   };
 
-  const handlePurchase = async (cost: number, item: any) => {
-    if (!user || !stats || stats.coins < cost) {
-      setCompleteToast('INSUFFICIENT_CREDITS');
-      setTimeout(() => setCompleteToast(null), 3000);
-      return;
-    }
+  const handleUnlockItem = async (item: any) => {
+    if (!user || !stats) return;
+    const isUnlocked = (stats?.level || 1) >= item.unlockLevel;
+    if (!isUnlocked) return;
 
     try {
-      const newCoins = stats.coins - cost;
-      const unlockedItems = stats.unlockedItems || [];
-      unlockedItems.push(item.id);
+      const unlockedItems = [...(stats.unlockedItems || [])];
+      if (!unlockedItems.includes(item.id)) {
+        unlockedItems.push(item.id);
+      }
       
       const updates = { 
-        coins: newCoins,
         unlockedItems: unlockedItems
       };
       
       await updateDoc(doc(db, 'user_stats', user.uid), updates);
       setStats({ ...stats, ...updates });
       
-      setCompleteToast(`ITEM_DECRYPTED: ${item.label}`);
+      setCompleteToast(`ITEM_DECRYPTED: ${item.label || item.name}`);
       setTimeout(() => setCompleteToast(null), 3000);
       playLevelUpSound(); // Nice sound for purchase
     } catch (e) {
@@ -2033,17 +2010,6 @@ export default function App() {
     try {
       const multiplier = settings?.difficultyMultiplier ?? MULTIPLIERS[stats.difficultyLevel || 'normal'] ?? 1.0;
       let finalAmount = Math.round(amount * multiplier);
-
-      // Apply Neural Efficiency perk (+10% XP)
-      if (stats.unlockedPerks?.includes('neural_efficiency')) {
-        finalAmount = Math.round(finalAmount * 1.1);
-      }
-
-      // Apply Deep Archive perk (+25% XP for journals)
-      const isDeepArchiveJournal = source === 'NEURAL_INGEST_COMPLETE';
-      if (isDeepArchiveJournal && stats.unlockedPerks?.includes('deep_archive')) {
-        finalAmount = Math.round(finalAmount * 1.25);
-      }
 
       // --- DAILY XP CAP CHECK ---
       const today = new Date().toISOString().split('T')[0];
@@ -2172,33 +2138,16 @@ export default function App() {
       const { level: newLevel } = getLevelFromXP(newExp);
       const leveledUp = newLevel > stats.level;
 
-      let bonusCoins = 0;
       let newUnlockedFeatures = [...(stats.unlockedFeatures || [])];
 
       if (leveledUp) {
         // Calculate Rewards
         for (let l = stats.level + 1; l <= newLevel; l++) {
-          bonusCoins += 10; // CR reward per level
-          if (l % 100 === 0) bonusCoins += 5000;
-          else if (l % 25 === 0) bonusCoins += 2000;
-          else if (l % 10 === 0) bonusCoins += 1000;
-          else if (l % 5 === 0) bonusCoins += 500;
-
           const unlock = UNLOCKS.find(u => u.level === l);
           if (unlock) {
             newUnlockedFeatures.push(unlock.id);
           }
         }
-      }
-
-      // CR for every task protocol
-      const isTaskForCoins = source?.includes('TASK') || source?.includes('NEURAL_LINK_ESTABLISHED') || source?.includes('TEMPORAL');
-      if (isTaskForCoins) {
-        let coinAmount = meta?.isBoss ? 25 : 5;
-        if (stats.unlockedPerks?.includes('coin_miner')) {
-          coinAmount = Math.round(coinAmount * 1.15);
-        }
-        bonusCoins += coinAmount;
       }
 
       // Activity logging
@@ -2217,7 +2166,6 @@ export default function App() {
       const updateData: any = {
         experience: newExp,
         level: newLevel,
-        coins: (stats.coins || 0) + bonusCoins,
         unlockedFeatures: newUnlockedFeatures,
         activityLog: updatedLog,
         lastActiveDate: new Date().toISOString()
@@ -2370,7 +2318,7 @@ export default function App() {
     if (!focusTask) return;
     const duration = (Date.now() - focusStartTime) / (60 * 1000);
     if (duration >= 20) {
-      await addXP(Math.round(duration * 2), 'FOCUS_SESSION_COMPLETED');
+      await addXP(Math.round(duration), 'FOCUS_SESSION_COMPLETED');
     } else {
       addToTerminal('SESSION_INVALID: Minimum 20 minutes required for Focus Session XP.', 'warn');
     }
@@ -2419,31 +2367,6 @@ export default function App() {
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `${source === 'task' ? 'tasks' : 'time_blocks'}/${id}`);
-    }
-  };
-
-  const handlePurchasePerk = async (perkId: string) => {
-    if (!user || !stats) return;
-    const perk = PERKS.find(perk => perk.id === perkId);
-    if (!perk) return;
-
-    if ((stats.coins || 0) < perk.cost) return;
-    if (stats.unlockedPerks?.includes(perkId)) return;
-
-    try {
-      const statsRef = doc(db, 'user_stats', user.uid);
-      await updateDoc(statsRef, {
-        coins: (stats.coins || 0) - perk.cost,
-        unlockedPerks: [...(stats.unlockedPerks || []), perkId]
-      });
-      confetti({
-        particleCount: 150,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#00D9FF', '#22C55E', '#FFFFFF']
-      });
-    } catch (e) {
-      handleFirestoreError(e, OperationType.UPDATE, `user_stats/${user.uid}`);
     }
   };
 
@@ -2523,7 +2446,7 @@ export default function App() {
       });
 
       await batch.commit();
-      await addXP(100, 'TEMPLATE_SYNC_COMPLETE');
+      await addXP(50, 'TEMPLATE_SYNC_COMPLETE');
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, 'apply_template');
     }
@@ -2576,11 +2499,7 @@ export default function App() {
         const actualMinutes = (now.getTime() - startTime.getTime()) / (60 * 1000);
         if (actualMinutes < task.estimate * 0.75) {
           const baseBonus = calculateTaskXP(task, stats.currentStreak) * (XP_MAP.SPEED_BONUS_MULT - 1);
-          let speedMult = 1.0;
-          if (stats.unlockedPerks?.includes('adrenaline_rush')) {
-             speedMult = 1.5;
-          }
-          speedBonus = Math.round(baseBonus * speedMult);
+          speedBonus = Math.round(baseBonus);
         }
       }
 
@@ -2632,9 +2551,9 @@ export default function App() {
         if (lastActive === yesterdayStr) {
           newStreak += 1;
           // Streak milestone bonuses
-          if (newStreak === 7) await addXP(200, 'STREAK_MILESTONE_7');
-          if (newStreak === 30) await addXP(500, 'STREAK_MILESTONE_30');
-          if (newStreak === 100) await addXP(1000, 'STREAK_MILESTONE_100');
+          if (newStreak === 7) await addXP(100, 'STREAK_MILESTONE_7');
+          if (newStreak === 30) await addXP(250, 'STREAK_MILESTONE_30');
+          if (newStreak === 100) await addXP(500, 'STREAK_MILESTONE_100');
         } else if (lastActive !== today) {
           newStreak = 1; // Reset if gap > 1 day
         }
@@ -2652,9 +2571,6 @@ export default function App() {
       // Apply XP Decay for late tasks (-30% by default)
       if (adherenceStatus === 'late') {
         let decayMult = 0.7;
-        if (stats.unlockedPerks?.includes('focus_shield')) {
-          decayMult = 0.85; // Penalty reduced by 50%
-        }
         earnedXP = Math.round(earnedXP * decayMult);
       }
 
@@ -2703,7 +2619,7 @@ export default function App() {
       }
 
       if (todayScheduledCompleted === 5) {
-        await addXP(50, 'DAILY_TEMPORAL_MASTERY_REACHED');
+        await addXP(25, 'DAILY_TEMPORAL_MASTERY_REACHED');
       }
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `tasks/${task.id}`);
@@ -3284,7 +3200,6 @@ export default function App() {
                   addToTerminal={addToTerminal}
                   timeBlocks={timeBlocks}
                   weeklyReviews={weeklyReviews}
-                  handlePurchasePerk={handlePurchasePerk}
                 />
               )}
               {activeTab === 'configOs' && (
@@ -3293,7 +3208,7 @@ export default function App() {
                   stats={stats} 
                   user={user} 
                   onUpdate={updateSettings} 
-                  onPurchase={handlePurchase}
+                  onPurchase={handleUnlockItem}
                 />
               )}
             </motion.div>
@@ -5972,10 +5887,6 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
 function LevelUpOverlay({ level, onClose, stats }: { level: number; onClose: () => void; stats: UserStats | null }) {
   const currentUnlocks = UNLOCKS.filter(u => u.level === level);
   const rewards = [];
-  if (level % 100 === 0) rewards.push({ label: '5000 COINS', type: 'currency' });
-  else if (level % 25 === 0) rewards.push({ label: '2000 COINS', type: 'currency' });
-  else if (level % 10 === 0) rewards.push({ label: '1000 COINS', type: 'currency' });
-  else if (level % 5 === 0) rewards.push({ label: '500 COINS', type: 'currency' });
   
   useEffect(() => {
     confetti({
@@ -6177,7 +6088,7 @@ function ManualModal({
         },
         {
           title: "CONFIG_OS",
-          description: "Advanced system controls. Configure core profile parameters, toggle active notifications, calibration formats, color themes, or visit the Neural Shop to trade Credits (CR) for visual perks.",
+          description: "Advanced system controls. Configure core profile parameters, toggle active notifications, calibration formats, color themes, or visit the Neural Shop to unlock visual themes.",
           icon: <Settings size={18} className="text-indigo-400" />,
           redirect: () => onRedirect('configOs')
         }
@@ -6200,7 +6111,7 @@ function ManualModal({
         },
         {
           title: "DAILY_CHALLENGES",
-          description: "Recursive objectives that reset every 24 hours. Completing a challenge provides massive XP and credits (CR).",
+          description: "Recursive objectives that reset every 24 hours. Completing a challenge provides massive XP.",
           icon: <Zap size={18} className="text-warning" />,
           redirect: () => onRedirect('dashboard')
         },
@@ -6232,7 +6143,7 @@ function ManualModal({
         },
         {
           title: "NEURAL_SHOP",
-          description: "Expend hard-earned Credits (CR) to unlock custom visual interfaces, legacy badges, and experimental difficulty mods.",
+          description: "Unlock custom visual interfaces and themes, legacy badges, and experimental difficulty mods.",
           icon: <ShoppingBag size={18} className="text-success" />,
           redirect: () => onRedirect('configOs')
         },
@@ -6267,7 +6178,7 @@ function ManualModal({
         },
         {
           title: "SYSTEM_THEMES",
-          description: "Real-time environment recalibration. Unlock unique aesthetic 'skins' for Aether_OS using marketplace credits.",
+          description: "Real-time environment recalibration. Unlock unique aesthetic skins for AetherOS.",
           icon: <Palette size={18} className="text-accent" />,
           redirect: () => onRedirect('configOs')
         }
@@ -6462,9 +6373,9 @@ function FocusProtocol({ stats, user, onAddXP, setCompleteToast, addToTerminal }
           pomodoroToday: newTodaySessions
         });
 
-        onAddXP(25, 'POMODORO_SESSION_COMPLETE');
+        onAddXP(13, 'POMODORO_SESSION_COMPLETE');
         if (isLastInCycle) {
-          onAddXP(50, 'FOCUS_CYCLE_MASTER_BONUS');
+          onAddXP(25, 'FOCUS_CYCLE_MASTER_BONUS');
           setCompleteToast('FOCUS_CYCLE_PROTOCOL_COMPLETE');
           setTimeout(() => setCompleteToast(null), 3000);
         }
@@ -6781,7 +6692,7 @@ function TemporalHub({
         createdAt: new Date().toISOString()
       };
       await addDoc(collection(db, 'tasks'), newTask);
-      onAddXP(15, 'SUGGESTED_TASK_ADDED');
+      onAddXP(8, 'SUGGESTED_TASK_ADDED');
       setCompleteToast(`Activated Suggestion: ${s.title}`);
       setTimeout(() => setCompleteToast(null), 3000);
     } catch (err) {
@@ -6836,7 +6747,7 @@ function TemporalHub({
       });
 
       await batch.commit();
-      onAddXP(10 * tasksToCopy.length, 'COPY_YESTERDAY_SYNC');
+      onAddXP(5 * tasksToCopy.length, 'COPY_YESTERDAY_SYNC');
       setCompleteToast(`Duplicated ${tasksToCopy.length} protocol loads from yesterday`);
       setTimeout(() => setCompleteToast(null), 3000);
     } catch (err) {
@@ -7004,7 +6915,7 @@ function TemporalHub({
         
         await batch.commit();
         
-        onAddXP(100, 'AI_TIMETABLE_GENERATE');
+        onAddXP(50, 'AI_TIMETABLE_GENERATE');
         setCompleteToast('AI_SYNCHRONIZATION_COMPLETE');
         setTimeout(() => setCompleteToast(null), 3000);
       }
@@ -9081,8 +8992,8 @@ function WeeklyReviewItem({ review }: { review: WeeklyReview }) {
   );
 }
 
-function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews, onPurchasePerk }: { stats: UserStats | null; user: User; tasks: Task[]; journals: JournalEntry[]; timeBlocks: TimeBlock[]; weeklyReviews: WeeklyReview[]; onPurchasePerk: (perkId: string) => void }) {
-  const [activeSubTab, setActiveSubTab] = useState<'evolution' | 'achievements' | 'perks'>('evolution');
+function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews }: { stats: UserStats | null; user: User; tasks: Task[]; journals: JournalEntry[]; timeBlocks: TimeBlock[]; weeklyReviews: WeeklyReview[] }) {
+  const [activeSubTab, setActiveSubTab] = useState<'evolution' | 'achievements'>('evolution');
   const [filter, setFilter] = useState<'all' | 'earned' | 'locked'>('all');
   const [rarityFilter, setRarityFilter] = useState<Achievement['rarity'] | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<Achievement['category'] | 'all'>('all');
@@ -9199,10 +9110,10 @@ function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews, on
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
            <h1 className="text-4xl font-serif font-black text-text-p uppercase tracking-[0.2em] font-mono italic">
-             {activeSubTab === 'evolution' ? 'NEURAL_EVOLUTION' : activeSubTab === 'achievements' ? 'SYST_ARCHIVE' : 'NEURAL_PERKS'}
+             {activeSubTab === 'evolution' ? 'NEURAL_EVOLUTION' : 'SYST_ARCHIVE'}
            </h1>
            <p className="text-[10px] font-mono text-text-m uppercase tracking-[0.5em] opacity-40">
-             {activeSubTab === 'evolution' ? 'MONTH_OVER_MONTH_SYNC_ANALYSIS' : activeSubTab === 'achievements' ? `Neural_Growth: ${completionRate}% Complete` : 'PURCHASE_CRITICAL_SYSTEM_UPGRADES'}
+             {activeSubTab === 'evolution' ? 'MONTH_OVER_MONTH_SYNC_ANALYSIS' : `Neural_Growth: ${completionRate}% Complete`}
            </p>
         </div>
         <div className="flex bg-white/5 p-1.5 rounded-2xl border border-white/5 gap-1.5 shadow-sm">
@@ -9223,15 +9134,6 @@ function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews, on
              )}
            >
              Archive
-           </button>
-           <button 
-             onClick={() => setActiveSubTab('perks')}
-             className={cn(
-               "px-6 py-2.5 rounded-xl font-mono text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center min-w-[70px] lg:min-w-[100px]",
-               activeSubTab === 'perks' ? "bg-accent text-white shadow-[0_0_20px_rgba(255,69,0,0.3)]" : "text-text-m hover:text-white hover:bg-white/5"
-             )}
-           >
-             Perks
            </button>
         </div>
       </div>
@@ -9362,66 +9264,7 @@ function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews, on
         </div>
       </div>
 
-      {/* Perks Subtab */}
-      <div className={cn("space-y-10 pb-20", activeSubTab === 'perks' ? "block animate-in fade-in duration-300" : "hidden")}>
-         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {PERKS.map((perk, i) => {
-              const isUnlocked = stats.unlockedPerks?.includes(perk.id);
-              const canAfford = (stats.coins || 0) >= perk.cost;
-              
-              return (
-                <div 
-                  key={perk.id}
-                  className={cn(
-                    "glass p-8 rounded-[2.5rem] border flex flex-col justify-between group transition-all duration-300 hover:-translate-y-1 hover:shadow-xl relative overflow-hidden h-80",
-                    isUnlocked ? "border-success/30 bg-success/5 shadow-[0_0_30px_rgba(34,197,94,0.1)]" : "border-white/5 hover:border-accent/40"
-                  )}
-                >
-                  <div className="absolute top-0 right-0 p-8 opacity-5 grayscale group-hover:grayscale-0 group-hover:scale-125 transition-all">
-                     {perk.icon}
-                  </div>
-                  
-                  <div className="space-y-4 relative z-10">
-                     <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "p-3 rounded-2xl",
-                          isUnlocked ? "bg-success/20 text-success shadow-[0_0_15px_rgba(34,197,94,0.2)]" : "bg-white/5 text-accent"
-                        )}>
-                           {perk.icon}
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-serif font-black text-white italic transition-colors group-hover:text-accent uppercase">{perk.name}</h3>
-                          <p className="text-[10px] font-mono text-text-m uppercase opacity-60 font-black">COST_{perk.cost}_CR</p>
-                        </div>
-                     </div>
-                     <p className="text-sm font-mono leading-relaxed text-text-m group-hover:text-text-p transition-colors">{perk.description}</p>
-                  </div>
 
-                  <button 
-                    disabled={isUnlocked || !canAfford}
-                    onClick={() => onPurchasePerk(perk.id)}
-                    className={cn(
-                      "w-full py-4 rounded-2xl font-mono text-[10px] font-black uppercase tracking-widest transition-all relative z-10 cursor-pointer",
-                      isUnlocked ? "bg-success/10 text-success border border-success/20 cursor-default" :
-                      canAfford ? "bg-white text-black hover:bg-accent hover:text-white" :
-                      "bg-white/5 text-text-m border border-white/10 opacity-50 cursor-not-allowed"
-                    )}
-                  >
-                    {isUnlocked ? "PROTOCOL_ACTIVE" : canAfford ? "AUTHORIZE_SYNAPSE_PURGE" : "INSUFFICIENT_CREDITS"}
-                  </button>
-                </div>
-              );
-            })}
-         </div>
-
-         <div className="glass p-12 rounded-[3.5rem] border border-white/5 text-center space-y-6 relative overflow-hidden bg-accent/5">
-            <Network size={48} className="mx-auto text-accent animate-pulse" />
-            <div className="space-y-2">
-               <h3 className="text-3xl font-serif font-black text-white italic uppercase tracking-widest">Neural_Pathways</h3>
-               <p className="text-xs font-mono text-text-m uppercase max-w-lg mx-auto opacity-60">Perks provide permanent cognitive enhancements. These upgrades are integrated directly into the Aether_OS Kernel and cannot be revoked once active.</p>
-            </div>
-         </div>
-      </div>
     </div>
   );
 }
@@ -9449,30 +9292,36 @@ function StatCard({ label, value, icon, color }: { label: string; value: string 
   );
 }
 
-function ShopView({ stats, user, onPurchase }: { stats: UserStats | null; user: User; onPurchase: (cost: number, item: any) => void }) {
+function ShopView({ stats, user, onPurchase }: { stats: UserStats | null; user: User; onPurchase: (item: any) => void }) {
   const shopItems = [
-    { id: 'theme_emerald', label: 'EMERALD_PROTOCOL', description: 'Deep green interface override.', cost: 500, type: 'theme', category: 'visual' },
-    { id: 'theme_ruby', label: 'RUBY_RESONANCE', description: 'Monochrome crimson aesthetic.', cost: 500, type: 'theme', category: 'visual' },
-    { id: 'theme_gold', label: 'AUREUM_OS', description: 'Elite gold and black workspace.', cost: 2000, type: 'theme', category: 'prestige' },
-    { id: 'avatar_frame_neon', label: 'NEON_HALO', description: 'Pulsing circular frame for system avatar.', cost: 300, type: 'skin', category: 'visual' },
-    { id: 'sound_pack_classic', label: '8BIT_SOUND_INDEX', description: 'Retro sound effects for sync completions.', cost: 400, type: 'bundle', category: 'audio' },
+    { id: 'theme_emerald', label: 'EMERALD_PROTOCOL', description: 'Deep green interface override.', unlockLevel: 2, type: 'theme', category: 'visual' },
+    { id: 'theme_ruby', label: 'RUBY_RESONANCE', description: 'Monochrome crimson aesthetic.', unlockLevel: 3, type: 'theme', category: 'visual' },
+    { id: 'theme_gold', label: 'AUREUM_OS', description: 'Elite gold and black workspace.', unlockLevel: 10, type: 'theme', category: 'prestige' },
+    { id: 'avatar_frame_neon', label: 'NEON_HALO', description: 'Pulsing circular frame for system avatar.', unlockLevel: 5, type: 'skin', category: 'visual' },
+    { id: 'sound_pack_classic', label: '8BIT_SOUND_INDEX', description: 'Retro sound effects for sync completions.', unlockLevel: 3, type: 'bundle', category: 'audio' },
   ];
 
   return (
     <div className="space-y-8 pb-20">
       <header className="space-y-2">
-        <h2 className="text-4xl font-serif font-black text-white italic uppercase tracking-tighter">NEURAL_MARKETPLACE</h2>
-        <p className="text-text-m font-mono text-xs uppercase opacity-60">Exchange NEURAL_CREDITS for interface enhancements.</p>
+        <h2 className="text-4xl font-serif font-black text-white italic uppercase tracking-tighter text-glow-white">NEURAL_MARKETPLACE</h2>
+        <p className="text-text-m font-mono text-xs uppercase opacity-60">Unlock visual and auditory upgrades by reaching level milestones.</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {shopItems.map(item => {
           const isOwned = stats?.unlockedItems?.includes(item.id);
+          const currentLevel = stats?.level || 1;
+          const isLevelLocked = currentLevel < item.unlockLevel;
+
           return (
             <motion.div 
               key={item.id}
-              whileHover={{ y: -5 }}
-              className="glass p-6 rounded-3xl border border-white/5 flex flex-col gap-6 relative overflow-hidden group"
+              whileHover={isLevelLocked ? {} : { y: -5 }}
+              className={cn(
+                "glass p-6 rounded-3xl border flex flex-col gap-6 relative overflow-hidden group",
+                isLevelLocked ? "border-white/5 opacity-50 bg-white/1" : "border-white/10 hover:border-accent/40"
+              )}
             >
               <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:rotate-12 transition-transform">
                 <ShoppingBag size={48} className="text-accent" />
@@ -9496,20 +9345,20 @@ function ShopView({ stats, user, onPurchase }: { stats: UserStats | null; user: 
 
               <div className="mt-auto flex items-center justify-between pt-4 border-t border-white/5">
                 <div className="flex items-center gap-2">
-                   <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                   <span className="text-xs font-mono font-black text-white">{item.cost} CR</span>
+                   <div className={cn("w-2 h-2 rounded-full", isLevelLocked ? "bg-neutral-600" : "bg-success animate-pulse")} />
+                   <span className="text-[10px] font-mono font-black text-white">LVL {item.unlockLevel} REQUIRED</span>
                 </div>
                 <button
-                  onClick={() => onPurchase(item.cost, item)}
-                  disabled={isOwned || (stats?.coins || 0) < item.cost}
+                  onClick={() => onPurchase(item)}
+                  disabled={isOwned || isLevelLocked}
                   className={cn(
                     "px-4 py-2 rounded-xl font-mono font-black text-[10px] uppercase tracking-widest transition-all",
                     isOwned 
                       ? "bg-success text-black pointer-events-none" 
-                      : "bg-white/5 text-white hover:bg-accent hover:text-white disabled:opacity-20"
+                      : "bg-white/5 text-white hover:bg-accent hover:text-white disabled:opacity-20 disabled:pointer-events-none"
                   )}
                 >
-                  {isOwned ? 'DECRYPTED' : 'SYNC_NODE'}
+                  {isOwned ? 'DECRYPTED' : isLevelLocked ? 'LOCKED' : 'DECRYPT'}
                 </button>
               </div>
             </motion.div>
@@ -9523,19 +9372,19 @@ function ShopView({ stats, user, onPurchase }: { stats: UserStats | null; user: 
              <Star size={32} className="text-accent" />
           </div>
           <div>
-            <h4 className="text-xl font-serif font-black text-white uppercase italic">CREDIT_BALANCE</h4>
-            <p className="text-[10px] font-mono text-text-m uppercase">Earn 10 CR for every level, and 1 CR for every task protocol.</p>
+            <h4 className="text-xl font-serif font-black text-white uppercase italic">SYSTEM_DECRYPTION_LOGIC</h4>
+            <p className="text-[10px] font-mono text-text-m uppercase">Work on your tasks and habits to earn XP. Reach level milestones to decrypt unique themes and visual skins.</p>
           </div>
         </div>
         <div className="text-4xl font-mono font-black text-white px-8 py-4 glass rounded-2xl border border-white/10 shadow-[0_0_20px_rgba(255,69,0,0.1)]">
-           {stats?.coins || 0} <span className="text-xs text-text-s tracking-widest ml-2">CREDITS</span>
+           LVL {stats?.level || 1} <span className="text-xs text-text-s tracking-widest ml-2">CURRENT</span>
         </div>
       </div>
     </div>
   );
 }
 
-function SettingsView({ settings, stats, user, onUpdate, onPurchase }: { settings: AppSettings | null; stats: UserStats | null; user: User; onUpdate: (s: Partial<AppSettings>) => void; onPurchase: (cost: number, item: any) => void }) {
+function SettingsView({ settings, stats, user, onUpdate, onPurchase }: { settings: AppSettings | null; stats: UserStats | null; user: User; onUpdate: (s: Partial<AppSettings>) => void; onPurchase: (item: any) => void }) {
   const [activeCategory, setActiveCategory] = useState<'profile' | 'gameplay' | 'interface' | 'notifications' | 'shop' | 'data'>('profile');
   const [localDisplayName, setLocalDisplayName] = useState(user.displayName || '');
   const [isEditingName, setIsEditingName] = useState(false);
@@ -10050,7 +9899,7 @@ function DailyWorkView({
         createdAt: new Date().toISOString()
       };
       await addDoc(collection(db, 'tasks'), newTask);
-      onAddXP(15, 'TASK_CREATED');
+      onAddXP(8, 'TASK_CREATED');
       setQuickTaskTitle('');
     } catch (err) {
       console.error(err);
@@ -10658,7 +10507,6 @@ function GrowView({
            journals={journals} 
            timeBlocks={timeBlocks} 
            weeklyReviews={weeklyReviews} 
-           onPurchasePerk={handlePurchasePerk} 
          />
       </div>
 
