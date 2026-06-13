@@ -7117,7 +7117,7 @@ function TemporalHub({
 
                          return (
                            <motion.div 
-                             key={block.id}
+                             key={generatedKey}
                              whileHover={!draggingBlock ? { scale: 1.02, zIndex: 10 } : {}}
                              onMouseDown={(e) => {
                                e.stopPropagation();
