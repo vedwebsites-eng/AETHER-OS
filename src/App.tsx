@@ -3904,29 +3904,15 @@ function NeuralCore({ stats }: { stats: UserStats | null }) {
   const percent = (progress / totalForLevel) * 100;
 
   return (
-    <div className="absolute left-[-20px] top-[-20px] w-48 h-48 pointer-events-none opacity-20">
-      <motion.div 
-        animate={{ 
-          rotate: 360,
-          scale: [1, 1.1, 1],
-        }}
-        transition={{ 
-          rotate: { repeat: Infinity, duration: 20, ease: "linear" },
-          scale: { repeat: Infinity, duration: 4, ease: "easeInOut" }
-        }}
-        className="w-full h-full relative"
-      >
-        <div className="absolute inset-0 border-2 border-accent/20 rounded-full border-dashed" />
-        <motion.div 
-          animate={{ opacity: [0.2, 0.4, 0.2] }}
-          transition={{ repeat: Infinity, duration: 2 }}
-          className="absolute inset-[25%] border border-cyan/40 rounded-full bg-cyan/5 shadow-[0_0_30px_rgba(0,217,255,0.1)]"
-        />
+    <div className="absolute left-[-20px] top-[-20px] w-48 h-48 pointer-events-none opacity-25">
+      <div className="w-full h-full relative">
+        <div className="absolute inset-0 border border-accent/20 rounded-full border-dashed" />
+        <div className="absolute inset-[25%] border border-cyan/30 rounded-full bg-cyan/5" />
         <div className="absolute inset-0">
           {[0, 1, 2, 3].map(i => (
-            <motion.div 
+            <div 
               key={`radar-scanner-${i}`}
-              className="absolute w-1 h-1 bg-accent rounded-full"
+              className="absolute w-1 h-1 bg-accent rounded-full opacity-60"
               style={{ 
                 top: '50%', 
                 left: '50%', 
@@ -3935,7 +3921,7 @@ function NeuralCore({ stats }: { stats: UserStats | null }) {
             />
           ))}
         </div>
-      </motion.div>
+      </div>
       <div className="absolute inset-0 flex items-center justify-center translate-y-4">
          <span className="text-[10px] font-mono text-cyan/40 font-black">{Math.floor(percent)}%</span>
       </div>
@@ -4731,14 +4717,14 @@ function MotivationPortal({
                        }}
                      />
                    )}
-                   {items.map((item) => {
+                   {items.map((item, idx) => {
                      const isActive = currentlyPlaying === item.id;
                      const thumbnail = getYoutubeThumbnail(item.content);
                      const isPlayable = isYoutube(item.content) || isSpotify(item.content);
 
                      return (
                        <div
-                         key={item.id}
+                         key={`motivation-portal-${item.id}-${idx}`}
                          className={cn(
                            "glass p-4 rounded-2xl border transition-all flex items-center gap-4",
                            isActive
@@ -5153,14 +5139,14 @@ function Dashboard({
                   </p>
                 </div>
               ) : (
-                motivationItems.map((item) => {
+                motivationItems.map((item, idx) => {
                   const type = getItemType(item);
                   if (type === 'youtube') {
                     const isActive = currentlyPlaying === item.id;
                     const thumbnail = getYoutubeThumbnail(item.content);
                     return (
                       <div 
-                        key={item.id}
+                        key={`motivation-list-yt-${item.id}-${idx}`}
                         className={cn(
                           "flex-shrink-0 w-48 h-28 rounded-xl border overflow-hidden cursor-pointer relative group transition-all",
                           isActive ? "border-[#C8651B]/50 bg-[#C8651B]/5" : "border-white/10 hover:border-[#C8651B]/30"
@@ -5203,7 +5189,7 @@ function Dashboard({
                     const isPlayable = isYoutube(item.content) || isSpotify(item.content);
                     return (
                       <div 
-                        key={item.id}
+                        key={`motivation-list-link-${item.id}-${idx}`}
                         className={cn(
                           "flex-shrink-0 w-48 h-28 rounded-xl border bg-white/5 p-3 flex flex-col justify-between cursor-pointer transition-all",
                           isActive ? "border-[#C8651B]/50 bg-[#C8651B]/5" : "border-white/10 hover:border-[#C8651B]/50 hover:bg-white/8"
@@ -5243,7 +5229,7 @@ function Dashboard({
                   if (type === 'quote') {
                     return (
                       <div 
-                        key={item.id}
+                        key={`motivation-list-quote-${item.id}-${idx}`}
                         className="flex-shrink-0 w-48 h-28 rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col justify-between"
                       >
                         <Quote size={12} className="text-[#C9A84C] opacity-50" />
@@ -5254,7 +5240,7 @@ function Dashboard({
                   }
                   return (
                     <div 
-                      key={item.id}
+                      key={`motivation-list-note-${item.id}-${idx}`}
                       className="flex-shrink-0 w-48 h-28 rounded-xl border border-white/10 bg-white/5 p-3 flex flex-col justify-between"
                     >
                       <FileText size={12} className="text-[#2E6B9E] opacity-50" />
@@ -5669,9 +5655,9 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
               }}
             />
           )}
-          {filteredTasks.map((task) => (
+          {filteredTasks.map((task, idx) => (
             <div 
-              key={task.id} 
+              key={`filtered-task-${task.id}-${idx}`} 
               className={cn(
                 "p-6 glass rounded-xl transition-all flex items-center justify-between border-l-4 premium-transition group relative overflow-hidden",
                 task.status === 'completed' ? "border-success opacity-40 grayscale blur-[0.5px]" : "border-accent hover:border-cyan hover:bg-white/5"
@@ -7246,9 +7232,9 @@ function TemporalHub({
                   <p className="text-[10px] font-mono text-text-s uppercase tracking-widest opacity-40">ALL_PROTOCOLS_SYNCHRONIZED</p>
                 </div>
               ) : (
-                tasks.filter(t => t.status === 'pending' && !t.scheduledStart).map(task => (
+                tasks.filter(t => t.status === 'pending' && !t.scheduledStart).map((task, idx) => (
                   <motion.div 
-                    key={task.id} 
+                    key={`unscheduled-task-${task.id}-${idx}`} 
                     whileHover={{ scale: 1.02, backgroundColor: 'rgba(0, 217, 255, 0.05)' }}
                     onClick={() => { 
                       const now = new Date();
@@ -7684,7 +7670,7 @@ function RoutineMatrixView({
 
                 
                 return (
-                  <div key={habit.id}>
+                  <div key={`habit-list-${habit.id}-${idx}`}>
                     <motion.div 
                       layoutId={habit.id}
                       className="glass rounded-2xl border border-white/5 bg-white/2 overflow-hidden group hover:border-cyan/30 transition-all cursor-pointer active:scale-[0.98]"
@@ -8406,7 +8392,7 @@ function JournalView({
         {journals.map((journal, index) => {
 
           return (
-            <div key={journal.id}>
+            <div key={`journal-list-${journal.id}-${index}`}>
             <motion.div 
               whileHover={{ y: -5, scale: 1.02 }}
               onClick={() => { setViewDate(new Date(journal.createdAt)); setContent(journal.content); setMood(journal.mood); setSelectedTags(journal.tags || []); setActiveSubTab('entry'); }}
@@ -9175,8 +9161,8 @@ function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews }: 
              />
            ) : (
              <div className="grid grid-cols-1 gap-4">
-               {weeklyReviews.map(review => (
-                 <WeeklyReviewItem key={review.id} review={review} />
+               {weeklyReviews.map((review, idx) => (
+                 <WeeklyReviewItem key={`weekly-review-${review.id}-${idx}`} review={review} />
                ))}
              </div>
            )}
