@@ -17,7 +17,7 @@ import {
   ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download, Briefcase,
   Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
   Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon, Info,
-  RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink
+  RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink, ChevronDown
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -1053,6 +1053,7 @@ interface JournalEntry {
   wordCount: number;
   promptId?: string;
   isReflection?: boolean;
+  promptUsed?: string;
   cognitiveSignature?: CognitiveSignature;
 }
 
@@ -8014,6 +8015,7 @@ function JournalView({
   const [viewDate, setViewDate] = useState(new Date());
   const [wordCount, setWordCount] = useState(0);
   const [energyLevel, setEnergyLevel] = useState<'drained'|'low'|'neutral'|'high'|'peak'>('neutral');
+  const [expandedJournalId, setExpandedJournalId] = useState<string | null>(null);
 
   // Find existing entry for today
   useEffect(() => {
@@ -8069,7 +8071,7 @@ function JournalView({
         createdAt: new Date().toISOString(),
         isReflection: usePrompt,
         wordCount,
-        promptId: usePrompt ? currentPrompt : null,
+        promptUsed: usePrompt ? currentPrompt : null,
         cognitiveSignature: await (async () => {
           try {
             return await analyzeJournalEntry(content);
@@ -8220,13 +8222,6 @@ function JournalView({
         console.error("Calendar Sync Error", calendarErr);
       }
 
-      if (!todayEntry) {
-        setContent('');
-        setSelectedTags([]);
-        setUsePrompt(false);
-        setCurrentPrompt(REFLECTION_PROMPTS[Math.floor(Math.random() * REFLECTION_PROMPTS.length)]);
-      }
-      
       // Visual feedback
       confetti({
         particleCount: 100,
@@ -8234,6 +8229,17 @@ function JournalView({
         origin: { y: 0.6 },
         colors: ['#00d9ff', '#ff0055', '#ffffff']
       });
+
+      // Clear editor
+      setContent('');
+      setWordCount(0);
+      setMood('neutral');
+      setEnergyLevel('neutral');
+      setSelectedTags([]);
+      setUsePrompt(false);
+
+      // Switch to history tab
+      setActiveSubTab('history');
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, 'journals');
     }
@@ -8243,17 +8249,24 @@ function JournalView({
 
   // Stats for the sidebar
   const todayStr = format(new Date(), 'yyyy-MM-dd');
+
   const dailyWords = journals
     .filter(j => j.createdAt?.startsWith(todayStr))
     .reduce((sum, j) => sum + (j.wordCount || 0), 0);
 
-  const totalEntries = journals.length;
+  const weekStart = format(startOfWeek(new Date()), 'yyyy-MM-dd');
+  const weeklyWords = journals
+    .filter(j => j.createdAt >= weekStart)
+    .reduce((sum, j) => sum + (j.wordCount || 0), 0);
 
-  const totalWordsWritten = journals
-    .reduce((acc, j) => acc + (j.wordCount || 0), 0);
+  const allTimeWords = journals
+    .reduce((sum, j) => sum + (j.wordCount || 0), 0);
 
-  const avgEntryLength = totalEntries > 0 
-    ? Math.round(totalWordsWritten / totalEntries) : 0;
+  const avgWords = journals.length > 0
+    ? Math.round(allTimeWords / journals.length) : 0;
+
+  const avgEntryLength = avgWords;
+  const totalWordsWritten = allTimeWords;
 
   // Peak sync time — calculate from journals directly:
   const hourlyCounts = journals.reduce((acc, j) => {
@@ -8440,44 +8453,108 @@ function JournalView({
   };
 
   const renderHistory = () => {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {journals.map((journal, index) => (
-          <motion.div 
-            key={`journal-${journal.id}-${index}`}
-            whileHover={{ y: -5, scale: 1.02 }}
-            onClick={() => { setViewDate(new Date(journal.createdAt)); setContent(journal.content); setMood(journal.mood); setSelectedTags(journal.tags || []); setActiveSubTab('entry'); }}
-            className="glass p-6 rounded-2xl border border-white/5 bg-black/40 cursor-pointer premium-transition hover:border-cyan/30 group"
+    if (journals.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-24 gap-4">
+          <Book size={32} className="text-white/20" />
+          <p className="text-[10px] font-mono text-white/20 uppercase tracking-widest">
+            ARCHIVE_EMPTY — Write your first entry
+          </p>
+          <button
+            onClick={() => setActiveSubTab('entry')}
+            className="text-[10px] font-mono text-accent uppercase tracking-widest hover:underline"
           >
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-[10px] font-mono text-text-m uppercase opacity-50">{format(new Date(journal.createdAt), 'EEEE')}</p>
-                <p className="text-sm font-mono font-black text-white uppercase italic tracking-widest">{format(new Date(journal.createdAt), 'MMM dd, yyyy')}</p>
+            GO_TO_ENTRY →
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {journals.map((journal) => (
+          <motion.div
+            key={journal.id}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={() => setExpandedJournalId(
+              expandedJournalId === journal.id ? null : journal.id
+            )}
+            className="glass border border-white/5 rounded-2xl overflow-hidden cursor-pointer hover:border-white/15 transition-all"
+          >
+            {/* Header — always visible */}
+            <div className="flex items-center justify-between px-6 py-4">
+              <div className="flex items-center gap-4">
+                <span className="text-2xl">
+                  {MOODS.find(m => m.id === journal.mood)?.emoji || '😐'}
+                </span>
+                <div>
+                  <p className="text-sm font-mono font-black text-white uppercase italic">
+                    {format(new Date(journal.createdAt), 'MMM dd, yyyy')}
+                  </p>
+                  <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">
+                    {format(new Date(journal.createdAt), 'EEEE')} · {journal.wordCount || 0} WORDS · {MOODS.find(m => m.id === journal.mood)?.label || 'NEUTRAL'}
+                  </p>
+                </div>
               </div>
-              <span className="text-2xl group-hover:scale-125 transition-transform duration-300">{MOODS.find(m => m.id === journal.mood)?.emoji}</span>
+              <ChevronDown
+                size={14}
+                className={cn(
+                  "text-white/30 transition-transform duration-300",
+                  expandedJournalId === journal.id ? "rotate-180" : ""
+                )}
+              />
             </div>
-            <div className="prose prose-invert prose-xs line-clamp-3 text-text-m h-16 mb-4" dangerouslySetInnerHTML={{ __html: journal.content }} />
-            <div className="flex flex-wrap gap-2">
-              {journal.tags?.map((t, idx) => (
-                <span key={`${t}-${idx}`} className="text-[8px] font-mono text-cyan bg-cyan/10 px-1.5 py-0.5 rounded border border-cyan/20">#{t.toUpperCase()}</span>
-              ))}
-            </div>
-            <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
-               <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">{journal.wordCount || 0} WORDS</span>
-               <Maximize2 size={12} className="text-text-m opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
+
+            {/* Expanded content */}
+            <AnimatePresence>
+              {expandedJournalId === journal.id && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-6 pb-6 border-t border-white/5 pt-4 space-y-4">
+                    {/* Reflection prompt if used */}
+                    {journal.isReflection && journal.promptUsed && (
+                      <div className="bg-cyan/5 border border-cyan/20 rounded-xl px-4 py-3">
+                        <p className="text-[9px] font-mono text-cyan uppercase tracking-widest mb-1">
+                          REFLECTION_PROMPT
+                        </p>
+                        <p className="text-xs font-mono text-white/60 italic">
+                          "{journal.promptUsed}"
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Journal content */}
+                    <div
+                      className="prose prose-invert prose-sm max-w-none text-white/70 font-mono text-sm leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: journal.content }}
+                    />
+
+                    {/* Footer stats */}
+                    <div className="flex items-center gap-6 pt-2 border-t border-white/5">
+                      <span className="text-[9px] font-mono text-white/30 uppercase">
+                        📝 {journal.wordCount || 0} words
+                      </span>
+                      <span className="text-[9px] font-mono text-white/30 uppercase">
+                        {MOODS.find(m => m.id === journal.mood)?.emoji} {journal.mood?.toUpperCase() || 'NEUTRAL'}
+                      </span>
+                      {journal.energyLevel && (
+                        <span className="text-[9px] font-mono text-white/30 uppercase">
+                          ⚡ {journal.energyLevel.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
         ))}
-        {journals.length === 0 && (
-          <div className="col-span-full">
-            <EmptyState
-              icon={<Book size={24} className="text-accent" />}
-              title="ARCHIVE_MATRIX_EMPTY"
-              actionLabel="CREATE_NOW"
-              onAction={() => setActiveSubTab('entry')}
-            />
-          </div>
-        )}
       </div>
     );
   };
@@ -8655,26 +8732,27 @@ function JournalView({
 
                  <div className="pt-6 sm:pt-8 border-t border-white/5">
                     <label className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-[0.25em] font-black border-l-2 border-warning pl-3 mb-6 sm:mb-8 block">Archive_Stats</label>
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                       <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
-                          <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Daily_Words</span>
-                          <span className="text-sm sm:text-base font-mono font-black text-white">{dailyWords} W</span>
+                    <div className="grid grid-cols-2 gap-3">
+                       {[
+                         { label: 'DAILY_WORDS', value: dailyWords },
+                         { label: 'WEEKLY_WORDS', value: weeklyWords },
+                         { label: 'ALL_TIME', value: allTimeWords },
+                         { label: 'AVG_RECALL', value: avgWords },
+                       ].map(stat => (
+                         <div key={stat.label} className="glass p-3 rounded-xl border border-white/5 text-center">
+                           <p className="text-lg font-serif font-black text-white">{stat.value}</p>
+                           <p className="text-[8px] font-mono text-white/30 uppercase tracking-widest mt-1">
+                             {stat.label}
+                           </p>
+                         </div>
+                       ))}
+                       <div className="flex flex-col items-center gap-1 glass p-3 rounded-xl border border-white/5 text-center col-span-2">
+                          <span className="text-lg font-serif font-black text-white">{stats?.peakSyncTime || peakTimeStr}</span>
+                          <span className="text-[8px] font-mono text-white/30 uppercase tracking-widest mt-1">Peak_Sync_Time</span>
                        </div>
-                       <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
-                          <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Total_Words</span>
-                          <span className="text-sm sm:text-base font-mono font-black text-white">{(totalWordsWritten / 1000).toFixed(1)}K</span>
-                       </div>
-                       <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300">
-                          <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Avg_Recall</span>
-                          <span className="text-sm sm:text-base font-mono font-black text-white">{avgEntryLength} W</span>
-                       </div>
-                       <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300 col-span-2">
-                          <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Peak_Sync_Time</span>
-                          <span className="text-sm sm:text-base font-mono font-black text-white">{stats?.peakSyncTime || peakTimeStr}</span>
-                       </div>
-                       <div className="flex flex-col items-start gap-1 glass p-3 sm:p-4 rounded-2xl border border-white/5 hover:bg-white/2 hover:border-white/10 transition-all duration-300 col-span-2">
-                          <span className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-wider">Journal_Streak</span>
-                          <span className="text-sm sm:text-base font-mono font-black text-warning flex items-center gap-1.2"><Flame size={14} fill="currentColor" /> {stats?.journalStreak || 0}d</span>
+                       <div className="flex flex-col items-center gap-1 glass p-3 rounded-xl border border-white/5 text-center col-span-2">
+                          <span className="text-lg font-serif font-black text-warning flex items-center justify-center gap-1"><Flame size={14} fill="currentColor" /> {stats?.journalStreak || 0}d</span>
+                          <span className="text-[8px] font-mono text-white/30 uppercase tracking-widest mt-1">Journal_Streak</span>
                        </div>
                     </div>
                  </div>
