@@ -1047,6 +1047,7 @@ interface JournalEntry {
   userId: string;
   content: string; // HTML from TipTap
   mood: 'sad' | 'worried' | 'neutral' | 'happy' | 'ecstatic';
+  energyLevel?: 'drained' | 'low' | 'neutral' | 'high' | 'peak';
   tags?: string[];
   createdAt: string;
   wordCount: number;
@@ -3362,9 +3363,9 @@ function FloatingXPRenderer({ notifications }: { notifications: XPNotification[]
   return (
     <div className="fixed top-1/3 left-1/2 -translate-x-1/2 pointer-events-none z-[100] flex flex-col items-center gap-4">
       <AnimatePresence>
-        {notifications.map((n) => (
+        {notifications.map((n, idx) => (
           <motion.div
-            key={n.id}
+            key={`xp-${n.id}-${idx}`}
             initial={{ opacity: 0, y: 20, scale: 0.5 }}
             animate={{ opacity: 1, y: -120, scale: 1.5 }}
             exit={{ opacity: 0, filter: 'blur(10px)', scale: 2 }}
@@ -8012,6 +8013,7 @@ function JournalView({
   const [usePrompt, setUsePrompt] = useState(false);
   const [viewDate, setViewDate] = useState(new Date());
   const [wordCount, setWordCount] = useState(0);
+  const [energyLevel, setEnergyLevel] = useState<'drained'|'low'|'neutral'|'high'|'peak'>('neutral');
 
   // Find existing entry for today
   useEffect(() => {
@@ -8022,6 +8024,9 @@ function JournalView({
       setMood(todayEntry.mood);
       setSelectedTags(todayEntry.tags || []);
       setWordCount(todayEntry.wordCount || 0);
+      if (todayEntry.energyLevel) {
+        setEnergyLevel(todayEntry.energyLevel);
+      }
     }
   }, [journals]);
 
@@ -8059,6 +8064,7 @@ function JournalView({
         userId: user.uid,
         content,
         mood,
+        energyLevel,
         tags: selectedTags,
         createdAt: new Date().toISOString(),
         isReflection: usePrompt,
@@ -8237,44 +8243,73 @@ function JournalView({
 
   // Stats for the sidebar
   const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const dailyWords = stats?.dailyWordsWritten?.date === todayStr ? (stats?.dailyWordsWritten?.count || 0) : 0;
-  const totalEntries = journals.length;
-  const totalWordsWritten = journals.reduce((acc, j) => acc + (j.wordCount || 0), 0);
-  const avgEntryLength = totalEntries > 0 ? Math.round(totalWordsWritten / totalEntries) : 0;
-  
-  const moodCounts = journals.reduce((acc, j) => { acc[j.mood] = (acc[j.mood] || 0) + 1; return acc; }, {} as any);
-  const topMoodId = Object.entries(moodCounts).sort((a,b) => (b[1] as number) - (a[1] as number))[0]?.[0] as JournalEntry['mood'];
-  const topMood = MOODS.find(m => m.id === topMoodId);
+  const dailyWords = journals
+    .filter(j => j.createdAt?.startsWith(todayStr))
+    .reduce((sum, j) => sum + (j.wordCount || 0), 0);
 
+  const totalEntries = journals.length;
+
+  const totalWordsWritten = journals
+    .reduce((acc, j) => acc + (j.wordCount || 0), 0);
+
+  const avgEntryLength = totalEntries > 0 
+    ? Math.round(totalWordsWritten / totalEntries) : 0;
+
+  // Peak sync time — calculate from journals directly:
   const hourlyCounts = journals.reduce((acc, j) => {
+    if (!j.createdAt) return acc;
     const hour = new Date(j.createdAt).getHours();
     acc[hour] = (acc[hour] || 0) + 1;
     return acc;
   }, {} as Record<number, number>);
-  const peakHour = Object.entries(hourlyCounts).sort((a,b) => (b[1] as number) - (a[1] as number))[0]?.[0];
-  const peakTimeStr = peakHour ? `${peakHour}:00` : 'N/A';
+  const peakHour = Object.entries(hourlyCounts)
+    .sort((a, b) => (b[1] as number) - (a[1] as number))[0]?.[0];
+  const peakTimeStr = peakHour 
+    ? `${String(peakHour).padStart(2, '0')}:00` : 'N/A';
+
+  // Journal streak — read from stats but with safe fallback:
+  const journalStreak = stats?.journalStreak || 0;
 
   const renderInsights = () => {
-    const last7Days = Array.from({ length: 7 }, (_, i) => subDays(new Date(), i)).reverse();
+    // moodData is correct but add null safety:
+    const last7Days = Array.from({ length: 7 }, (_, i) => 
+      subDays(new Date(), i)
+    ).reverse();
+
     const moodData = last7Days.map(date => {
-      const entry = journals.find(j => isSameDay(new Date(j.createdAt), date));
-      const moodValue = entry ? { ecstatic: 5, happy: 4, neutral: 3, worried: 2, sad: 1 }[entry.mood] : null;
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const entry = journals.find(j => 
+        j.createdAt && j.createdAt.startsWith(dateStr)
+      );
+      const moodValue = entry 
+        ? ({ ecstatic: 5, happy: 4, neutral: 3, worried: 2, sad: 1 }[entry.mood] ?? null) 
+        : null;
       return {
-        date: format(date, 'MMM dd'),
-        mood: moodValue,
-        words: entry?.wordCount || 0
+        date: format(date, 'EEE'),  // Mon, Tue etc
+        mood: moodValue ?? 0,
+        words: entry?.wordCount || 0,
+        hasMood: !!entry
       };
     });
 
-    const frequencyData = [
-      { name: 'Mon', count: journals.filter(j => new Date(j.createdAt).getDay() === 1).length },
-      { name: 'Tue', count: journals.filter(j => new Date(j.createdAt).getDay() === 2).length },
-      { name: 'Wed', count: journals.filter(j => new Date(j.createdAt).getDay() === 3).length },
-      { name: 'Thu', count: journals.filter(j => new Date(j.createdAt).getDay() === 4).length },
-      { name: 'Fri', count: journals.filter(j => new Date(j.createdAt).getDay() === 5).length },
-      { name: 'Sat', count: journals.filter(j => new Date(j.createdAt).getDay() === 6).length },
-      { name: 'Sun', count: journals.filter(j => new Date(j.createdAt).getDay() === 0).length },
-    ];
+    // Top mood archetype — fix calculation:
+    const moodCounts = journals.reduce((acc, j) => {
+      if (j.mood) acc[j.mood] = (acc[j.mood] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    const topMoodId = Object.entries(moodCounts)
+      .sort((a, b) => b[1] - a[1])[0]?.[0] as JournalEntry['mood'];
+    const topMood = MOODS.find(m => m.id === topMoodId);
+
+    // Temporal frequency:
+    const frequencyData = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((name, idx) => ({
+      name,
+      count: journals.filter(j => {
+        if (!j.createdAt) return false;
+        const day = new Date(j.createdAt).getDay();
+        return day === (idx + 1) % 7;
+      }).length
+    }));
 
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -8366,18 +8401,36 @@ function JournalView({
            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-4">
                  <p className="text-sm font-mono text-text-p leading-relaxed">
-                   <strong className="text-cyan">[ADVISORY]</strong> Your lexical density is 24% higher on <span className="text-accent font-black italic">FRIDAYS</span>. This correlates with high mood stability and focused productivity blocks.
+                   <strong className="text-cyan">[ADVISORY]</strong>{' '}
+                   {frequencyData.sort((a,b) => b.count - a.count)[0]?.count > 0
+                     ? `You write most on ${frequencyData.sort((a,b) => b.count - a.count)[0]?.name}s — ${frequencyData.sort((a,b) => b.count - a.count)[0]?.count} entries.`
+                     : 'No frequency pattern detected yet. Keep writing.'}
                  </p>
                  <p className="text-sm font-mono text-text-p leading-relaxed">
-                   <strong className="text-cyan">[DIAGNOSTIC]</strong> 80% of your <span className="text-success font-black italic">ECSTATIC</span> entries occur between 09:00 and 11:00 UTC. Consider shifting complex refactoring tasks to this window.
+                   <strong className="text-cyan">[DIAGNOSTIC]</strong>{' '}
+                   {avgEntryLength > 0
+                     ? `Average entry length is ${avgEntryLength} words. ${avgEntryLength >= 200 ? 'Strong depth.' : 'Try writing more for deeper insights.'}`
+                     : 'Start writing to see entry length diagnostics.'}
                  </p>
               </div>
               <div className="space-y-4">
                  <p className="text-sm font-mono text-text-p leading-relaxed">
-                   <strong className="text-warning">[TREND]</strong> Neural archive streak is at <span className="text-warning font-black italic">{stats?.journalStreak || 0} cycles</span>. Reach 7 for the 'CONSISTENCY_ARCHITECT' achievement.
+                   <strong className="text-warning">[TREND]</strong>{' '}
+                   Journal streak is at <span className="text-warning font-black italic">{journalStreak} cycles</span>.
+                   {journalStreak === 0 ? ' Write today to start your streak.' 
+                    : journalStreak < 7 ? ` ${7 - journalStreak} more days to hit 7-day milestone.`
+                    : ' Keep the streak alive.'}
                  </p>
                  <p className="text-sm font-mono text-text-p leading-relaxed">
-                   <strong className="text-cyan">[SYNCH]</strong> Most written themes: <span className="text-text-m italic">{journals.flatMap(j => j.tags || []).slice(0, 5).join(', ') || 'N/A'}</span>.
+                   <strong className="text-cyan">[SYNC]</strong>{' '}
+                   Most used tags:{' '}
+                   <span className="text-text-m italic">
+                     {Object.entries(
+                       journals.flatMap(j => j.tags || []).reduce((acc, t) => {
+                         acc[t] = (acc[t] || 0) + 1; return acc;
+                       }, {} as Record<string, number>)
+                     ).sort((a,b) => b[1] - a[1]).slice(0,5).map(([t]) => `#${t}`).join(', ') || 'N/A'}
+                   </span>
                  </p>
               </div>
            </div>
@@ -8389,35 +8442,32 @@ function JournalView({
   const renderHistory = () => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {journals.map((journal, index) => {
-
-          return (
-            <div key={`journal-list-${journal.id}-${index}`}>
-            <motion.div 
-              whileHover={{ y: -5, scale: 1.02 }}
-              onClick={() => { setViewDate(new Date(journal.createdAt)); setContent(journal.content); setMood(journal.mood); setSelectedTags(journal.tags || []); setActiveSubTab('entry'); }}
-              className="glass p-6 rounded-2xl border border-white/5 bg-black/40 cursor-pointer premium-transition hover:border-cyan/30 group"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <p className="text-[10px] font-mono text-text-m uppercase opacity-50">{format(new Date(journal.createdAt), 'EEEE')}</p>
-                  <p className="text-sm font-mono font-black text-white uppercase italic tracking-widest">{format(new Date(journal.createdAt), 'MMM dd, yyyy')}</p>
-                </div>
-                <span className="text-2xl group-hover:scale-125 transition-transform duration-300">{MOODS.find(m => m.id === journal.mood)?.emoji}</span>
+        {journals.map((journal, index) => (
+          <motion.div 
+            key={`journal-${journal.id}-${index}`}
+            whileHover={{ y: -5, scale: 1.02 }}
+            onClick={() => { setViewDate(new Date(journal.createdAt)); setContent(journal.content); setMood(journal.mood); setSelectedTags(journal.tags || []); setActiveSubTab('entry'); }}
+            className="glass p-6 rounded-2xl border border-white/5 bg-black/40 cursor-pointer premium-transition hover:border-cyan/30 group"
+          >
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <p className="text-[10px] font-mono text-text-m uppercase opacity-50">{format(new Date(journal.createdAt), 'EEEE')}</p>
+                <p className="text-sm font-mono font-black text-white uppercase italic tracking-widest">{format(new Date(journal.createdAt), 'MMM dd, yyyy')}</p>
               </div>
-              <div className="prose prose-invert prose-xs line-clamp-3 text-text-m h-16 mb-4" dangerouslySetInnerHTML={{ __html: journal.content }} />
-              <div className="flex flex-wrap gap-2">
-                {journal.tags?.map((t, idx) => (
-                  <span key={`${t}-${idx}`} className="text-[8px] font-mono text-cyan bg-cyan/10 px-1.5 py-0.5 rounded border border-cyan/20">#{t.toUpperCase()}</span>
-                ))}
-              </div>
-              <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
-                 <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">{journal.wordCount || 0} WORDS</span>
-                 <Maximize2 size={12} className="text-text-m opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            </motion.div>
-          </div>
-        )})}
+              <span className="text-2xl group-hover:scale-125 transition-transform duration-300">{MOODS.find(m => m.id === journal.mood)?.emoji}</span>
+            </div>
+            <div className="prose prose-invert prose-xs line-clamp-3 text-text-m h-16 mb-4" dangerouslySetInnerHTML={{ __html: journal.content }} />
+            <div className="flex flex-wrap gap-2">
+              {journal.tags?.map((t, idx) => (
+                <span key={`${t}-${idx}`} className="text-[8px] font-mono text-cyan bg-cyan/10 px-1.5 py-0.5 rounded border border-cyan/20">#{t.toUpperCase()}</span>
+              ))}
+            </div>
+            <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
+               <span className="text-[8px] font-mono text-text-m opacity-50 uppercase">{journal.wordCount || 0} WORDS</span>
+               <Maximize2 size={12} className="text-text-m opacity-0 group-hover:opacity-100 transition-opacity" />
+            </div>
+          </motion.div>
+        ))}
         {journals.length === 0 && (
           <div className="col-span-full">
             <EmptyState
@@ -8557,23 +8607,32 @@ function JournalView({
            <aside className="space-y-8 lg:col-span-1">
               <div className="glass p-4 sm:p-6 md:p-8 rounded-[2rem] border border-white/5 bg-black/40 space-y-6 sm:space-y-8 md:space-y-10 transition-all duration-300">
                  <div>
-                    <label className="text-[10px] sm:text-xs font-mono text-text-m uppercase tracking-[0.25em] font-black border-l-2 border-accent pl-3 mb-4 sm:mb-6 block">Mood_Index</label>
+                    <label className="text-[10px] font-mono text-text-m uppercase tracking-[0.25em] font-black border-l-2 border-accent pl-3 mb-4 block">
+                      ENERGY_INDEX
+                    </label>
                     <div className="grid grid-cols-5 gap-2">
-                       {MOODS.map((m) => (
-                         <button 
-                           key={m.id}
-                           onClick={() => setMood(m.id as any)}
-                           className={cn(
-                             "aspect-square flex flex-col items-center justify-center rounded-xl border transition-all hover:scale-110",
-                             mood === m.id ? "bg-accent/10 border-accent text-white scale-110 shadow-lg accent-glow" : "border-white/5 text-text-s grayscale hover:grayscale-0"
-                           )}
-                           title={m.label}
-                         >
-                           <span className="text-2xl mb-1">{m.emoji}</span>
-                         </button>
-                       ))}
+                      {[
+                        { id: 'drained', label: 'DRAINED', emoji: '🪫', color: 'border-red-500/50 bg-red-500/10' },
+                        { id: 'low', label: 'LOW', emoji: '😴', color: 'border-orange-500/50 bg-orange-500/10' },
+                        { id: 'neutral', label: 'OK', emoji: '😐', color: 'border-yellow-500/50 bg-yellow-500/10' },
+                        { id: 'high', label: 'HIGH', emoji: '⚡', color: 'border-green-500/50 bg-green-500/10' },
+                        { id: 'peak', label: 'PEAK', emoji: '🔥', color: 'border-cyan-500/50 bg-cyan-400/10' },
+                      ].map(level => (
+                        <button
+                          key={level.id}
+                          onClick={() => setEnergyLevel(level.id as any)}
+                          className={cn(
+                            "flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all",
+                            energyLevel === level.id 
+                              ? level.color + " scale-110" 
+                              : "border-white/5 hover:border-white/20"
+                          )}
+                        >
+                          <span className="text-xl">{level.emoji}</span>
+                          <span className="text-[7px] font-mono text-white/50 uppercase">{level.label}</span>
+                        </button>
+                      ))}
                     </div>
-                    {mood && <p className="text-[10px] sm:text-xs font-mono text-accent text-center mt-4 uppercase font-black tracking-widest">STATE: {mood.toUpperCase()}</p>}
                  </div>
 
                  <div>
@@ -9235,7 +9294,7 @@ function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews }: 
             {filteredAchievements.map((achievement, idx) => {
 
               return (
-                <div key={achievement.id}>
+                <div key={`filtered-ach-${achievement.id}-${idx}`}>
                   <AchievementCard 
                     achievement={achievement}
                     unlocked={stats.unlockedAchievements?.includes(achievement.id)}
@@ -9295,14 +9354,14 @@ function ShopView({ stats, user, onPurchase }: { stats: UserStats | null; user: 
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {shopItems.map(item => {
+        {shopItems.map((item, index) => {
           const isOwned = stats?.unlockedItems?.includes(item.id);
           const currentLevel = stats?.level || 1;
           const isLevelLocked = currentLevel < item.unlockLevel;
 
           return (
             <motion.div 
-              key={item.id}
+              key={`shop-item-${item.id}-${index}`}
               whileHover={isLevelLocked ? {} : { y: -5 }}
               className={cn(
                 "glass p-6 rounded-3xl border flex flex-col gap-6 relative overflow-hidden group",
