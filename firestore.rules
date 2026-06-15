@@ -30,34 +30,7 @@ service cloud.firestore {
     function isValidUserStats(data) {
       return data.userId is string && data.userId.size() <= 128 &&
              data.level is int && data.level >= 1 &&
-             data.experience is int && data.experience >= 0 &&
-             (!('coins' in data) || data.coins is int) &&
-             (!('currentStreak' in data) || data.currentStreak is int) &&
-             (!('pomodoroSessions' in data) || data.pomodoroSessions is int) &&
-             (!('pomodoroToday' in data) || data.pomodoroToday is int) &&
-             (!('dailyBriefing' in data) || (data.dailyBriefing.content is string && data.dailyBriefing.content.size() <= 10000)) &&
-             (!('dailyChallenge' in data) || data.dailyChallenge is map) &&
-             (!('unlockedPerks' in data) || data.unlockedPerks is list) &&
-             (!('unlockedFeatures' in data) || data.unlockedFeatures is list) &&
-             (!('unlockedAchievements' in data) || data.unlockedAchievements is list) &&
-             (!('unlockedItems' in data) || data.unlockedItems is list) &&
-             (!('activityLog' in data) || data.activityLog is list) &&
-             (!('streakHistory' in data) || data.streakHistory is list) &&
-             (!('adherenceHistory' in data) || data.adherenceHistory is map) &&
-             (!('lifeSync' in data) || data.lifeSync is map) &&
-             (!('lifeSyncCategories' in data) || data.lifeSyncCategories is list) &&
-             (!('totalTasksCompleted' in data) || data.totalTasksCompleted is int) &&
-             (!('lastActiveDate' in data) || data.lastActiveDate is string) &&
-             (!('difficultyLevel' in data) || data.difficultyLevel in ['easy', 'normal', 'hard']) &&
-             (!('totalWordsWritten' in data) || data.totalWordsWritten is int) &&
-             (!('dailyWordsWritten' in data) || data.dailyWordsWritten is map) &&
-             (!('peakSyncTime' in data) || data.peakSyncTime is string) &&
-             (!('journalStreak' in data) || data.journalStreak is int) &&
-             (!('lastJournalDate' in data) || data.lastJournalDate is string) &&
-             (!('reflectionPromptsAnswered' in data) || data.reflectionPromptsAnswered is int) &&
-             (!('scheduleMasteryLevel' in data) || data.scheduleMasteryLevel is int) &&
-             (!('scheduledTasksCount' in data) || data.scheduledTasksCount is int) &&
-             (!('punctualStreak' in data) || data.punctualStreak is int);
+             data.experience is int && data.experience >= 0;
     }
 
     // Task Validation
@@ -66,24 +39,15 @@ service cloud.firestore {
              data.title is string && data.title.size() <= 200 &&
              data.priority in ['low', 'medium', 'high', 'critical'] &&
              data.status in ['pending', 'completed'] &&
-             data.createdAt is string && data.createdAt.size() <= 100 &&
-             data.category is string && data.category.size() <= 100 &&
-             data.estimate is int &&
-             (!('xpAwarded' in data) || data.xpAwarded is bool);
+             data.createdAt is string && data.createdAt.size() <= 100;
     }
 
     // JournalEntry Validation
     function isValidJournalEntry(data) {
       return data.userId is string && data.userId.size() <= 128 &&
              data.content is string && data.content.size() <= 50000 &&
-             data.mood in ['sad', 'worried', 'neutral', 'happy', 'ecstatic'] &&
-             data.createdAt is string && data.createdAt.size() <= 100 &&
-             (!('energyLevel' in data) || data.energyLevel in ['drained', 'low', 'neutral', 'high', 'peak']) &&
-             (!('isReflection' in data) || data.isReflection is bool) &&
-             (!('wordCount' in data) || data.wordCount is int) &&
-             (!('promptUsed' in data) || data.promptUsed == null || (data.promptUsed is string && data.promptUsed.size() <= 1000)) &&
-             (!('cognitiveSignature' in data) || data.cognitiveSignature == null || data.cognitiveSignature is map) &&
-             (!('tags' in data) || data.tags is list);
+             data.mood is string && data.mood.size() <= 50 &&
+             data.createdAt is string && data.createdAt.size() <= 100;
     }
 
     // TimeBlock Validation

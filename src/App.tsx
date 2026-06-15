@@ -8038,7 +8038,7 @@ function JournalView({
       
       let totalXP = XP_MAP.JOURNAL_BASE + wordBonus + moodBonus + consistencyBonus + promptBonus;
       if (wordCount >= 1000) totalXP = Math.round(totalXP * XP_MAP.JOURNAL_LONG_FORM_MULT);
-      onAddXP(totalXP, 'NEURAL_INGEST_COMPLETE', { wordCount });
+      await onAddXP(totalXP, 'NEURAL_INGEST_COMPLETE', { wordCount });
 
       const journalData = removeUndefinedFields({
         userId: user.uid,
