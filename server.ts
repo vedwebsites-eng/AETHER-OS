@@ -26,6 +26,17 @@ const getAI = () => {
   });
 };
 
+const handleGeminiError = (err: any, res: any, contextMsg: string) => {
+  console.error(`${contextMsg}:`, err);
+  const errMsg = err.message || String(err);
+  if (errMsg.includes("leaked") || errMsg.includes("Key blocked") || errMsg.includes("403") || errMsg.includes("PERMISSION_DENIED")) {
+    return res.status(403).json({
+      error: "Gemini API key verification failed. Your configured GEMINI_API_KEY has been disabled or reported as leaked. Please rotate or replace your API key via the 'Settings > Secrets' menu on AI Studio to restore full neural analysis systems."
+    });
+  }
+  return res.status(500).json({ error: errMsg });
+};
+
 // API Routes
 
 app.get("/api/health", (req, res) => {
@@ -66,8 +77,7 @@ app.post("/api/gemini/analyze-journal", async (req, res) => {
 
     res.json(JSON.parse(response.text));
   } catch (err: any) {
-    console.error("Error analyzing journal entry:", err);
-    res.status(500).json({ error: err.message || String(err) });
+    handleGeminiError(err, res, "Error analyzing journal entry");
   }
 });
 
@@ -105,8 +115,7 @@ app.post("/api/gemini/breakdown-task", async (req, res) => {
 
     res.json(JSON.parse(response.text));
   } catch (err: any) {
-    console.error("Error breaking down task:", err);
-    res.status(500).json({ error: err.message || String(err) });
+    handleGeminiError(err, res, "Error breaking down task");
   }
 });
 
@@ -134,8 +143,7 @@ app.post("/api/gemini/daily-briefing", async (req, res) => {
 
     res.json({ text: response.text });
   } catch (err: any) {
-    console.error("Error generating daily briefing:", err);
-    res.status(500).json({ error: err.message || String(err) });
+    handleGeminiError(err, res, "Error generating daily briefing");
   }
 });
 
@@ -186,8 +194,7 @@ app.post("/api/gemini/life-balance", async (req, res) => {
 
     res.json(JSON.parse(response.text));
   } catch (err: any) {
-    console.error("Error analyzing life balance:", err);
-    res.status(500).json({ error: err.message || String(err) });
+    handleGeminiError(err, res, "Error analyzing life balance");
   }
 });
 
@@ -212,8 +219,7 @@ app.post("/api/gemini/life-insight", async (req, res) => {
 
     res.json({ text: response.text });
   } catch (err: any) {
-    console.error("Error generating life insight:", err);
-    res.status(500).json({ error: err.message || String(err) });
+    handleGeminiError(err, res, "Error generating life insight");
   }
 });
 
@@ -243,8 +249,7 @@ app.post("/api/gemini/coach-response", async (req, res) => {
 
     res.json({ text: response.text });
   } catch (err: any) {
-    console.error("Error generating coach response:", err);
-    res.status(500).json({ error: err.message || String(err) });
+    handleGeminiError(err, res, "Error generating coach response");
   }
 });
 
@@ -276,8 +281,7 @@ app.post("/api/gemini/estimate-xp", async (req, res) => {
 
     res.json({ text: response.text });
   } catch (err: any) {
-    console.error("Error estimating XP:", err);
-    res.status(500).json({ error: err.message || String(err) });
+    handleGeminiError(err, res, "Error estimating XP");
   }
 });
 
@@ -324,8 +328,7 @@ app.post("/api/gemini/generate-timetable", async (req, res) => {
 
     res.json(JSON.parse(response.text));
   } catch (err: any) {
-    console.error("Error generating timetable:", err);
-    res.status(500).json({ error: err.message || String(err) });
+    handleGeminiError(err, res, "Error generating timetable");
   }
 });
 
