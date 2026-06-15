@@ -8017,26 +8017,11 @@ function JournalView({
   const [energyLevel, setEnergyLevel] = useState<'drained'|'low'|'neutral'|'high'|'peak'>('neutral');
   const [expandedJournalId, setExpandedJournalId] = useState<string | null>(null);
 
-  // Find existing entry for today
-  useEffect(() => {
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
-    const todayEntry = journals.find(j => j.createdAt.startsWith(todayStr));
-    if (todayEntry) {
-      setContent(todayEntry.content);
-      setMood(todayEntry.mood);
-      setSelectedTags(todayEntry.tags || []);
-      setWordCount(todayEntry.wordCount || 0);
-      if (todayEntry.energyLevel) {
-        setEnergyLevel(todayEntry.energyLevel);
-      }
-    }
-  }, [journals]);
-
   const addEntry = async () => {
     if (!content.trim() || content === '<p></p>') return;
     try {
       const today = new Date().toISOString().split('T')[0];
-      const todayEntry = journals.find(j => j.createdAt.startsWith(today));
+      const hasEntryToday = journals.some(j => j.createdAt?.startsWith(today));
       
       const wordBonus = Math.floor(wordCount / XP_MAP.JOURNAL_WORD_RATE);
       const moodBonus = XP_MAP.JOURNAL_MOOD_BONUS;
@@ -8046,21 +8031,14 @@ function JournalView({
       let newStreak = (stats?.journalStreak || 0);
       
       // Calculate streak and first-entry-of-day bonuses
-      if (!todayEntry) {
+      if (!hasEntryToday) {
         newStreak += 1;
         consistencyBonus = newStreak * XP_MAP.STREAK_BONUS_PER_DAY;
-        
-        // Base XP only for first entry of the day
-        let totalXP = XP_MAP.JOURNAL_BASE + wordBonus + moodBonus + consistencyBonus + promptBonus;
-        if (wordCount >= 1000) totalXP = Math.round(totalXP * XP_MAP.JOURNAL_LONG_FORM_MULT);
-        onAddXP(totalXP, 'NEURAL_INGEST_COMPLETE', { wordCount });
-      } else {
-        // Just sub-xp for words if editing
-        const extraWords = wordCount - (todayEntry.wordCount || 0);
-        if (extraWords > 0) {
-          onAddXP(Math.floor(extraWords / XP_MAP.JOURNAL_WORD_RATE), 'WORDS_APPENDED');
-        }
       }
+      
+      let totalXP = XP_MAP.JOURNAL_BASE + wordBonus + moodBonus + consistencyBonus + promptBonus;
+      if (wordCount >= 1000) totalXP = Math.round(totalXP * XP_MAP.JOURNAL_LONG_FORM_MULT);
+      onAddXP(totalXP, 'NEURAL_INGEST_COMPLETE', { wordCount });
 
       const journalData = removeUndefinedFields({
         userId: user.uid,
@@ -8084,9 +8062,7 @@ function JournalView({
 
       // Calculate updated peak sync time including today's entry
       const now = new Date();
-      const updatedJournals = todayEntry 
-        ? journals.map(j => j.id === todayEntry.id ? { ...j, createdAt: now.toISOString() } : j)
-        : [...journals, { createdAt: now.toISOString() }];
+      const updatedJournals = [...journals, { createdAt: now.toISOString() }];
       
       const updatedHourlyCounts = updatedJournals.reduce((acc, j) => {
         const hour = new Date(j.createdAt).getHours();
@@ -8098,21 +8074,18 @@ function JournalView({
 
       const batch = writeBatch(db);
 
-      if (todayEntry) {
-        batch.update(doc(db, 'journals', todayEntry.id), journalData);
-      } else {
-        const newJournalRef = doc(collection(db, 'journals'));
-        batch.set(newJournalRef, journalData);
-      }
+      const newJournalRef = doc(collection(db, 'journals'));
+      batch.set(newJournalRef, journalData);
       
       const statsRef = doc(db, 'user_stats', user.uid);
+      const statsTodayCount = (stats?.dailyWordsWritten?.date === today) ? (stats?.dailyWordsWritten?.count || 0) : 0;
       batch.update(statsRef, removeUndefinedFields({ 
-        totalWordsWritten: (stats?.totalWordsWritten || 0) + (todayEntry ? (wordCount - todayEntry.wordCount) : wordCount),
-        dailyWordsWritten: { count: wordCount, date: today },
+        totalWordsWritten: (stats?.totalWordsWritten || 0) + wordCount,
+        dailyWordsWritten: { count: statsTodayCount + wordCount, date: today },
         peakSyncTime: updatedPeakTimeStr,
         journalStreak: newStreak,
         lastJournalDate: today,
-        reflectionPromptsAnswered: (stats?.reflectionPromptsAnswered || 0) + (usePrompt && !todayEntry?.isReflection ? 1 : 0)
+        reflectionPromptsAnswered: (stats?.reflectionPromptsAnswered || 0) + (usePrompt ? 1 : 0)
       }));
 
       await batch.commit();
