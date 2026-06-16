@@ -225,19 +225,65 @@ app.post("/api/gemini/life-insight", async (req, res) => {
 
 app.post("/api/gemini/coach-response", async (req, res) => {
   try {
-    const { chatHistory, userStats, lowestCategory } = req.body;
+    const { chatHistory, userStats, lowestCategory, context } = req.body;
     if (!chatHistory) {
       return res.status(400).json({ error: "chatHistory parameter is missing" });
     }
     const ai = getAI();
-    const systemIns = `You are the Aether_OS Neural Life Coach, a high-level cognitive counseling module. 
+    let systemIns = `You are the Aether_OS Neural Life Coach, a high-level cognitive counseling module. 
     Your personality is futuristic, serious, deep, and philosophical, yet highly encouraging, direct, and tactical.
     The user's current status:
     - Level: ${userStats?.level || 1}
     - Current Streak: ${userStats?.currentStreak || 0}
-    - Weakest Life Sphere: ${lowestCategory || 'None'}
-    
-    Format your reply using standard markdown. Keep it punchy, insightful, and around 100-150 words.`;
+    - Weakest Life Sphere: ${lowestCategory || 'None'}`;
+
+    if (context) {
+      const { lifeSyncCurrent, pendingTasks, completedTodayCount, activeHabits, recentJournals } = context;
+
+      systemIns += `\n\n=== REAL-TIME TODAY CONTEXT ===`;
+      
+      if (lifeSyncCurrent && Object.keys(lifeSyncCurrent).length > 0) {
+        systemIns += `\n- Life Balance breakdown (scores 1-10):`;
+        Object.entries(lifeSyncCurrent).forEach(([cat, val]) => {
+          systemIns += `\n  * ${cat.toUpperCase()}: ${val}`;
+        });
+      }
+
+      systemIns += `\n- Protocols completed today: ${completedTodayCount || 0}`;
+
+      if (pendingTasks && pendingTasks.length > 0) {
+        systemIns += `\n- Top pending protocols/tasks inside active queue:`;
+        pendingTasks.forEach((t: any) => {
+          systemIns += `\n  * [${(t.priority || 'medium').toUpperCase()}] ${t.title || 'Untitled'} (${t.category || 'General'}, ${t.estimate || 30} mins)`;
+        });
+      } else {
+        systemIns += `\n- Top pending protocols/tasks inside active queue: None currently pending.`;
+      }
+
+      if (activeHabits && activeHabits.length > 0) {
+        systemIns += `\n- Habits Streak & Checklist:`;
+        activeHabits.forEach((h: any) => {
+          const status = h.doneToday ? "COMPLETED" : "PENDING";
+          systemIns += `\n  * ${h.name || 'Untitled'} (${h.category || 'Routine'}) -> Streak: ${h.streak || 0}/${h.targetStreak || 30} days [Status Today: ${status}]`;
+        });
+      }
+
+      if (recentJournals && recentJournals.length > 0) {
+        systemIns += `\n- Recent Journal Logs & Sentiments:`;
+        recentJournals.forEach((j: any) => {
+          let journalStr = `\n  * ${j.daysAgo === 0 ? "Today" : `${j.daysAgo} day(s) ago`} -> mood: ${(j.mood || 'neutral').toUpperCase()}`;
+          if (j.keyTheme) {
+            journalStr += `, theme: "${j.keyTheme}"`;
+          }
+          if (j.alignmentScore !== undefined) {
+            journalStr += `, alignment score: ${j.alignmentScore}/100`;
+          }
+          systemIns += journalStr;
+        });
+      }
+    }
+
+    systemIns += `\n\nIncorporate these real-time metrics, logs, habits, and tasks organically into your reasoning and conversation. Directly address their context! Speak as their system-integrated cybernetic mentor. Format your reply using standard markdown. Keep it punchy, deeply insightful, and around 100-150 words.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",

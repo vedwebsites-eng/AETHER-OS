@@ -3190,6 +3190,9 @@ export default function App() {
                   stats={stats}
                   user={user}
                   journals={journals}
+                  tasks={tasks}
+                  habits={habits}
+                  habitLogs={habitLogs}
                 />
               )}
               {activeTab === 'grow' && (
@@ -10460,16 +10463,36 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
   );
 }
 
-function AetherCoachTabView({ stats, user, journals }: any) {
-  const [messages, setMessages] = useState<Array<{ sender: 'user' | 'coach'; text: string; timestamp: Date }>>([
-    { 
-      sender: 'coach', 
-      text: "Aether OS Neural Guidance calibrated. I am analyzing your daily logs, streaks, and life metrics. Ask me to synthesize balance, find weak areas, or write a guidance plan.",
-      timestamp: new Date()
-    }
-  ]);
+function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [] }: any) {
+  const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setMessages([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'coach_messages'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc'),
+      limit(60)
+    );
+
+    const unsub = onSnapshot(q, (snapshot) => {
+      if (!snapshot) return;
+      const queriedMessages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as any));
+      queriedMessages.reverse();
+      setMessages(queriedMessages);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'coach_messages'));
+
+    return () => unsub();
+  }, [user]);
 
   const weakestSphere = useMemo(() => {
     const values = stats?.lifeSync?.current || {};
@@ -10485,15 +10508,127 @@ function AetherCoachTabView({ stats, user, journals }: any) {
     return lowestCategory.toUpperCase();
   }, [stats]);
 
-  const handleSendMessage = async (textToSend: string) => {
-    if (!textToSend.trim() || isGenerating) return;
+  const buildCoachContext = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
 
-    const newMsg = { sender: 'user' as const, text: textToSend, timestamp: new Date() };
-    setMessages(prev => [...prev, newMsg]);
+    // 1. Full lifeSync.current balance object
+    const lifeSyncCurrent = stats?.lifeSync?.current || {};
+
+    // 2. Top 8 pending tasks sorted by priority (critical, high, medium, low)
+    const priorityWeights: Record<string, number> = {
+      critical: 4,
+      high: 3,
+      medium: 2,
+      low: 1
+    };
+    const pendingTasks = (tasks || [])
+      .filter((t: any) => t.status === 'pending')
+      .sort((a, b) => {
+        const weightA = priorityWeights[a.priority?.toLowerCase()] || 0;
+        const weightB = priorityWeights[b.priority?.toLowerCase()] || 0;
+        return weightB - weightA;
+      })
+      .slice(0, 8)
+      .map((t: any) => ({
+        title: t.title,
+        category: t.category,
+        priority: t.priority,
+        estimate: t.estimate
+      }));
+
+    // 3. How many tasks completed today
+    const completedTodayCount = (tasks || []).filter(
+      (t: any) => t.status === 'completed' && t.completedAt?.startsWith(todayStr)
+    ).length;
+
+    // 4. Up to 8 active (non-archived) habits with name/category/streak/targetStreak/doneToday
+    const activeHabitsList = (habits || [])
+      .filter((h: any) => !h.isArchived)
+      .slice(0, 8)
+      .map((h: any) => {
+        const logs = (habitLogs || [])
+          .filter((l: any) => l.habitId === h.id && l.completed)
+          .map((l: any) => l.date)
+          .sort((a: string, b: string) => b.localeCompare(a));
+        
+        let streak = 0;
+        if (logs.length > 0) {
+          const checkDate = new Date();
+          const today = todayStr;
+          const yesterday = format(subDays(checkDate, 1), 'yyyy-MM-dd');
+          if (logs[0] === today || logs[0] === yesterday) {
+            while (true) {
+              const expected = format(subDays(new Date(logs[0]), streak), 'yyyy-MM-dd');
+              if (logs.find((l: any) => l === expected)) {
+                streak++;
+              } else {
+                break;
+              }
+            }
+          }
+        }
+
+        const doneToday = (habitLogs || []).some(
+          (l: any) => l.habitId === h.id && l.date === todayStr && l.completed
+        );
+
+        return {
+          name: h.name,
+          category: h.category,
+          streak,
+          targetStreak: h.targetStreak,
+          doneToday
+        };
+      });
+
+    // 5. Last 4 journal entries
+    const sortedJournals = [...(journals || [])]
+      .filter((j: any) => j.createdAt)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, 4)
+      .map((j: any) => {
+        const daysAgo = Math.max(0, Math.floor((new Date().getTime() - new Date(j.createdAt).getTime()) / (1000 * 60 * 60 * 24)));
+        const item: any = {
+          mood: j.mood,
+          daysAgo
+        };
+        if (j.cognitiveSignature) {
+          if (j.cognitiveSignature.keyTheme) {
+            item.keyTheme = j.cognitiveSignature.keyTheme;
+          }
+          if (j.cognitiveSignature.alignmentScore !== undefined) {
+            item.alignmentScore = j.cognitiveSignature.alignmentScore;
+          }
+        }
+        return item;
+      });
+
+    return {
+      lifeSyncCurrent,
+      pendingTasks,
+      completedTodayCount,
+      activeHabits: activeHabitsList,
+      recentJournals: sortedJournals
+    };
+  };
+
+  const handleSendMessage = async (textToSend: string) => {
+    if (!textToSend.trim() || isGenerating || !user) return;
+
     setInputText('');
     setIsGenerating(true);
 
     try {
+      // 1. Add user message
+      const userMsgData = removeUndefinedFields({
+        userId: user.uid,
+        sender: 'user',
+        text: textToSend,
+        createdAt: new Date().toISOString()
+      });
+      await addDoc(collection(db, 'coach_messages'), userMsgData);
+
+      // Create history representation using existing local messages state
       const history = messages.slice(-10).map(m => ({
         role: m.sender === 'user' ? 'user' as const : 'model' as const,
         parts: [{ text: m.text }]
@@ -10503,24 +10638,65 @@ function AetherCoachTabView({ stats, user, journals }: any) {
         parts: [{ text: textToSend }]
       });
 
-      const coachReply = await generateCoachResponse(history, stats, weakestSphere);
+      const coachReply = await generateCoachResponse(history, stats, weakestSphere, buildCoachContext());
       
-      setMessages(prev => [...prev, {
+      // 2. Add coach reply
+      const coachMsgData = removeUndefinedFields({
+        userId: user.uid,
         sender: 'coach',
         text: coachReply || "NEURAL_SYNAPSE_TIMEOUT. Please retry.",
-        timestamp: new Date()
-      }]);
+        createdAt: new Date().toISOString()
+      });
+      await addDoc(collection(db, 'coach_messages'), coachMsgData);
+
     } catch (err) {
       console.error(err);
-      setMessages(prev => [...prev, {
-        sender: 'coach',
-        text: "Error establishing connection to Aether Mind. Please check your config parameters.",
-        timestamp: new Date()
-      }]);
+      try {
+        const errorMsgData = removeUndefinedFields({
+          userId: user.uid,
+          sender: 'coach',
+          text: "Error establishing connection to Aether Mind. Please check your config parameters.",
+          createdAt: new Date().toISOString()
+        });
+        await addDoc(collection(db, 'coach_messages'), errorMsgData);
+      } catch (innerErr) {
+        console.error("Failed to persist error message:", innerErr);
+      }
     } finally {
       setIsGenerating(false);
     }
   };
+
+  const handleClearConversation = async () => {
+    if (!user) return;
+    const confirmClear = window.confirm("Are you sure you want to completely erase your neural log with the Aether Coach? This cannot be undone.");
+    if (!confirmClear) return;
+
+    try {
+      const q = query(
+        collection(db, 'coach_messages'),
+        where('userId', '==', user.uid)
+      );
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) return;
+
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, 'coach_messages');
+    }
+  };
+
+  if (!user) {
+    return (
+       <div className="flex items-center justify-center min-h-[400px]">
+          <span className="font-mono text-xs uppercase text-text-s">Initializing Neural Feed...</span>
+       </div>
+    );
+  }
 
   return (
     <div className="max-w-[1600px] mx-auto min-h-[85vh] flex flex-col justify-center items-center py-8 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -10546,14 +10722,32 @@ function AetherCoachTabView({ stats, user, journals }: any) {
                   <p className="text-[8px] font-mono text-cyan uppercase tracking-tighter">COGNITIVE_GUIDANCE_ONLINE</p>
                </div>
             </div>
-            <span className="px-2.5 py-1 bg-cyan/10 border border-cyan/20 rounded-md text-cyan text-[8px] font-mono font-black uppercase">GEMINI_LENS</span>
+            <div className="flex items-center gap-2">
+               {messages.length > 0 && (
+                  <button
+                     type="button"
+                     onClick={handleClearConversation}
+                     title="Clear Conversation"
+                     className="p-1.5 border border-danger/20 hover:border-danger hover:bg-danger/15 text-danger rounded-md transition-all flex items-center justify-center"
+                  >
+                     <Trash2 size={12} />
+                  </button>
+               )}
+               <span className="px-2.5 py-1 bg-cyan/10 border border-cyan/20 rounded-md text-cyan text-[8px] font-mono font-black uppercase">GEMINI_LENS</span>
+            </div>
          </div>
 
          {/* Coach Messages area */}
          <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
-            {messages.map((m, idx) => (
+            {(messages.length > 0 ? messages : [
+               { 
+                  sender: 'coach', 
+                  text: "Aether OS Neural Guidance calibrated. I am analyzing your daily logs, streaks, and life metrics. Ask me to synthesize balance, find weak areas, or write a guidance plan.",
+                  createdAt: new Date().toISOString()
+               }
+            ]).map((m, idx) => (
                <div 
-                 key={`msg-${idx}-${m.sender}-${m.timestamp instanceof Date ? m.timestamp.getTime() : m.timestamp}`} 
+                 key={`msg-${idx}-${m.sender}-${m.createdAt || (m.timestamp instanceof Date ? m.timestamp.getTime() : m.timestamp)}`} 
                  className={cn(
                    "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
                    m.sender === 'user' 

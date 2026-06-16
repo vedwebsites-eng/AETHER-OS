@@ -169,6 +169,18 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "wentWell", "didntGo", "nextWeekFocus", "week", "createdAt"]
+    },
+    "CoachMessage": {
+      "title": "CoachMessage",
+      "description": "An AI Coach conversation message",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "sender": { "type": "string", "enum": ["user", "coach"] },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "sender", "text", "createdAt"]
     }
   },
   "firestore": {
@@ -211,6 +223,10 @@
     "/weekly_reviews/{reviewId}": {
       "schema": "WeeklyReview",
       "description": "User weekly review entries"
+    },
+    "/coach_messages/{messageId}": {
+      "schema": "CoachMessage",
+      "description": "AI Coach messages history"
     }
   }
 }
