@@ -10747,7 +10747,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                }
             ]).map((m, idx) => (
                <div 
-                 key={`msg-${idx}-${m.sender}-${m.createdAt || (m.timestamp instanceof Date ? m.timestamp.getTime() : m.timestamp)}`} 
+                 key={m.id || `msg-${idx}-${m.sender}-${m.createdAt || ''}`} 
                  className={cn(
                    "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
                    m.sender === 'user' 

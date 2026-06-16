@@ -220,8 +220,7 @@ service cloud.firestore {
 
     // CoachMessages
     match /coach_messages/{messageId} {
-      allow get: if isOwner(resource.data.userId);
-      allow list: if isVerified() && resource.data.userId == request.auth.uid;
+      allow read: if isOwner(resource.data.userId);
       allow create: if isVerified() && isValidCoachMessage(incoming()) && isOwner(incoming().userId) && isValidId(messageId);
       allow update: if isVerified() && isOwner(existing().userId) && isValidCoachMessage(incoming()) && 
                     incoming().userId == existing().userId;
