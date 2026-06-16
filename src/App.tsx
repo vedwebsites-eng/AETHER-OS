@@ -5337,6 +5337,22 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
   const [isEstimating, setIsEstimating] = useState(false);
   const [isBreakingDownId, setIsBreakingDownId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [clearConfirm, setClearConfirm] = useState(false);
+
+  const clearAllTasks = async () => {
+    try {
+      const batch = writeBatch(db);
+      tasks.forEach((t) => {
+        batch.delete(doc(db, 'tasks', t.id));
+      });
+      await batch.commit();
+      setCompleteToast("ALL_TASKS_DEGRADED: Queue cleared successfully.");
+      setTimeout(() => setCompleteToast(null), 3000);
+      setClearConfirm(false);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, 'tasks');
+    }
+  };
 
   const handleBreakdown = async (task: Task) => {
     setIsBreakingDownId(task.id);
@@ -5646,6 +5662,46 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between border-b border-white/5 pb-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 size={14} className="text-accent" />
+              <span className="text-[10px] font-mono font-black uppercase tracking-wider text-text-m">
+                ACTIVE_QUEUE ({filteredTasks.length} PROTOCOLS)
+              </span>
+            </div>
+            {tasks.length > 0 && (
+              <div className="flex items-center gap-2">
+                {clearConfirm ? (
+                  <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                    <span className="text-[9px] font-mono text-danger font-black uppercase tracking-wider">CONFIRM?</span>
+                    <button
+                      type="button"
+                      onClick={clearAllTasks}
+                      className="px-2.5 py-1 bg-danger/20 hover:bg-danger text-danger hover:text-white border border-danger/30 rounded text-[9px] font-mono font-black uppercase transition-all"
+                    >
+                      YES_ERASE
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClearConfirm(false)}
+                      className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-text-m border border-white/10 rounded text-[9px] font-mono font-black uppercase transition-all"
+                    >
+                      ABORT
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setClearConfirm(true)}
+                    className="px-3 py-1 border border-danger/20 hover:border-danger hover:bg-danger/10 text-danger hover:text-white rounded-[6px] text-[9px] font-mono font-black uppercase tracking-wider transition-all flex items-center gap-1.5"
+                  >
+                    <Trash2 size={10} />
+                    CLEAR_ALL_TASKS
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           {filteredTasks.length === 0 && (
             <EmptyState
               icon={<CheckCircle2 size={24} className="text-accent" />}
