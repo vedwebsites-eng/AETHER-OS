@@ -17,7 +17,7 @@ import {
   ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download, Briefcase,
   Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
   Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon, Info,
-  RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink, ChevronDown
+  RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink, ChevronDown, Share2
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -73,6 +73,192 @@ const ShareCardWrapper = ({
     {children}
   </div>
 );
+
+const StreakShareCard = ({ 
+  stats, 
+  user 
+}: { 
+  stats: UserStats | null; 
+  user: User | null;
+}) => {
+  const streak = stats?.currentStreak || 0;
+  const level = stats?.level || 1;
+  const levelTitle = 
+    level <= 10 ? 'NOVICE' :
+    level <= 25 ? 'APPRENTICE' :
+    level <= 50 ? 'JOURNEYMAN' :
+    level <= 75 ? 'EXPERT' : 'LEGEND';
+
+  const streakColor = 
+    streak >= 365 ? '#FFD700' :
+    streak >= 90  ? '#C8651B' :
+    streak >= 30  ? '#7f77dd' :
+    streak >= 7   ? '#00D9FF' : '#ffffff';
+
+  const streakLabel = 
+    streak >= 365 ? 'LEGENDARY STREAK' :
+    streak >= 90  ? 'ELITE STREAK' :
+    streak >= 30  ? 'RARE STREAK' :
+    streak >= 7   ? 'ACTIVE STREAK' : 'STREAK';
+
+  return (
+    <div
+      id="streak-share-card"
+      style={{
+        width: '1080px',
+        height: '1080px',
+        background: '#080808',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'monospace',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Background glow */}
+      <div style={{
+        position: 'absolute',
+        width: '600px',
+        height: '600px',
+        borderRadius: '50%',
+        background: `radial-gradient(circle, ${streakColor}15, transparent 70%)`,
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+      }} />
+
+      {/* Grid lines background */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: `
+          linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)
+        `,
+        backgroundSize: '60px 60px',
+      }} />
+
+      {/* Top label */}
+      <p style={{
+        color: 'rgba(255,255,255,0.3)',
+        fontSize: '18px',
+        letterSpacing: '0.5em',
+        textTransform: 'uppercase',
+        marginBottom: '40px',
+        position: 'relative',
+      }}>
+        NEURAL_OPERATING_SYSTEM
+      </p>
+
+      {/* Flame emoji */}
+      <div style={{
+        fontSize: '100px',
+        marginBottom: '20px',
+        position: 'relative',
+        filter: `drop-shadow(0 0 40px ${streakColor})`,
+      }}>
+        🔥
+      </div>
+
+      {/* Big streak number */}
+      <div style={{
+        fontSize: '220px',
+        fontWeight: '900',
+        color: streakColor,
+        lineHeight: '1',
+        position: 'relative',
+        textShadow: `0 0 80px ${streakColor}60`,
+        fontFamily: 'Georgia, serif',
+        fontStyle: 'italic',
+      }}>
+        {streak}
+      </div>
+
+      {/* DAY STREAK label */}
+      <p style={{
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: '36px',
+        letterSpacing: '0.4em',
+        textTransform: 'uppercase',
+        marginTop: '20px',
+        position: 'relative',
+      }}>
+        DAY {streakLabel}
+      </p>
+
+      {/* Divider */}
+      <div style={{
+        width: '200px',
+        height: '1px',
+        background: `linear-gradient(90deg, transparent, ${streakColor}, transparent)`,
+        margin: '40px 0',
+        position: 'relative',
+      }} />
+
+      {/* User info */}
+      <p style={{
+        color: 'rgba(255,255,255,0.4)',
+        fontSize: '22px',
+        letterSpacing: '0.3em',
+        textTransform: 'uppercase',
+        position: 'relative',
+      }}>
+        {user?.displayName?.toUpperCase() || 'OPERATIVE'} · {levelTitle} · LVL {level}
+      </p>
+
+      {/* Bottom watermark */}
+      <div style={{
+        position: 'absolute',
+        bottom: '40px',
+        right: '50px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+      }}>
+        <p style={{
+          color: 'rgba(255,255,255,0.15)',
+          fontSize: '18px',
+          letterSpacing: '0.3em',
+          textTransform: 'uppercase',
+        }}>
+          AETHEROS
+        </p>
+      </div>
+
+      {/* Date bottom left */}
+      <div style={{
+        position: 'absolute',
+        bottom: '40px',
+        left: '50px',
+      }}>
+        <p style={{
+          color: 'rgba(255,255,255,0.15)',
+          fontSize: '16px',
+          letterSpacing: '0.2em',
+        }}>
+          {new Date().toISOString().split('T')[0]}
+        </p>
+      </div>
+
+      {/* Corner accents */}
+      {[
+        { top: '30px', left: '30px', borderTop: `2px solid ${streakColor}40`, borderLeft: `2px solid ${streakColor}40` },
+        { top: '30px', right: '30px', borderTop: `2px solid ${streakColor}40`, borderRight: `2px solid ${streakColor}40` },
+        { bottom: '30px', left: '30px', borderBottom: `2px solid ${streakColor}40`, borderLeft: `2px solid ${streakColor}40` },
+        { bottom: '30px', right: '30px', borderBottom: `2px solid ${streakColor}40`, borderRight: `2px solid ${streakColor}40` },
+      ].map((style, i) => (
+        <div key={i} style={{
+          position: 'absolute',
+          width: '40px',
+          height: '40px',
+          ...style,
+        }} />
+      ))}
+    </div>
+  );
+};
 
 const ShareModal = ({
   isOpen,
@@ -2258,8 +2444,25 @@ export default function App() {
           
           // Milestones
           if (newStreak === 7) newExperience += 200;
+          if (newStreak === 14) newExperience += 300;
           if (newStreak === 30) newExperience += 500;
+          if (newStreak === 90) newExperience += 800;
           if (newStreak === 100) newExperience += 1000;
+          if (newStreak === 365) newExperience += 2000;
+
+          if (newStreak === 7 || newStreak === 14 || 
+              newStreak === 30 || newStreak === 90 || 
+              newStreak === 365) {
+            // Auto-open share modal after 2 second delay
+            // (let the celebration animation play first)
+            setTimeout(() => {
+              openShare(
+                'streak-share-card',
+                `AETHEROS_STREAK_${newStreak}D`,
+                `${newStreak} DAY STREAK`
+              );
+            }, 2000);
+          }
 
           const streakId = `streak-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           setXpNotifications(prev => [...prev, { 
@@ -2890,8 +3093,25 @@ export default function App() {
           newStreak += 1;
           // Streak milestone bonuses
           if (newStreak === 7) await addXP(100, 'STREAK_MILESTONE_7');
+          if (newStreak === 14) await addXP(150, 'STREAK_MILESTONE_14');
           if (newStreak === 30) await addXP(250, 'STREAK_MILESTONE_30');
+          if (newStreak === 90) await addXP(400, 'STREAK_MILESTONE_90');
           if (newStreak === 100) await addXP(500, 'STREAK_MILESTONE_100');
+          if (newStreak === 365) await addXP(1000, 'STREAK_MILESTONE_365');
+
+          if (newStreak === 7 || newStreak === 14 || 
+              newStreak === 30 || newStreak === 90 || 
+              newStreak === 365) {
+            // Auto-open share modal after 2 second delay
+            // (let the celebration animation play first)
+            setTimeout(() => {
+              openShare(
+                'streak-share-card',
+                `AETHEROS_STREAK_${newStreak}D`,
+                `${newStreak} DAY STREAK`
+              );
+            }, 2000);
+          }
         } else if (lastActive !== today) {
           newStreak = 1; // Reset if gap > 1 day
         }
@@ -3480,6 +3700,7 @@ export default function App() {
                     setQueue={setQueue}
                     setQueueIndex={setQueueIndex}
                     startPlaylist={startPlaylist}
+                    openShare={openShare}
                   />
                 </ErrorBoundary>
               )}
@@ -3716,6 +3937,10 @@ export default function App() {
           {weeklyReviews.map((review, index) => <div key={`test-review-${review.id || 'review'}-${index}`}>{review.wentWell}</div>)}
         </div>
       )}
+
+      <ShareCardWrapper id="streak-share-card-wrapper">
+        <StreakShareCard stats={stats} user={user} />
+      </ShareCardWrapper>
     </div>
   );
 }
@@ -4500,7 +4725,15 @@ function LevelProgressBar({ stats }: { stats: UserStats | null }) {
   );
 }
 
-function ProfileCard({ stats, user }: { stats: UserStats | null, user: User }) {
+function ProfileCard({ 
+  stats, 
+  user,
+  openShare
+}: { 
+  stats: UserStats | null; 
+  user: User;
+  openShare?: (cardId: string, filename: string, title: string) => void;
+}) {
   if (!stats) return null;
   const { currentXP, nextLevelXP, levelProgress } = getLevelFromXP(stats.experience);
   
@@ -4537,6 +4770,21 @@ function ProfileCard({ stats, user }: { stats: UserStats | null, user: User }) {
               <span className="flex items-center gap-1 text-[8px] sm:text-[10px] font-mono text-warning font-black uppercase whitespace-nowrap">
                 <Flame className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {stats.currentStreak}D STREAK
               </span>
+              {openShare && (
+                <button
+                  onClick={() => openShare(
+                    'streak-share-card',
+                    `AETHEROS_STREAK_${stats?.currentStreak || 0}D`,
+                    'STREAK CARD'
+                  )}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-white/10 hover:border-[#C8651B]/50 hover:bg-[#C8651B]/10 transition-all group shrink-0"
+                >
+                  <Share2 size={10} className="text-white/35 group-hover:text-[#C8651B]" />
+                  <span className="text-[8px] font-mono text-white/35 group-hover:text-[#C8651B] uppercase tracking-widest">
+                    SHARE
+                  </span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -5288,7 +5536,8 @@ function Dashboard({
   setPlayMode,
   setQueue,
   setQueueIndex,
-  startPlaylist
+  startPlaylist,
+  openShare
 }: { 
   stats: UserStats | null; 
   tasks: Task[]; 
@@ -5309,6 +5558,7 @@ function Dashboard({
   setQueue: (queue: MotivationItem[]) => void;
   setQueueIndex: React.Dispatch<React.SetStateAction<number>>;
   startPlaylist: (startItem: MotivationItem) => void;
+  openShare?: (cardId: string, filename: string, title: string) => void;
 }) {
   const getYoutubeId = (url: string): string | null => {
     const match = url?.match(
@@ -5383,7 +5633,7 @@ function Dashboard({
         </div>
       </div>
 
-      <ProfileCard stats={stats} user={user} />
+      <ProfileCard stats={stats} user={user} openShare={openShare} />
       
       <LifeSyncOverview lifeSync={stats?.lifeSync} setActiveTab={setActiveTab} categories={stats?.lifeSyncCategories || LIFE_CATEGORIES} />
 
