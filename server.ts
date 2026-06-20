@@ -27,7 +27,7 @@ const getAI = () => {
 };
 
 const handleGeminiError = (err: any, res: any, contextMsg: string) => {
-  console.error(`${contextMsg}:`, err);
+  console.warn(`${contextMsg}:`, err);
   const errMsg = err.message || String(err);
   if (errMsg.includes("leaked") || errMsg.includes("Key blocked") || errMsg.includes("403") || errMsg.includes("PERMISSION_DENIED")) {
     return res.status(403).json({

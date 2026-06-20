@@ -32,6 +32,54 @@ import { EmptyState } from './components/EmptyState';
 import { WeeklyDebriefModal } from './components/WeeklyDebriefModal';
 import { OnboardingModal } from './components/OnboardingModal';
 
+// --- Error Boundary and Safeties ---
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback?: React.ReactNode; name?: string },
+  { hasError: boolean; error?: Error }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error(`[${this.props.name || 'ErrorBoundary'}] crashed:`, error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="flex flex-col items-center justify-center h-64 gap-4 bg-background-card border border-white/5 p-6 rounded-2xl">
+          <p className="text-[10px] font-mono text-red-400 uppercase tracking-widest">
+            MODULE_CRASH_DETECTED [{(this.props.name || '').toUpperCase()}]
+          </p>
+          <p className="text-[9px] font-mono text-white/20">
+            {this.state.error?.message}
+          </p>
+          <button
+            onClick={() => this.setState({ hasError: false })}
+            className="text-[9px] font-mono text-accent uppercase hover:underline cursor-pointer"
+          >
+            ATTEMPT_RECOVERY →
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const safeDate = (dateStr: string | undefined | null): Date => {
+  if (!dateStr) return new Date();
+  try {
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? new Date() : d;
+  } catch {
+    return new Date();
+  }
+};
+
 // --- Types ---
 type AppTab = 'dashboard' | 'dailyWork' | 'reflect' | 'grow' | 'aetherCoach' | 'configOs';
 
@@ -260,25 +308,27 @@ const LIFE_CATEGORIES = [
   { id: 'MENTAL_HEALTH', label: 'MENTAL HEALTH', color: '#14b8a6' }, 
 ];
 
-function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<string, number>; categories?: any[] }) {
+const RadarChart = React.memo(function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<string, number>; categories?: any[] }) {
   const size = 300;
   const center = size / 2;
   const radius = (size / 2) * 0.75;
   const levels = 5;
 
-  const points = categories.map((cat, i) => {
-    const angle = (Math.PI * 2 * i) / categories.length - Math.PI / 2;
-    const rawVal = values[cat.id];
-    const value = (typeof rawVal === 'number' && !isNaN(rawVal)) ? rawVal : 5;
-    const r = (value / 10) * radius;
-    return {
-      x: center + r * Math.cos(angle),
-      y: center + r * Math.sin(angle),
-      angle
-    };
-  });
+  const points = useMemo(() => {
+    return categories.map((cat, i) => {
+      const angle = (Math.PI * 2 * i) / categories.length - Math.PI / 2;
+      const rawVal = values[cat.id];
+      const value = (typeof rawVal === 'number' && !isNaN(rawVal)) ? rawVal : 5;
+      const r = (value / 10) * radius;
+      return {
+        x: center + r * Math.cos(angle),
+        y: center + r * Math.sin(angle),
+        angle
+      };
+    });
+  }, [categories, values, radius, center]);
 
-  const polygonPath = points.map(p => `${p.x},${p.y}`).join(' ');
+  const polygonPath = useMemo(() => points.map(p => `${p.x},${p.y}`).join(' '), [points]);
 
   return (
     <div className="w-full aspect-square relative flex items-center justify-center p-2">
@@ -335,6 +385,12 @@ function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<s
           const x = center + labelDist * Math.cos(angle);
           const y = center + labelDist * Math.sin(angle);
           
+          const rawVal = values[cat.id];
+          const value = (typeof rawVal === 'number' && !isNaN(rawVal)) ? rawVal : 10;
+          const rVal = (value / 10) * radius;
+          const valX = center + rVal * Math.cos(angle);
+          const valY = center + rVal * Math.sin(angle);
+          
           return (
             <g key={`radar-group-${cat.id || i}-${i}`}>
               <circle 
@@ -342,16 +398,26 @@ function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<s
                 cy={center + radius * Math.sin(angle)} 
                 r="3" 
                 fill={cat.color} 
+                opacity="0.4"
+              />
+              {/* Actual value indicator dot on the radar web */}
+              <circle 
+                cx={valX} 
+                cy={valY} 
+                r="3.5" 
+                fill={cat.color} 
+                stroke="#111"
+                strokeWidth="1"
               />
               <text
                 x={x}
                 y={y}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                className="text-[9px] font-mono font-bold uppercase tracking-widest"
+                className="text-[9px] font-mono font-black uppercase tracking-widest text-glow-small"
                 fill={cat.color}
               >
-                {cat.label}
+                {cat.label} ({value})
               </text>
             </g>
           );
@@ -359,7 +425,7 @@ function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<s
       </svg>
     </div>
   );
-}
+});
 
 const PRESET_COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#22c55e', 
@@ -377,6 +443,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
     }
   );
   const [history, setHistory] = useState<LifeSnapshot[]>([]);
+  const [selectedSnapshot, setSelectedSnapshot] = useState<LifeSnapshot | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -418,7 +485,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
         collection(db, 'life_snapshots'),
         where('userId', '==', user.uid),
         orderBy('date', 'desc'),
-        limit(7)
+        limit(100)
       );
       return onSnapshot(q, (snapshot) => {
         if (!snapshot) return;
@@ -426,15 +493,18 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
           setHistory([]);
           return;
         }
-        setHistory(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LifeSnapshot)));
+        setHistory(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LifeSnapshot)));
       }, (err) => handleFirestoreError(err, OperationType.LIST, 'life_snapshots'));
     }
   }, [user]);
 
-  const activeValues = categories.map(cat => values[cat.id] ?? 10);
+  const isViewingHistory = selectedSnapshot !== null;
+  const displayedValues = isViewingHistory ? selectedSnapshot.values : values;
+
+  const activeValues = categories.map(cat => displayedValues[cat.id] ?? 10);
   const balanceScore = Number((activeValues.reduce((a, b) => a + b, 0) / (categories.length || 1)).toFixed(1));
   
-  const sortedCategories = [...categories].sort((a, b) => (values[a.id] ?? 10) - (values[b.id] ?? 10));
+  const sortedCategories = [...categories].sort((a, b) => (displayedValues[a.id] ?? 10) - (displayedValues[b.id] ?? 10));
   const needsFocus = sortedCategories[0] || { id: 'NONE', label: 'NONE', color: '#888888' };
   const strongest = sortedCategories[sortedCategories.length - 1] || { id: 'NONE', label: 'NONE', color: '#888888' };
 
@@ -575,25 +645,72 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
         {/* Left: Radar Chart */}
         <div className="glass p-8 lg:p-12 rounded-[2rem] border border-white/5 flex flex-col items-center justify-center min-h-[400px]">
-          <RadarChart values={values} categories={categories} />
+          <RadarChart values={displayedValues} categories={categories} />
           
-          <div className="mt-12 w-full max-w-sm space-y-4">
+          <div className="mt-8 w-full max-w-md space-y-4 border-t border-white/5 pt-6">
             <div className="flex items-center justify-between">
-               <p className="text-[10px] font-mono text-text-m uppercase tracking-widest">HISTORY — LAST 7 SNAPSHOTS</p>
+               <p className="text-[10px] font-mono font-black text-text-p uppercase tracking-widest">ALIGNMENT_SNAPSHOT_ARCHIVE ({history.length})</p>
+               {isViewingHistory && (
+                 <button 
+                   onClick={() => setSelectedSnapshot(null)}
+                   className="text-[8px] font-mono text-cyan hover:underline uppercase bg-cyan/5 border border-cyan/20 px-2 py-0.5 rounded cursor-pointer"
+                 >
+                   [RESET_TO_PRESENT]
+                 </button>
+               )}
             </div>
-            <div className="flex gap-3">
-              {[...Array(7)].map((_, i) => {
-                const saved = i < history.length;
-                return (
-                  <div 
-                    key={`history-indicator-${i}`}
-                    className={cn(
-                      "w-4 h-4 rounded-sm border transition-all",
-                      saved ? "bg-indigo-500 border-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.5)]" : "border-white/10 bg-white/5"
-                    )}
-                  />
-                );
-              })}
+            
+            {history.length === 0 ? (
+              <p className="text-[9px] font-mono text-text-m opacity-30 mt-2">NO PORTAL SNAPSHOTS RECORDED YET.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                {history.map((snapshot, idx) => {
+                  const isSelected = selectedSnapshot?.id === snapshot.id;
+                  return (
+                    <button
+                      key={`snap-${snapshot.id || idx}-${snapshot.date || idx}-${idx}`}
+                      onClick={() => setSelectedSnapshot(isSelected ? null : snapshot)}
+                      className={cn(
+                        "p-2.5 rounded-xl border text-left font-mono transition-all duration-300 flex flex-col justify-between cursor-pointer group hover:scale-[1.02]",
+                        isSelected 
+                          ? "bg-indigo-500/15 border-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.25)] ring-1 ring-indigo-500/30" 
+                          : "bg-white/2 border-white/5 text-text-m hover:border-white/20 hover:bg-white/5"
+                      )}
+                    >
+                      <span className="text-[8px] font-black uppercase text-indigo-300 tracking-tighter truncate w-full flex items-center justify-between">
+                        {snapshot.date}
+                        {isSelected && <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-ping" />}
+                      </span>
+                      <span className="text-[10px] font-serif font-black text-text-p mt-1 italic">
+                        SCORE: {snapshot.balanceScore}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* Visual metric representation */}
+            <div className="space-y-1.5">
+              <p className="text-[8px] font-mono text-text-m uppercase tracking-[0.2em] opacity-40">CHRONOLOGICAL_STABILITY_INDEX</p>
+              <div className="flex gap-1.5 flex-wrap">
+                {[...Array(Math.max(7, history.length))].map((_, i) => {
+                  const saved = i < history.length;
+                  return (
+                    <div 
+                      key={`history-indicator-${i}`}
+                      title={saved ? `Snapshot ${i+1}: ${history[i].date} (Score: ${history[i].balanceScore})` : "Uncharted node"}
+                      className={cn(
+                        "w-3 h-3 rounded-sm border transition-all cursor-pointer",
+                        saved 
+                          ? "bg-indigo-500 border-indigo-400 shadow-[0_0_6px_rgba(99,102,241,0.4)]" 
+                          : "border-white/10 bg-white/5"
+                      )}
+                      onClick={() => saved && setSelectedSnapshot(history[i])}
+                    />
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -785,6 +902,23 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
                     </div>
                   </div>
                 )}
+                {isViewingHistory && (
+                  <div className="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-xl mb-6 space-y-3 animate-in fade-in duration-300">
+                    <p className="text-[9px] font-mono font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-ping" />
+                      HISTORICAL_VIEW_MODE
+                    </p>
+                    <p className="text-[11px] font-mono text-text-p leading-relaxed">
+                      LOCKED SYSTEM VALUE MEMORY LOG REPORTED ON <span className="text-white font-bold underline">{selectedSnapshot?.date}</span> WITH INDEX ALIGNMENT SCORE OF <span className="text-white font-bold">{selectedSnapshot?.balanceScore}</span>.
+                    </p>
+                    <button 
+                      onClick={() => setSelectedSnapshot(null)}
+                      className="w-full py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 font-mono text-[8px] font-black uppercase rounded-lg tracking-widest transition-all cursor-pointer"
+                    >
+                      [- DISCONNECT_ARCHIVE_LOG -]
+                    </button>
+                  </div>
+                )}
                 {categories.map((cat, i) => (
                   <div key={`slider-cat-${cat.id || i}-${i}`} className="space-y-3 animate-in fade-in duration-200">
                     <div className="flex items-center justify-between">
@@ -792,19 +926,19 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
                         <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: cat.color }} />
                         <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">{cat.label}</span>
                       </div>
-                      <span className="text-xs font-mono font-black" style={{ color: cat.color }}>{values[cat.id] || 10}</span>
+                      <span className="text-xs font-mono font-black" style={{ color: cat.color }}>{displayedValues[cat.id] ?? 10}</span>
                     </div>
                     <input 
                       type="range"
                       min="1"
                       max="10"
                       step="0.5"
-                      value={values[cat.id] || 10}
+                      value={displayedValues[cat.id] ?? 10}
                       onChange={(e) => handleSliderChange(cat.id, parseFloat(e.target.value))}
-                      disabled={syncMode === 'ai'}
+                      disabled={syncMode === 'ai' || isViewingHistory}
                       className={cn(
                         "w-full h-1.5 bg-white/5 rounded-full appearance-none accent-indigo-500 transition-all",
-                        syncMode === 'manual' ? "cursor-pointer" : "cursor-not-allowed opacity-30"
+                        (syncMode === 'manual' && !isViewingHistory) ? "cursor-pointer" : "cursor-not-allowed opacity-30"
                       )}
                       style={{
                         accentColor: cat.color
@@ -819,15 +953,15 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
             <button 
               onClick={saveSnapshot}
-              disabled={isSaving || alreadySavedToday}
+              disabled={isSaving || alreadySavedToday || isViewingHistory}
               className={cn(
                 "w-full py-4 rounded-xl border font-mono text-xs font-black uppercase tracking-widest transition-all",
-                alreadySavedToday 
+                (alreadySavedToday || isViewingHistory)
                   ? "border-white/5 text-text-m opacity-50 cursor-not-allowed" 
                   : "border-white/20 text-text-p hover:bg-white/5 hover:border-white/40 active:scale-95"
               )}
             >
-              {isSaving ? "SYNCING..." : alreadySavedToday ? "LOGGED_FOR_TODAY" : "SAVE_TODAY_SNAPSHOT"}
+              {isSaving ? "SYNCING..." : isViewingHistory ? "HISTORICAL_VIEW_MODE" : alreadySavedToday ? "LOGGED_FOR_TODAY" : "SAVE_TODAY_SNAPSHOT"}
             </button>
             <button 
               onClick={getAiPlan}
@@ -1200,7 +1334,7 @@ const initializeNewUser = async (user: User) => {
     const statsSnap = await getDoc(statsRef);
     if (statsSnap.exists()) return; // Already a real user, don't touch anything
 
-    console.log('NEW_USER_DETECTED — Initializing Firestore documents...');
+    // console.log('NEW_USER_DETECTED — Initializing Firestore documents...');
 
     // Batch write all default docs at once (atomic — all or nothing)
     const batch = writeBatch(db);
@@ -1265,7 +1399,7 @@ const initializeNewUser = async (user: User) => {
     batch.set(settingsRef, defaultSettings);
 
     await batch.commit();
-    console.log('NEW_USER_INITIALIZED — All documents created successfully.');
+    // console.log('NEW_USER_INITIALIZED — All documents created successfully.');
   } catch (err) {
     console.error('INIT_ERROR:', err);
   }
@@ -1545,8 +1679,8 @@ export default function App() {
               lastGenerated: today
             }
           });
-        } catch (e) {
-          console.error("Briefing Generation Failed", e);
+        } catch (e: any) {
+          console.warn("Briefing Generation Failed:", e?.message || String(e));
           // Gracefully fall back to writing a stylish, lore-compliant offline protocol update
           // This stops infinite background retries during high load or quota exhaustion
           try {
@@ -1723,7 +1857,8 @@ export default function App() {
     const q = query(
       collection(db, 'tasks'),
       where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(100)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
@@ -1732,7 +1867,7 @@ export default function App() {
         setTasks([]);
         return;
       }
-      const t = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Task));
+      const t = (snapshot.docs || []).map(doc => ({ ...doc.data(), id: doc.id } as Task));
       setTasks(t);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'tasks'));
 
@@ -1749,7 +1884,8 @@ export default function App() {
     const q = query(
       collection(db, 'time_blocks'),
       where('userId', '==', user.uid),
-      orderBy('startTime', 'asc')
+      orderBy('startTime', 'asc'),
+      limit(100)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
@@ -1758,7 +1894,7 @@ export default function App() {
         setTimeBlocks([]);
         return;
       }
-      const b = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TimeBlock));
+      const b = (snapshot.docs || []).map(doc => ({ ...doc.data(), id: doc.id } as TimeBlock));
       setTimeBlocks(b);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'time_blocks'));
 
@@ -1775,7 +1911,8 @@ export default function App() {
     const q = query(
       collection(db, 'journals'),
       where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(100)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
@@ -1784,7 +1921,7 @@ export default function App() {
         setJournals([]);
         return;
       }
-      const j = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as JournalEntry));
+      const j = (snapshot.docs || []).map(doc => ({ ...doc.data(), id: doc.id } as JournalEntry));
       setJournals(j);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'journals'));
 
@@ -1792,7 +1929,8 @@ export default function App() {
     const motivQ = query(
       collection(db, 'motivation_items'),
       where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(100)
     );
     const motivUnsub = onSnapshot(motivQ, (snapshot) => {
       if (!snapshot) return;
@@ -1800,7 +1938,7 @@ export default function App() {
         setMotivationItems([]);
         return;
       }
-      setMotivationItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as MotivationItem)));
+      setMotivationItems((snapshot.docs || []).map(doc => ({ ...doc.data(), id: doc.id } as MotivationItem)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'motivation_items'));
 
     return () => {
@@ -1819,7 +1957,8 @@ export default function App() {
 
     const habitsQ = query(
       collection(db, 'habits'),
-      where('userId', '==', user.uid)
+      where('userId', '==', user.uid),
+      limit(100)
     );
     const unsubHabits = onSnapshot(habitsQ, (snapshot) => {
       if (!snapshot) return;
@@ -1827,14 +1966,14 @@ export default function App() {
         setHabits([]);
         return;
       }
-      setHabits(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Habit)));
+      setHabits((snapshot.docs || []).map(doc => ({ ...doc.data(), id: doc.id } as Habit)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'habits'));
 
     const logsQ = query(
       collection(db, 'habit_logs'),
       where('userId', '==', user.uid),
       orderBy('timestamp', 'desc'),
-      limit(2000) 
+      limit(365) 
     );
     const unsubLogs = onSnapshot(logsQ, (snapshot) => {
       if (!snapshot) return;
@@ -1842,7 +1981,7 @@ export default function App() {
         setHabitLogs([]);
         return;
       }
-      setHabitLogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as HabitLog)));
+      setHabitLogs((snapshot.docs || []).map(doc => ({ ...doc.data(), id: doc.id } as HabitLog)));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'habit_logs'));
 
     return () => {
@@ -1861,7 +2000,8 @@ export default function App() {
     const q = query(
       collection(db, 'weekly_reviews'),
       where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      orderBy('createdAt', 'desc'),
+      limit(100)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
@@ -1870,7 +2010,7 @@ export default function App() {
         setWeeklyReviews([]);
         return;
       }
-      setWeeklyReviews(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WeeklyReview)));
+      setWeeklyReviews((snapshot.docs || []).map(doc => ({ ...doc.data(), id: doc.id } as WeeklyReview)));
       if (syncFailed) {
         setSyncFailed(false);
         setCompleteToast('DATA_SYNC_RESTORED');
@@ -3123,98 +3263,110 @@ export default function App() {
               transition={{ duration: 0.4, ease: PREMIUM_BEZIER }}
             >
               {activeTab === 'dashboard' && (
-                <Dashboard 
-                  stats={stats} 
-                  tasks={tasks} 
-                  journals={journals} 
-                  onComplete={handleCompleteTask} 
-                  user={user} 
-                  setActiveTab={handleTabChange} 
-                  setIsMotivationPortalOpen={setIsMotivationPortalOpen} 
-                  motivationItems={motivationItems}
-                  currentlyPlaying={currentlyPlaying}
-                  isPlaying={isPlaying}
-                  playMode={playMode}
-                  queue={queue}
-                  queueIndex={queueIndex}
-                  setCurrentlyPlaying={setCurrentlyPlaying}
-                  setIsPlaying={setIsPlaying}
-                  setPlayMode={setPlayMode}
-                  setQueue={setQueue}
-                  setQueueIndex={setQueueIndex}
-                  startPlaylist={startPlaylist}
-                />
+                <ErrorBoundary name="Core_Command_Dashboard">
+                  <Dashboard 
+                    stats={stats} 
+                    tasks={tasks} 
+                    journals={journals} 
+                    onComplete={handleCompleteTask} 
+                    user={user} 
+                    setActiveTab={handleTabChange} 
+                    setIsMotivationPortalOpen={setIsMotivationPortalOpen} 
+                    motivationItems={motivationItems}
+                    currentlyPlaying={currentlyPlaying}
+                    isPlaying={isPlaying}
+                    playMode={playMode}
+                    queue={queue}
+                    queueIndex={queueIndex}
+                    setCurrentlyPlaying={setCurrentlyPlaying}
+                    setIsPlaying={setIsPlaying}
+                    setPlayMode={setPlayMode}
+                    setQueue={setQueue}
+                    setQueueIndex={setQueueIndex}
+                    startPlaylist={startPlaylist}
+                  />
+                </ErrorBoundary>
               )}
               {activeTab === 'dailyWork' && (
-                <DailyWorkView
-                  tasks={tasks}
-                  user={user}
-                  onComplete={handleCompleteTask}
-                  settings={settings}
-                  setCompleteToast={setCompleteToast}
-                  timeBlocks={timeBlocks}
-                  journals={journals}
-                  stats={stats}
-                  onAddXP={addXP}
-                  onFocus={startFocus}
-                  addTimeBlock={addTimeBlock}
-                  deleteTimeBlock={deleteTimeBlock}
-                  updateTimeBlock={updateTimeBlock}
-                  updateTask={updateTask}
-                  applyTemplate={applyTemplate}
-                  onUpdateSettings={updateSettings}
-                  habits={habits}
-                  habitLogs={habitLogs}
-                  onAddHabit={addHabit}
-                  onToggleHabit={toggleHabit}
-                  onDeleteHabit={deleteHabit}
-                  subTab={dailyWorkSubTab}
-                  setSubTab={setDailyWorkSubTab}
-                  addToTerminal={addToTerminal}
-                />
+                <ErrorBoundary name="Daily_Work_Processor">
+                  <DailyWorkView
+                    tasks={tasks}
+                    user={user}
+                    onComplete={handleCompleteTask}
+                    settings={settings}
+                    setCompleteToast={setCompleteToast}
+                    timeBlocks={timeBlocks}
+                    journals={journals}
+                    stats={stats}
+                    onAddXP={addXP}
+                    onFocus={startFocus}
+                    addTimeBlock={addTimeBlock}
+                    deleteTimeBlock={deleteTimeBlock}
+                    updateTimeBlock={updateTimeBlock}
+                    updateTask={updateTask}
+                    applyTemplate={applyTemplate}
+                    onUpdateSettings={updateSettings}
+                    habits={habits}
+                    habitLogs={habitLogs}
+                    onAddHabit={addHabit}
+                    onToggleHabit={toggleHabit}
+                    onDeleteHabit={deleteHabit}
+                    subTab={dailyWorkSubTab}
+                    setSubTab={setDailyWorkSubTab}
+                    addToTerminal={addToTerminal}
+                  />
+                </ErrorBoundary>
               )}
               {activeTab === 'reflect' && (
-                <ReflectView
-                  journals={journals}
-                  user={user}
-                  onAddXP={addXP}
-                  stats={stats}
-                  setActiveTab={handleTabChange}
-                  tasks={tasks}
-                  habits={habits}
-                  habitLogs={habitLogs}
-                />
+                <ErrorBoundary name="Reflective_Cognition_Engine">
+                  <ReflectView
+                    journals={journals}
+                    user={user}
+                    onAddXP={addXP}
+                    stats={stats}
+                    setActiveTab={handleTabChange}
+                    tasks={tasks}
+                    habits={habits}
+                    habitLogs={habitLogs}
+                  />
+                </ErrorBoundary>
               )}
               {activeTab === 'aetherCoach' && (
-                <AetherCoachTabView
-                  stats={stats}
-                  user={user}
-                  journals={journals}
-                  tasks={tasks}
-                  habits={habits}
-                  habitLogs={habitLogs}
-                />
+                <ErrorBoundary name="Aether_Coach_AI">
+                  <AetherCoachTabView
+                    stats={stats}
+                    user={user}
+                    journals={journals}
+                    tasks={tasks}
+                    habits={habits}
+                    habitLogs={habitLogs}
+                  />
+                </ErrorBoundary>
               )}
               {activeTab === 'grow' && (
-                <GrowView
-                  stats={stats}
-                  user={user}
-                  onAddXP={addXP}
-                  tasks={tasks}
-                  journals={journals}
-                  addToTerminal={addToTerminal}
-                  timeBlocks={timeBlocks}
-                  weeklyReviews={weeklyReviews}
-                />
+                <ErrorBoundary name="Grow_Ascension_Matrix">
+                  <GrowView
+                    stats={stats}
+                    user={user}
+                    onAddXP={addXP}
+                    tasks={tasks}
+                    journals={journals}
+                    addToTerminal={addToTerminal}
+                    timeBlocks={timeBlocks}
+                    weeklyReviews={weeklyReviews}
+                  />
+                </ErrorBoundary>
               )}
               {activeTab === 'configOs' && (
-                <SettingsView 
-                  settings={settings} 
-                  stats={stats} 
-                  user={user} 
-                  onUpdate={updateSettings} 
-                  onPurchase={handleUnlockItem}
-                />
+                <ErrorBoundary name="Config_OS_Settings">
+                  <SettingsView 
+                    settings={settings} 
+                    stats={stats} 
+                    user={user} 
+                    onUpdate={updateSettings} 
+                    onPurchase={handleUnlockItem}
+                  />
+                </ErrorBoundary>
               )}
             </motion.div>
           </AnimatePresence>
@@ -3363,7 +3515,7 @@ export default function App() {
   );
 }
 
-function FloatingXPRenderer({ notifications }: { notifications: XPNotification[] }) {
+const FloatingXPRenderer = React.memo(function FloatingXPRenderer({ notifications }: { notifications: XPNotification[] }) {
   return (
     <div className="fixed top-1/3 left-1/2 -translate-x-1/2 pointer-events-none z-[100] flex flex-col items-center gap-4">
       <AnimatePresence>
@@ -3385,7 +3537,35 @@ function FloatingXPRenderer({ notifications }: { notifications: XPNotification[]
       </AnimatePresence>
     </div>
   );
+});
+
+interface TerminalLog {
+  id: string;
+  msg: string;
+  type: 'info' | 'warn' | 'error' | 'success';
+  time: string;
 }
+
+const SystemTerminal = React.memo(function SystemTerminal({ logs = [] }: { logs?: TerminalLog[] }) {
+  return (
+    <div className="glass p-4 rounded-xl border border-white/5 bg-black/40 font-mono text-xs text-text-m h-48 overflow-y-auto space-y-1 scrollbar-thin">
+      {logs.map((log) => (
+        <div key={log.id} className="flex gap-2">
+          <span className="text-text-s font-bold shrink-0">[{log.time}]</span>
+          <span className={cn(
+            "break-all",
+            log.type === 'error' ? "text-accent" :
+            log.type === 'warn' ? "text-warning" :
+            log.type === 'success' ? "text-success" :
+            "text-cyan"
+          )}>
+            {log.msg}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+});
 
 function AITimetableModal({ 
   isOpen, 
@@ -3496,7 +3676,7 @@ function AITimetableModal({
 
 // --- Components ---
 
-function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; locked?: boolean; unlockLevel?: number; badge?: string }) {
+const NavButton = React.memo(function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string; locked?: boolean; unlockLevel?: number; badge?: string }) {
   return (
     <button 
       onClick={locked ? undefined : onClick}
@@ -3542,7 +3722,7 @@ function NavButton({ active, onClick, icon, label, locked, unlockLevel, badge }:
       )}
     </button>
   );
-}
+});
 
 function AuthorizationPage({ onBack, onGoogleLogin }: { onBack: () => void; onGoogleLogin: () => void }) {
   const [email, setEmail] = useState('');
@@ -4181,7 +4361,7 @@ function ProfileCard({ stats, user }: { stats: UserStats | null, user: User }) {
   );
 }
 
-function QuickStatsGrid({ stats, journals }: { stats: UserStats | null, journals: any[] }) {
+const QuickStatsGrid = React.memo(function QuickStatsGrid({ stats, journals }: { stats: UserStats | null, journals: any[] }) {
   if (!stats) return null;
   const { levelProgress } = getLevelFromXP(stats.experience);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
@@ -4274,9 +4454,9 @@ function QuickStatsGrid({ stats, journals }: { stats: UserStats | null, journals
       ))}
     </div>
   );
-}
+});
 
-function RecentActivityFeed({ log }: { log?: ActivityEntry[] }) {
+const RecentActivityFeed = React.memo(function RecentActivityFeed({ log }: { log?: ActivityEntry[] }) {
   if (!log || log.length === 0) return (
     <div className="glass p-6 rounded-xl border border-white/5 animate-pulse text-center">
       <p className="text-[10px] font-mono text-text-m uppercase tracking-widest italic opacity-40">NO_ACTIVITY_DETECTED_IN_FEED</p>
@@ -4317,7 +4497,7 @@ function RecentActivityFeed({ log }: { log?: ActivityEntry[] }) {
       ))}
     </div>
   );
-}
+});
 
 function UpcomingAndQuickAccess({ tasks, journals, setActiveTab }: { tasks: Task[], journals: JournalEntry[], setActiveTab: any }) {
   const nextTasks = tasks.filter(t => t.status === 'pending').slice(0, 3);
@@ -4348,7 +4528,7 @@ function UpcomingAndQuickAccess({ tasks, journals, setActiveTab }: { tasks: Task
   );
 }
 
-function AchievementsSummary({ stats }: { stats: UserStats | null }) {
+const AchievementsSummary = React.memo(function AchievementsSummary({ stats }: { stats: UserStats | null }) {
   if (!stats) return null;
   const lockedAchievements = ACHIEVEMENTS.filter(a => !stats.unlockedAchievements?.includes(a.id));
   
@@ -4388,7 +4568,7 @@ function AchievementsSummary({ stats }: { stats: UserStats | null }) {
         </div>
     </section>
   );
-}
+});
 
 function MotivationSection({ stats, onOpenPortal }: { stats: UserStats | null; onOpenPortal: () => void }) {
   if (!stats) return null;
@@ -7553,6 +7733,95 @@ function TipTapEditor({
   );
 }
 
+// --- Memoized Habit Heatmap ---
+interface HabitHeatmapProps {
+  heatmapData: any[];
+}
+
+const HabitHeatmap = React.memo(function HabitHeatmap({ heatmapData }: HabitHeatmapProps) {
+  const getIntensity = (count: number) => {
+    if (count === 0) return 'bg-white/5 border-white/10 text-white/5';
+    if (count <= 2) return 'bg-cyan/20 border-cyan/20 text-cyan/20';
+    if (count <= 4) return 'bg-cyan/50 border-cyan/50 text-cyan/50';
+    return 'bg-cyan border-cyan text-black shadow-[0_0_10px_rgba(0,217,255,0.4)]';
+  };
+
+  return (
+    <div className="glass p-8 rounded-3xl border border-white/5 bg-white/2 relative overflow-hidden">
+       <div className="absolute top-0 right-0 w-64 h-64 bg-cyan/5 rounded-full -translate-y-32 translate-x-32 blur-3xl" />
+       
+       <div className="flex justify-between items-center mb-8 relative z-10">
+         <div>
+           <h3 className="text-xs font-mono font-black text-white uppercase tracking-widest">Global_Consistency_Map</h3>
+           <p className="text-[10px] font-mono text-text-m uppercase opacity-50">52_Week_Neural_Engagement_Grid</p>
+         </div>
+         <div className="flex gap-2">
+           <div className="flex items-center gap-1.5">
+             <div className="w-2.5 h-2.5 rounded-sm bg-white/5 border border-white/10" />
+             <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">0</span>
+           </div>
+           <div className="flex items-center gap-1.5">
+             <div className="w-2.5 h-2.5 rounded-sm bg-cyan/20 border border-cyan/20" />
+             <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">1-2</span>
+           </div>
+           <div className="flex items-center gap-1.5">
+             <div className="w-2.5 h-2.5 rounded-sm bg-cyan/50 border border-cyan/50" />
+             <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">3-4</span>
+           </div>
+           <div className="flex items-center gap-1.5">
+             <div className="w-2.5 h-2.5 rounded-sm bg-cyan border border-cyan" />
+             <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">5+</span>
+           </div>
+         </div>
+       </div>
+
+       <div className="relative z-10 w-full overflow-x-auto scrollbar-hide no-scrollbar">
+          <div className="flex gap-2 pb-4 min-w-[700px] w-full">
+            {/* Grid Labels: Days */}
+            <div className="flex flex-col justify-around text-[10px] font-mono text-text-m opacity-40 pr-3 uppercase pb-2 font-black lg:tracking-wider leading-[1.3] text-left shrink-0">
+              <span className="py-0.5">Mon</span>
+              <span className="opacity-0 py-0.5">Tue</span>
+              <span className="py-0.5">Wed</span>
+              <span className="opacity-0 py-0.5">Thu</span>
+              <span className="py-0.5">Fri</span>
+              <span className="opacity-0 py-0.5">Sat</span>
+              <span className="py-0.5 font-bold text-accent/80">Sun</span>
+            </div>
+
+            {/* Grid Columns (Weeks) */}
+            <div className="flex gap-0.5 sm:gap-1">
+              {Array.from({ length: 52 }).map((_, weekIdx) => (
+                <div key={`heatmap-week-${weekIdx}`} className="flex flex-col gap-0.5 sm:gap-1">
+                  {Array.from({ length: 7 }).map((_, dayIdx) => {
+                    const dataIdx = weekIdx * 7 + dayIdx;
+                    const dayData = heatmapData[dataIdx];
+                    if (!dayData) return <div key={`heatmap-day-empty-${weekIdx}-${dayIdx}`} className="w-3 h-3 sm:w-4 sm:h-4 rounded-sm bg-transparent" />;
+                    
+                    return (
+                      <div 
+                        key={`heatmap-day-${weekIdx}-${dayIdx}`}
+                        title={`${dayData.date} - ${dayData.count} habits completed`}
+                        className={cn(
+                          "w-3 h-3 sm:w-4 sm:h-4 rounded-sm border border-black/5 flex items-center justify-center transition-all hover:scale-135 hover:z-20 hover:shadow-md cursor-help",
+                          getIntensity(dayData.count)
+                        )}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div className="mt-4 flex justify-between text-[10px] font-mono text-text-m opacity-30 uppercase font-bold sm:tracking-widest">
+            <span>LAST_SYNC: 52_WEEKS_AGO</span>
+            <span>SYNC_TARGET: PRESENT_DAY</span>
+          </div>
+       </div>
+    </div>
+  );
+});
+
 function RoutineMatrixView({ 
   habits, 
   habitLogs, 
@@ -7785,7 +8054,8 @@ function RoutineMatrixView({
 
         {/* Right Panel - Heatmap */}
         <div className="flex-1 min-w-0 space-y-6">
-          <div className="glass p-8 rounded-3xl border border-white/5 bg-white/2 relative overflow-hidden">
+          <HabitHeatmap heatmapData={heatmapData} />
+          <div className="hidden">
              <div className="absolute top-0 right-0 w-64 h-64 bg-cyan/5 rounded-full -translate-y-32 translate-x-32 blur-3xl" />
              
              <div className="flex justify-between items-center mb-8 relative z-10">
@@ -8279,51 +8549,67 @@ function JournalView({
 
   const potentialXP = XP_MAP.JOURNAL_BASE + Math.floor(wordCount / XP_MAP.JOURNAL_WORD_RATE) + XP_MAP.JOURNAL_MOOD_BONUS + (usePrompt ? XP_MAP.JOURNAL_PROMPT_BONUS : 0);
 
-  // Stats for the sidebar
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  // Stats for the sidebar (memoized)
+  const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
 
-  const dailyWords = journals
-    .filter(j => j.createdAt?.startsWith(todayStr))
-    .reduce((sum, j) => sum + (j.wordCount || 0), 0);
+  const dailyWords = useMemo(() => {
+    return (journals || [])
+      .filter(j => j.createdAt?.startsWith(todayStr))
+      .reduce((sum, j) => sum + (j.wordCount || 0), 0);
+  }, [journals, todayStr]);
 
-  const weekStart = format(startOfWeek(new Date()), 'yyyy-MM-dd');
-  const weeklyWords = journals
-    .filter(j => j.createdAt >= weekStart)
-    .reduce((sum, j) => sum + (j.wordCount || 0), 0);
+  const weekStart = useMemo(() => format(startOfWeek(new Date()), 'yyyy-MM-dd'), []);
+  const weeklyWords = useMemo(() => {
+    return (journals || [])
+      .filter(j => j.createdAt >= weekStart)
+      .reduce((sum, j) => sum + (j.wordCount || 0), 0);
+  }, [journals, weekStart]);
 
-  const allTimeWords = journals
-    .reduce((sum, j) => sum + (j.wordCount || 0), 0);
+  const allTimeWords = useMemo(() => {
+    return (journals || [])
+      .reduce((sum, j) => sum + (j.wordCount || 0), 0);
+  }, [journals]);
 
-  const avgWords = journals.length > 0
-    ? Math.round(allTimeWords / journals.length) : 0;
+  const avgWords = useMemo(() => {
+    return (journals || []).length > 0
+      ? Math.round(allTimeWords / (journals || []).length) : 0;
+  }, [allTimeWords, journals]);
 
   const avgEntryLength = avgWords;
   const totalWordsWritten = allTimeWords;
 
   // Peak sync time — calculate from journals directly:
-  const hourlyCounts = journals.reduce((acc, j) => {
-    if (!j.createdAt) return acc;
-    const hour = new Date(j.createdAt).getHours();
-    acc[hour] = (acc[hour] || 0) + 1;
-    return acc;
-  }, {} as Record<number, number>);
-  const peakHour = Object.entries(hourlyCounts)
-    .sort((a, b) => (b[1] as number) - (a[1] as number))[0]?.[0];
-  const peakTimeStr = peakHour 
-    ? `${String(peakHour).padStart(2, '0')}:00` : 'N/A';
+  const hourlyCounts = useMemo(() => {
+    return (journals || []).reduce((acc, j) => {
+      if (!j.createdAt) return acc;
+      const hour = new Date(j.createdAt).getHours();
+      acc[hour] = (acc[hour] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+  }, [journals]);
+
+  const peakHour = useMemo(() => {
+    return Object.entries(hourlyCounts)
+      .sort((a, b) => (b[1] as number) - (a[1] as number))[0]?.[0];
+  }, [hourlyCounts]);
+
+  const peakTimeStr = useMemo(() => {
+    return peakHour 
+      ? `${String(peakHour).padStart(2, '0')}:00` : 'N/A';
+  }, [peakHour]);
 
   // Journal streak — read from stats but with safe fallback:
   const journalStreak = stats?.journalStreak || 0;
 
-  const renderInsights = () => {
-    // moodData is correct but add null safety:
-    const last7Days = Array.from({ length: 7 }, (_, i) => 
-      subDays(new Date(), i)
-    ).reverse();
+  // Render insights memoized:
+  const last7Days = useMemo(() => Array.from({ length: 7 }, (_, i) => 
+    subDays(new Date(), i)
+  ).reverse(), []);
 
-    const moodData = last7Days.map(date => {
+  const moodData = useMemo(() => {
+    return last7Days.map(date => {
       const dateStr = format(date, 'yyyy-MM-dd');
-      const entry = journals.find(j => 
+      const entry = (journals || []).find(j => 
         j.createdAt && j.createdAt.startsWith(dateStr)
       );
       const moodValue = entry 
@@ -8336,25 +8622,30 @@ function JournalView({
         hasMood: !!entry
       };
     });
+  }, [journals, last7Days]);
 
-    // Top mood archetype — fix calculation:
-    const moodCounts = journals.reduce((acc, j) => {
+  const topMood = useMemo(() => {
+    const moodCounts = (journals || []).reduce((acc, j) => {
       if (j.mood) acc[j.mood] = (acc[j.mood] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
     const topMoodId = Object.entries(moodCounts)
       .sort((a, b) => b[1] - a[1])[0]?.[0] as JournalEntry['mood'];
-    const topMood = MOODS.find(m => m.id === topMoodId);
+    return MOODS.find(m => m.id === topMoodId);
+  }, [journals]);
 
-    // Temporal frequency:
-    const frequencyData = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((name, idx) => ({
+  const frequencyData = useMemo(() => {
+    return ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((name, idx) => ({
       name,
-      count: journals.filter(j => {
+      count: (journals || []).filter(j => {
         if (!j.createdAt) return false;
         const day = new Date(j.createdAt).getDay();
         return day === (idx + 1) % 7;
       }).length
     }));
+  }, [journals]);
+
+  const renderInsights = () => {
 
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -10478,7 +10769,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       collection(db, 'coach_messages'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc'),
-      limit(60)
+      limit(50)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
@@ -10649,18 +10940,25 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       });
       await addDoc(collection(db, 'coach_messages'), coachMsgData);
 
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.warn("Coach response error logs captured:", err);
+      const errMsg = err?.message || String(err);
+      let coachErrorText = "Error establishing connection to Aether Mind. Please check your config parameters.";
+      
+      if (errMsg.includes("leaked") || errMsg.includes("Key blocked") || errMsg.includes("403") || errMsg.includes("PERMISSION_DENIED")) {
+        coachErrorText = "AETHER_OS_ERROR: Gemini API Key Verification Failed. Your configured GEMINI_API_KEY has been disabled or reported as leaked. Please update or replace your API key via the 'Settings > Secrets' menu on AI Studio to restore full neural analysis systems.";
+      }
+
       try {
         const errorMsgData = removeUndefinedFields({
           userId: user.uid,
           sender: 'coach',
-          text: "Error establishing connection to Aether Mind. Please check your config parameters.",
+          text: coachErrorText,
           createdAt: new Date().toISOString()
         });
         await addDoc(collection(db, 'coach_messages'), errorMsgData);
       } catch (innerErr) {
-        console.error("Failed to persist error message:", innerErr);
+        console.warn("Failed to persist error message:", innerErr);
       }
     } finally {
       setIsGenerating(false);
@@ -10747,7 +11045,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                }
             ]).map((m, idx) => (
                <div 
-                 key={m.id || `msg-${idx}-${m.sender}-${m.createdAt || ''}`} 
+                 key={m.id || `fallback-msg-${idx}`} 
                  className={cn(
                    "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
                    m.sender === 'user' 
