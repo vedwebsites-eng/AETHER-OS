@@ -260,6 +260,320 @@ const StreakShareCard = ({
   );
 };
 
+const AchievementShareCard = ({
+  achievement,
+  stats,
+  user,
+}: {
+  achievement: Achievement | null;
+  stats: UserStats | null;
+  user: User | null;
+}) => {
+  if (!achievement) return null;
+
+  const rarityConfig = {
+    common: {
+      color: '#ffffff',
+      glow: 'rgba(255,255,255,0.15)',
+      label: 'COMMON',
+      border: 'rgba(255,255,255,0.2)',
+    },
+    uncommon: {
+      color: '#00D9FF',
+      glow: 'rgba(0,217,255,0.2)',
+      label: 'UNCOMMON',
+      border: 'rgba(0,217,255,0.3)',
+    },
+    rare: {
+      color: '#7f77dd',
+      glow: 'rgba(127,119,221,0.25)',
+      label: 'RARE',
+      border: 'rgba(127,119,221,0.4)',
+    },
+    legendary: {
+      color: '#FFD700',
+      glow: 'rgba(255,215,0,0.25)',
+      label: 'LEGENDARY',
+      border: 'rgba(255,215,0,0.5)',
+    },
+  };
+
+  const rarity = rarityConfig[achievement.rarity] || rarityConfig.common;
+  const level = stats?.level || 1;
+  const totalXP = stats?.experience || 0;
+
+  const categoryEmoji = {
+    milestone: '🎯',
+    streak: '🔥',
+    skill: '⚡',
+    hidden: '🌑',
+  }[achievement.category] || '🏆';
+
+  return (
+    <div
+      id="achievement-share-card"
+      style={{
+        width: '1080px',
+        height: '1080px',
+        background: '#080808',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'monospace',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Background radial glow */}
+      <div style={{
+        position: 'absolute',
+        width: '700px',
+        height: '700px',
+        borderRadius: '50%',
+        background: `radial-gradient(circle, ${rarity.glow}, transparent 65%)`,
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+      }} />
+
+      {/* Subtle grid */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: `
+          linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)
+        `,
+        backgroundSize: '54px 54px',
+      }} />
+
+      {/* Rarity border ring */}
+      <div style={{
+        position: 'absolute',
+        inset: '20px',
+        border: `1px solid ${rarity.border}`,
+        borderRadius: '32px',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Inner content */}
+      <div style={{
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '0',
+        padding: '0 80px',
+        textAlign: 'center',
+      }}>
+
+        {/* Rarity badge */}
+        <div style={{
+          background: `${rarity.color}15`,
+          border: `1px solid ${rarity.color}40`,
+          borderRadius: '999px',
+          padding: '8px 24px',
+          marginBottom: '48px',
+        }}>
+          <p style={{
+            color: rarity.color,
+            fontSize: '16px',
+            letterSpacing: '0.4em',
+            textTransform: 'uppercase',
+          }}>
+            {rarity.label} ACHIEVEMENT
+          </p>
+        </div>
+
+        {/* Category emoji */}
+        <div style={{
+          fontSize: '80px',
+          marginBottom: '32px',
+          filter: `drop-shadow(0 0 30px ${rarity.color}80)`,
+        }}>
+          {categoryEmoji}
+        </div>
+
+        {/* ACHIEVEMENT UNLOCKED label */}
+        <p style={{
+          color: 'rgba(255,255,255,0.3)',
+          fontSize: '16px',
+          letterSpacing: '0.5em',
+          textTransform: 'uppercase',
+          marginBottom: '24px',
+        }}>
+          ACHIEVEMENT UNLOCKED
+        </p>
+
+        {/* Achievement title — BIG */}
+        <h1 style={{
+          color: rarity.color,
+          fontSize: '72px',
+          fontWeight: '900',
+          fontStyle: 'italic',
+          fontFamily: 'Georgia, serif',
+          textTransform: 'uppercase',
+          lineHeight: '1',
+          marginBottom: '32px',
+          textShadow: `0 0 60px ${rarity.color}50`,
+          letterSpacing: '-0.02em',
+        }}>
+          {achievement.title}
+        </h1>
+
+        {/* Description */}
+        <p style={{
+          color: 'rgba(255,255,255,0.5)',
+          fontSize: '24px',
+          letterSpacing: '0.1em',
+          marginBottom: '48px',
+          maxWidth: '700px',
+          lineHeight: '1.5',
+        }}>
+          {achievement.description}
+        </p>
+
+        {/* XP reward pill */}
+        <div style={{
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '999px',
+          padding: '12px 32px',
+          marginBottom: '64px',
+        }}>
+          <p style={{
+            color: 'rgba(255,255,255,0.6)',
+            fontSize: '20px',
+            letterSpacing: '0.3em',
+          }}>
+            +{achievement.xpReward} XP REWARDED
+          </p>
+        </div>
+
+        {/* Divider */}
+        <div style={{
+          width: '300px',
+          height: '1px',
+          background: `linear-gradient(90deg, transparent, ${rarity.color}60, transparent)`,
+          marginBottom: '40px',
+        }} />
+
+        {/* User stats row */}
+        <div style={{
+          display: 'flex',
+          gap: '48px',
+          alignItems: 'center',
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <p style={{
+              color: 'rgba(255,255,255,0.2)',
+              fontSize: '14px',
+              letterSpacing: '0.3em',
+              textTransform: 'uppercase',
+              marginBottom: '4px',
+            }}>OPERATIVE</p>
+            <p style={{
+              color: 'rgba(255,255,255,0.7)',
+              fontSize: '20px',
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+            }}>{user?.displayName || 'UNKNOWN'}</p>
+          </div>
+
+          <div style={{
+            width: '1px',
+            height: '40px',
+            background: 'rgba(255,255,255,0.1)',
+          }} />
+
+          <div style={{ textAlign: 'center' }}>
+            <p style={{
+              color: 'rgba(255,255,255,0.2)',
+              fontSize: '14px',
+              letterSpacing: '0.3em',
+              textTransform: 'uppercase',
+              marginBottom: '4px',
+            }}>LEVEL</p>
+            <p style={{
+              color: 'rgba(255,255,255,0.7)',
+              fontSize: '20px',
+              letterSpacing: '0.15em',
+            }}>{level}</p>
+          </div>
+
+          <div style={{
+            width: '1px',
+            height: '40px',
+            background: 'rgba(255,255,255,0.1)',
+          }} />
+
+          <div style={{ textAlign: 'center' }}>
+            <p style={{
+              color: 'rgba(255,255,255,0.2)',
+              fontSize: '14px',
+              letterSpacing: '0.3em',
+              textTransform: 'uppercase',
+              marginBottom: '4px',
+            }}>TOTAL XP</p>
+            <p style={{
+              color: 'rgba(255,255,255,0.7)',
+              fontSize: '20px',
+              letterSpacing: '0.15em',
+            }}>{totalXP.toLocaleString()}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Corner accents */}
+      {[
+        { top: '40px', left: '40px', borderTop: `2px solid ${rarity.color}30`, borderLeft: `2px solid ${rarity.color}30` },
+        { top: '40px', right: '40px', borderTop: `2px solid ${rarity.color}30`, borderRight: `2px solid ${rarity.color}30` },
+        { bottom: '40px', left: '40px', borderBottom: `2px solid ${rarity.color}30`, borderLeft: `2px solid ${rarity.color}30` },
+        { bottom: '40px', right: '40px', borderBottom: `2px solid ${rarity.color}30`, borderRight: `2px solid ${rarity.color}30` },
+      ].map((style, i) => (
+        <div key={i} style={{
+          position: 'absolute',
+          width: '50px',
+          height: '50px',
+          ...style,
+        }} />
+      ))}
+
+      {/* AetherOS watermark */}
+      <div style={{
+        position: 'absolute',
+        bottom: '44px',
+        right: '60px',
+      }}>
+        <p style={{
+          color: 'rgba(255,255,255,0.12)',
+          fontSize: '18px',
+          letterSpacing: '0.35em',
+          textTransform: 'uppercase',
+        }}>
+          AETHEROS
+        </p>
+      </div>
+
+      {/* Date watermark */}
+      <div style={{
+        position: 'absolute',
+        bottom: '44px',
+        left: '60px',
+      }}>
+        <p style={{
+          color: 'rgba(255,255,255,0.12)',
+          fontSize: '16px',
+          letterSpacing: '0.2em',
+        }}>
+          {new Date().toISOString().split('T')[0]}
+        </p>
+      </div>
+    </div>
+  );
+};
+
 const ShareModal = ({
   isOpen,
   onClose,
@@ -1797,6 +2111,8 @@ export default function App() {
     filename: string;
     title: string;
   } | null>(null);
+
+  const [sharingAchievement, setSharingAchievement] = useState<Achievement | null>(null);
 
   const openShare = (cardId: string, filename: string, title: string) => {
     setShareModal({ isOpen: true, cardId, filename, title });
@@ -3771,6 +4087,8 @@ export default function App() {
                     addToTerminal={addToTerminal}
                     timeBlocks={timeBlocks}
                     weeklyReviews={weeklyReviews}
+                    openShare={openShare}
+                    setSharingAchievement={setSharingAchievement}
                   />
                 </ErrorBoundary>
               )}
@@ -3815,7 +4133,20 @@ export default function App() {
           <LevelUpOverlay level={levelUpLevel} stats={stats} onClose={() => setLevelUpLevel(null)} />
         )}
         {celebratingAchievement && (
-          <AchievementCelebration achievement={celebratingAchievement} onClose={() => setCelebratingAchievement(null)} />
+          <AchievementCelebration
+            achievement={celebratingAchievement}
+            onClose={() => setCelebratingAchievement(null)}
+            onShare={(ach) => {
+              setSharingAchievement(ach);
+              setTimeout(() => {
+                openShare(
+                  'achievement-share-card',
+                  `AETHEROS_${ach.title}`,
+                  'ACHIEVEMENT CARD'
+                );
+              }, 100);
+            }}
+          />
         )}
         {isManualOpen && (
           <ManualModal 
@@ -3940,6 +4271,11 @@ export default function App() {
 
       <ShareCardWrapper id="streak-share-card-wrapper">
         <StreakShareCard stats={stats} user={user} />
+        <AchievementShareCard
+          achievement={sharingAchievement}
+          stats={stats}
+          user={user}
+        />
       </ShareCardWrapper>
     </div>
   );
@@ -6689,7 +7025,15 @@ function LevelUpOverlay({ level, onClose, stats }: { level: number; onClose: () 
   );
 }
 
-function AchievementCelebration({ achievement, onClose }: { achievement: Achievement; onClose: () => void }) {
+function AchievementCelebration({ 
+  achievement, 
+  onClose,
+  onShare,
+}: { 
+  achievement: Achievement; 
+  onClose: () => void;
+  onShare: (achievement: Achievement) => void;
+}) {
   useEffect(() => {
     confetti({
       particleCount: 100,
@@ -6713,6 +7057,15 @@ function AchievementCelebration({ achievement, onClose }: { achievement: Achieve
         <p className="text-[9px] font-mono font-bold text-accent uppercase tracking-widest mb-1">Achievement Unlocked</p>
         <h4 className="text-white font-serif font-black uppercase tracking-tight text-lg">{achievement.title}</h4>
         <p className="text-text-m text-[10px] uppercase font-mono opacity-60 mt-1">{achievement.description}</p>
+        <button
+          onClick={() => onShare(achievement)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 hover:border-[#C8651B]/50 hover:bg-[#C8651B]/10 transition-all group mt-3"
+        >
+          <Share2 size={12} className="text-white/30 group-hover:text-[#C8651B]" />
+          <span className="text-[9px] font-mono text-white/30 group-hover:text-[#C8651B] uppercase tracking-widest">
+            SHARE_ACHIEVEMENT
+          </span>
+        </button>
       </div>
       <button onClick={onClose} className="p-1 hover:bg-white/10 rounded">
         <X size={16} className="text-text-s" />
@@ -9574,7 +9927,8 @@ function AchievementCard({
   progress, 
   current,
   onClick, 
-  viewMode 
+  viewMode,
+  onShare
 }: { 
   achievement: Achievement; 
   unlocked: boolean; 
@@ -9582,6 +9936,7 @@ function AchievementCard({
   current: number;
   onClick: () => void;
   viewMode: 'grid' | 'list';
+  onShare?: (achievement: Achievement) => void;
 }) {
   const rarityColors = {
     common: 'border-white/20 text-text-m',
@@ -9621,7 +9976,21 @@ function AchievementCard({
         </div>
         <div className="text-right shrink-0 flex flex-col items-end gap-1">
           {unlocked ? (
-            <span className="text-[10px] font-mono text-success uppercase font-black">EARNED</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono text-success uppercase font-black">EARNED</span>
+              {onShare && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onShare(achievement);
+                  }}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg border border-white/10 hover:border-[#C8651B]/50 hover:bg-[#C8651B]/10 transition-all"
+                >
+                  <Share2 size={10} className="text-white/30 hover:text-[#C8651B]" />
+                  <span className="text-[8px] font-mono text-white/20 uppercase">SHARE</span>
+                </button>
+              )}
+            </div>
           ) : (
             <span className="text-[10px] font-mono text-text-s uppercase">{current} / {achievement.requiredValue}</span>
           )}
@@ -9671,8 +10040,20 @@ function AchievementCard({
       )}
 
       {unlocked && (
-        <div className="mt-auto pt-2">
+        <div className="mt-auto pt-2 flex items-center justify-between w-full">
            <span className={cn("text-[8px] font-mono font-black uppercase tracking-widest", rarityColors[achievement.rarity])}>{achievement.rarity}_PROTOCOL</span>
+           {onShare && (
+             <button
+               onClick={(e) => {
+                 e.stopPropagation();
+                 onShare(achievement);
+               }}
+               className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-2 py-1 rounded-lg border border-white/10 hover:border-[#C8651B]/50 hover:bg-[#C8651B]/10"
+             >
+               <Share2 size={10} className="text-white/30 hover:text-[#C8651B]" />
+               <span className="text-[8px] font-mono text-white/20 uppercase">SHARE</span>
+             </button>
+           )}
         </div>
       )}
     </div>
@@ -9893,7 +10274,25 @@ function WeeklyReviewItem({ review }: { review: WeeklyReview }) {
   );
 }
 
-function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews }: { stats: UserStats | null; user: User; tasks: Task[]; journals: JournalEntry[]; timeBlocks: TimeBlock[]; weeklyReviews: WeeklyReview[] }) {
+function StatsView({ 
+  stats, 
+  user, 
+  tasks, 
+  journals, 
+  timeBlocks, 
+  weeklyReviews,
+  openShare,
+  setSharingAchievement
+}: { 
+  stats: UserStats | null; 
+  user: User; 
+  tasks: Task[]; 
+  journals: JournalEntry[]; 
+  timeBlocks: TimeBlock[]; 
+  weeklyReviews: WeeklyReview[];
+  openShare?: (cardId: string, filename: string, title: string) => void;
+  setSharingAchievement?: React.Dispatch<React.SetStateAction<Achievement | null>>;
+}) {
   const [activeSubTab, setActiveSubTab] = useState<'evolution' | 'achievements'>('evolution');
   const [filter, setFilter] = useState<'all' | 'earned' | 'locked'>('all');
   const [rarityFilter, setRarityFilter] = useState<Achievement['rarity'] | 'all'>('all');
@@ -10157,6 +10556,18 @@ function StatsView({ stats, user, tasks, journals, timeBlocks, weeklyReviews }: 
                     {...getAchievementProgress(achievement)}
                     onClick={() => setSelectedAchievement(achievement)}
                     viewMode={viewMode}
+                    onShare={(ach) => {
+                      if (setSharingAchievement) setSharingAchievement(ach);
+                      setTimeout(() => {
+                        if (openShare) {
+                          openShare(
+                            'achievement-share-card',
+                            `AETHEROS_${ach.title}`,
+                            'ACHIEVEMENT CARD'
+                          );
+                        }
+                      }, 100);
+                    }}
                   />
                 </div>
               );
@@ -11580,6 +11991,8 @@ function GrowView({
   addToTerminal,
   timeBlocks,
   weeklyReviews,
+  openShare,
+  setSharingAchievement,
   handlePurchasePerk
 }: any) {
   return (
@@ -11606,6 +12019,8 @@ function GrowView({
            journals={journals} 
            timeBlocks={timeBlocks} 
            weeklyReviews={weeklyReviews} 
+           openShare={openShare}
+           setSharingAchievement={setSharingAchievement}
          />
       </div>
 
