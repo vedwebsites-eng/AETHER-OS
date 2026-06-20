@@ -574,6 +574,375 @@ const AchievementShareCard = ({
   );
 };
 
+const WheelOfLifeShareCard = ({
+  stats,
+  user,
+  categories,
+}: {
+  stats: UserStats | null;
+  user: User | null;
+  categories: any[];
+}) => {
+  const values = stats?.lifeSync?.current || {};
+  const balanceScore = categories.length > 0
+    ? (Object.values(values).reduce((a: number, b: any) => 
+        a + (Number(b) || 0), 0) / categories.length).toFixed(1)
+    : '0.0';
+
+  const date = new Date().toISOString().split('T')[0];
+  const level = stats?.level || 1;
+
+  // SVG radar chart calculations
+  const size = 500;
+  const center = size / 2;
+  const radius = 180;
+  const levels = 5;
+
+  const getPoint = (index: number, value: number, total: number, r: number) => {
+    const angle = (Math.PI * 2 * index) / total - Math.PI / 2;
+    const dist = (value / 10) * r;
+    return {
+      x: center + dist * Math.cos(angle),
+      y: center + dist * Math.sin(angle),
+    };
+  };
+
+  const getLabelPoint = (index: number, total: number) => {
+    const angle = (Math.PI * 2 * index) / total - Math.PI / 2;
+    const dist = radius + 40;
+    return {
+      x: center + dist * Math.cos(angle),
+      y: center + dist * Math.sin(angle),
+    };
+  };
+
+  const dataPoints = categories.map((cat: any, i: number) => {
+    const val = Number(values[cat.id]) || 5;
+    return getPoint(i, val, categories.length, radius);
+  });
+
+  const polygonPoints = dataPoints
+    .map(p => `${p.x},${p.y}`)
+    .join(' ');
+
+  const gridPolygons = Array.from({ length: levels }, (_, lvl) => {
+    const r = (radius / levels) * (lvl + 1);
+    return categories.map((_: any, i: number) => {
+      const angle = (Math.PI * 2 * i) / categories.length - Math.PI / 2;
+      return `${center + r * Math.cos(angle)},${center + r * Math.sin(angle)}`;
+    }).join(' ');
+  });
+
+  return (
+    <div
+      id="wheel-share-card"
+      style={{
+        width: '1080px',
+        height: '1080px',
+        background: '#080808',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'monospace',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Background glow */}
+      <div style={{
+        position: 'absolute',
+        width: '700px',
+        height: '700px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(127,119,221,0.12), rgba(46,107,158,0.08), transparent 70%)',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+      }} />
+
+      {/* Grid background */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: `
+          linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)
+        `,
+        backgroundSize: '54px 54px',
+      }} />
+
+      {/* Outer border */}
+      <div style={{
+        position: 'absolute',
+        inset: '20px',
+        border: '1px solid rgba(127,119,221,0.2)',
+        borderRadius: '32px',
+      }} />
+
+      {/* Header */}
+      <div style={{
+        position: 'relative',
+        textAlign: 'center',
+        marginBottom: '40px',
+      }}>
+        <p style={{
+          color: 'rgba(255,255,255,0.25)',
+          fontSize: '14px',
+          letterSpacing: '0.6em',
+          textTransform: 'uppercase',
+          marginBottom: '12px',
+        }}>
+          LIFE_SYNC — NEURAL_BALANCE_MAP
+        </p>
+        <h1 style={{
+          color: '#ffffff',
+          fontSize: '48px',
+          fontWeight: '900',
+          fontStyle: 'italic',
+          fontFamily: 'Georgia, serif',
+          textTransform: 'uppercase',
+          letterSpacing: '-0.01em',
+          margin: '0',
+        }}>
+          WHEEL OF LIFE
+        </h1>
+      </div>
+
+      {/* SVG Radar Chart */}
+      <div style={{ position: 'relative' }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+        >
+          {/* Grid polygons */}
+          {gridPolygons.map((points, i) => (
+            <polygon
+              key={i}
+              points={points}
+              fill="none"
+              stroke="rgba(255,255,255,0.06)"
+              strokeWidth="1"
+            />
+          ))}
+
+          {/* Axis lines */}
+          {categories.map((_: any, i: number) => {
+            const angle = (Math.PI * 2 * i) / categories.length - Math.PI / 2;
+            return (
+              <line
+                key={i}
+                x1={center}
+                y1={center}
+                x2={center + radius * Math.cos(angle)}
+                y2={center + radius * Math.sin(angle)}
+                stroke="rgba(255,255,255,0.08)"
+                strokeWidth="1"
+              />
+            );
+          })}
+
+          {/* Data polygon fill */}
+          <polygon
+            points={polygonPoints}
+            fill="rgba(127,119,221,0.15)"
+            stroke="#7f77dd"
+            strokeWidth="2"
+          />
+
+          {/* Data points */}
+          {dataPoints.map((point, i) => {
+            const cat = categories[i];
+            const color = cat?.color || '#7f77dd';
+            return (
+              <circle
+                key={i}
+                cx={point.x}
+                cy={point.y}
+                r="6"
+                fill={color}
+                stroke="#080808"
+                strokeWidth="2"
+              />
+            );
+          })}
+
+          {/* Labels */}
+          {categories.map((cat: any, i: number) => {
+            const labelPt = getLabelPoint(i, categories.length);
+            const value = Number(values[cat.id]) || 5;
+            return (
+              <g key={i}>
+                <text
+                  x={labelPt.x}
+                  y={labelPt.y - 8}
+                  textAnchor="middle"
+                  fill={cat.color || '#ffffff'}
+                  fontSize="13"
+                  fontFamily="monospace"
+                  fontWeight="700"
+                  letterSpacing="1"
+                >
+                  {cat.label}
+                </text>
+                <text
+                  x={labelPt.x}
+                  y={labelPt.y + 10}
+                  textAnchor="middle"
+                  fill="rgba(255,255,255,0.4)"
+                  fontSize="16"
+                  fontFamily="Georgia, serif"
+                  fontWeight="900"
+                  fontStyle="italic"
+                >
+                  {value}/10
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Center dot */}
+          <circle
+            cx={center}
+            cy={center}
+            r="4"
+            fill="#7f77dd"
+            opacity="0.6"
+          />
+        </svg>
+      </div>
+
+      {/* Balance score */}
+      <div style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '48px',
+        marginTop: '32px',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{
+            color: 'rgba(255,255,255,0.2)',
+            fontSize: '12px',
+            letterSpacing: '0.4em',
+            textTransform: 'uppercase',
+            marginBottom: '4px',
+          }}>
+            BALANCE_SCORE
+          </p>
+          <p style={{
+            color: '#7f77dd',
+            fontSize: '40px',
+            fontWeight: '900',
+            fontStyle: 'italic',
+            fontFamily: 'Georgia, serif',
+            lineHeight: '1',
+            textShadow: '0 0 30px rgba(127,119,221,0.5)',
+          }}>
+            {balanceScore}
+            <span style={{
+              fontSize: '18px',
+              color: 'rgba(255,255,255,0.3)',
+            }}>/10</span>
+          </p>
+        </div>
+
+        <div style={{
+          width: '1px',
+          height: '50px',
+          background: 'rgba(255,255,255,0.08)',
+        }} />
+
+        <div style={{ textAlign: 'center' }}>
+          <p style={{
+            color: 'rgba(255,255,255,0.2)',
+            fontSize: '12px',
+            letterSpacing: '0.4em',
+            textTransform: 'uppercase',
+            marginBottom: '4px',
+          }}>
+            OPERATIVE
+          </p>
+          <p style={{
+            color: 'rgba(255,255,255,0.6)',
+            fontSize: '20px',
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+          }}>
+            {user?.displayName || 'UNKNOWN'}
+          </p>
+        </div>
+
+        <div style={{
+          width: '1px',
+          height: '50px',
+          background: 'rgba(255,255,255,0.08)',
+        }} />
+
+        <div style={{ textAlign: 'center' }}>
+          <p style={{
+            color: 'rgba(255,255,255,0.2)',
+            fontSize: '12px',
+            letterSpacing: '0.4em',
+            textTransform: 'uppercase',
+            marginBottom: '4px',
+          }}>
+            LEVEL
+          </p>
+          <p style={{
+            color: 'rgba(255,255,255,0.6)',
+            fontSize: '20px',
+            letterSpacing: '0.1em',
+          }}>
+            {level}
+          </p>
+        </div>
+      </div>
+
+      {/* Corner accents */}
+      {[
+        { top: '40px', left: '40px', borderTop: '2px solid rgba(127,119,221,0.25)', borderLeft: '2px solid rgba(127,119,221,0.25)' },
+        { top: '40px', right: '40px', borderTop: '2px solid rgba(127,119,221,0.25)', borderRight: '2px solid rgba(127,119,221,0.25)' },
+        { bottom: '40px', left: '40px', borderBottom: '2px solid rgba(127,119,221,0.25)', borderLeft: '2px solid rgba(127,119,221,0.25)' },
+        { bottom: '40px', right: '40px', borderBottom: '2px solid rgba(127,119,221,0.25)', borderRight: '2px solid rgba(127,119,221,0.25)' },
+      ].map((style, i) => (
+        <div key={i} style={{
+          position: 'absolute',
+          width: '50px',
+          height: '50px',
+          ...style,
+        }} />
+      ))}
+
+      {/* AetherOS watermark */}
+      <p style={{
+        position: 'absolute',
+        bottom: '44px',
+        right: '60px',
+        color: 'rgba(255,255,255,0.1)',
+        fontSize: '16px',
+        letterSpacing: '0.35em',
+        textTransform: 'uppercase',
+      }}>
+        AETHEROS
+      </p>
+
+      {/* Date */}
+      <p style={{
+        position: 'absolute',
+        bottom: '44px',
+        left: '60px',
+        color: 'rgba(255,255,255,0.1)',
+        fontSize: '14px',
+        letterSpacing: '0.2em',
+      }}>
+        {date}
+      </p>
+    </div>
+  );
+};
+
 const ShareModal = ({
   isOpen,
   onClose,
@@ -907,6 +1276,7 @@ interface AppSettings {
   };
   aiRoutine?: string[];
   onboardingComplete?: boolean;
+  lifeSyncCategories?: any[];
 }
 
 interface WeeklyReview {
@@ -1115,8 +1485,8 @@ const PRESET_COLORS = [
   '#8b5cf6', '#d946ef', '#ec4899', '#f43f5e'
 ];
 
-function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: { stats: UserStats | null, user: User, onAddXP: any, tasks: Task[], journals: JournalEntry[], addToTerminal: any }) {
-  const categories = stats?.lifeSyncCategories || LIFE_CATEGORIES;
+function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, openShare, lifeSyncCategories }: { stats: UserStats | null, user: User, onAddXP: any, tasks: Task[], journals: JournalEntry[], addToTerminal: any, openShare?: any, lifeSyncCategories?: any[] }) {
+  const categories = lifeSyncCategories || stats?.lifeSyncCategories || LIFE_CATEGORIES;
   
   const [syncMode, setSyncMode] = useState<'manual' | 'ai'>(stats?.lifeSync?.syncMode || 'manual');
   const [values, setValues] = useState<Record<string, number>>(
@@ -1257,7 +1627,22 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-4xl font-serif font-black text-text-p uppercase tracking-[0.1em] italic text-glow-white">LIFE_SYNC</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-4xl font-serif font-black text-text-p uppercase tracking-[0.1em] italic text-glow-white">LIFE_SYNC</h1>
+            <button
+              onClick={() => openShare?.(
+                'wheel-share-card',
+                `AETHEROS_WHEEL_${new Date().toISOString().split('T')[0]}`,
+                'WHEEL OF LIFE CARD'
+              )}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#7f77dd]/50 hover:bg-[#7f77dd]/10 transition-all group cursor-pointer"
+            >
+              <Share2 size={12} className="text-white/30 group-hover:text-[#7f77dd]" />
+              <span className="text-[9px] font-mono text-white/20 group-hover:text-[#7f77dd] uppercase tracking-widest">
+                SHARE
+              </span>
+            </button>
+          </div>
           <p className="text-[10px] font-mono text-text-m uppercase tracking-[0.5em] opacity-40">Holistic_State_Alignment // Reality_Interface</p>
         </div>
         
@@ -1632,7 +2017,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
             <button 
               onClick={saveSnapshot}
               disabled={isSaving || alreadySavedToday || isViewingHistory}
@@ -1644,6 +2029,19 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal }: 
               )}
             >
               {isSaving ? "SYNCING..." : isViewingHistory ? "HISTORICAL_VIEW_MODE" : alreadySavedToday ? "LOGGED_FOR_TODAY" : "SAVE_TODAY_SNAPSHOT"}
+            </button>
+            <button
+              onClick={() => openShare?.(
+                'wheel-share-card',
+                `AETHEROS_WHEEL_${new Date().toISOString().split('T')[0]}`,
+                'WHEEL OF LIFE CARD'
+              )}
+              className="flex items-center justify-center gap-2 px-4 py-4 rounded-xl border border-white/10 hover:border-[#7f77dd]/50 hover:bg-[#7f77dd]/10 transition-all group cursor-pointer active:scale-95"
+            >
+              <Share2 size={14} className="text-white/30 group-hover:text-[#7f77dd]" />
+              <span className="text-[10px] font-mono text-white/30 group-hover:text-[#7f77dd] uppercase tracking-widest font-black">
+                SHARE_BALANCE
+              </span>
             </button>
             <button 
               onClick={getAiPlan}
@@ -4089,6 +4487,7 @@ export default function App() {
                     weeklyReviews={weeklyReviews}
                     openShare={openShare}
                     setSharingAchievement={setSharingAchievement}
+                    lifeSyncCategories={stats?.lifeSyncCategories || settings?.lifeSyncCategories || LIFE_CATEGORIES}
                   />
                 </ErrorBoundary>
               )}
@@ -4275,6 +4674,11 @@ export default function App() {
           achievement={sharingAchievement}
           stats={stats}
           user={user}
+        />
+        <WheelOfLifeShareCard
+          stats={stats}
+          user={user}
+          categories={stats?.lifeSyncCategories || LIFE_CATEGORIES}
         />
       </ShareCardWrapper>
     </div>
@@ -11993,7 +12397,8 @@ function GrowView({
   weeklyReviews,
   openShare,
   setSharingAchievement,
-  handlePurchasePerk
+  handlePurchasePerk,
+  lifeSyncCategories
 }: any) {
   return (
     <div className="max-w-[1600px] mx-auto min-h-[85vh] grid grid-cols-1 xl:grid-cols-12 gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -12007,6 +12412,8 @@ function GrowView({
            tasks={tasks} 
            journals={journals} 
            addToTerminal={addToTerminal} 
+           openShare={openShare}
+           lifeSyncCategories={lifeSyncCategories}
          />
       </div>
 
