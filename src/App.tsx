@@ -31,6 +31,188 @@ import { cn } from './lib/utils';
 import { EmptyState } from './components/EmptyState';
 import { WeeklyDebriefModal } from './components/WeeklyDebriefModal';
 import { OnboardingModal } from './components/OnboardingModal';
+import { toPng } from 'html-to-image';
+
+// --- ShareCard Utilities and Components ---
+const downloadCard = async (elementId: string, filename: string) => {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  
+  try {
+    const dataUrl = await toPng(element, {
+      quality: 1.0,
+      pixelRatio: 3, // High resolution export (3x for retina)
+      backgroundColor: '#080808',
+    });
+    const link = document.createElement('a');
+    link.download = `${filename}_${Date.now()}.png`;
+    link.href = dataUrl;
+    link.click();
+  } catch (err) {
+    console.error('SHARE_CARD_EXPORT_FAILED:', err);
+  }
+};
+
+const ShareCardWrapper = ({ 
+  id, 
+  children 
+}: { 
+  id: string; 
+  children: React.ReactNode 
+}) => (
+  <div
+    id={id}
+    style={{
+      position: 'fixed',
+      top: '-9999px',
+      left: '-9999px',
+      zIndex: -1,
+      pointerEvents: 'none',
+    }}
+  >
+    {children}
+  </div>
+);
+
+const ShareModal = ({
+  isOpen,
+  onClose,
+  cardId,
+  filename,
+  title,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  cardId: string;
+  filename: string;
+  title: string;
+}) => {
+  const [isExporting, setIsExporting] = useState(false);
+  const [exported, setExported] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen && cardId) {
+      const timer = setTimeout(async () => {
+        const element = document.getElementById(cardId);
+        if (element) {
+          try {
+            const dataUrl = await toPng(element, {
+              quality: 0.85,
+              pixelRatio: 2, // 2x is plenty for modal preview previewing
+              backgroundColor: '#080808',
+            });
+            setPreviewUrl(dataUrl);
+          } catch (err) {
+            console.error('PREVIEW_GENERATION_FAILED:', err);
+          }
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      setPreviewUrl(null);
+    }
+  }, [isOpen, cardId]);
+
+  const handleDownload = async () => {
+    setIsExporting(true);
+    await downloadCard(cardId, filename);
+    setIsExporting(false);
+    setExported(true);
+    setTimeout(() => setExported(false), 2000);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[300] flex items-center justify-center p-6"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        onClick={e => e.stopPropagation()}
+        className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 max-w-sm w-full space-y-6"
+      >
+        <div>
+          <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest mb-1">
+            SHARE_PROTOCOL
+          </p>
+          <h3 className="text-xl font-serif font-black text-white uppercase italic">
+            {title}
+          </h3>
+        </div>
+
+        {/* Preview of the card (visible version using data URL) */}
+        <div className="rounded-2xl overflow-hidden border border-white/10 bg-[#080808] aspect-video flex items-center justify-center relative">
+          {previewUrl ? (
+            <img 
+              src={previewUrl} 
+              alt="Card Preview" 
+              className="w-full h-full object-contain" 
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-2 text-white/40">
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span className="text-[10px] font-mono uppercase tracking-widest">GENERATING_PREVIEW...</span>
+            </div>
+          )}
+        </div>
+
+        {/* Action buttons */}
+        <div className="space-y-3">
+          <button
+            onClick={handleDownload}
+            disabled={isExporting}
+            className="w-full py-4 bg-[#C8651B] hover:bg-[#b55a17] disabled:opacity-50 text-white font-mono font-black uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-3"
+          >
+            {isExporting ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                EXPORTING...
+              </>
+            ) : exported ? (
+              '✓ DOWNLOADED'
+            ) : (
+              <>
+                <Download size={16} />
+                DOWNLOAD_PNG
+              </>
+            )}
+          </button>
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => {
+                const text = `Check out my AetherOS stats! 🚀 #AetherOS #SelfImprovement`;
+                window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
+              }}
+              className="py-3 border border-white/10 hover:border-white/30 text-white/50 hover:text-white font-mono text-xs uppercase tracking-widest rounded-xl transition-all"
+            >
+              SHARE_X
+            </button>
+            <button
+              onClick={onClose}
+              className="py-3 border border-white/10 hover:border-white/30 text-white/50 hover:text-white font-mono text-xs uppercase tracking-widest rounded-xl transition-all"
+            >
+              CLOSE
+            </button>
+          </div>
+        </div>
+
+        <p className="text-[8px] font-mono text-white/10 text-center uppercase tracking-widest">
+          Cards export at 3x resolution for crisp quality
+        </p>
+      </motion.div>
+    </motion.div>
+  );
+};
 
 // --- Error Boundary and Safeties ---
 class ErrorBoundary extends React.Component<
@@ -1421,6 +1603,20 @@ export default function App() {
   const [playMode, setPlayMode] = useState<'single' | 'playlist' | 'shuffle'>('single');
   const [queue, setQueue] = useState<MotivationItem[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
+
+  // Global Share State
+  const [shareModal, setShareModal] = useState<{
+    isOpen: boolean;
+    cardId: string;
+    filename: string;
+    title: string;
+  } | null>(null);
+
+  const openShare = (cardId: string, filename: string, title: string) => {
+    setShareModal({ isOpen: true, cardId, filename, title });
+  };
+
+  const closeShare = () => setShareModal(null);
 
   // Extract YouTube video ID from any YouTube URL
   const getYoutubeId = (url: string): string | null => {
@@ -3428,6 +3624,15 @@ export default function App() {
           isOpen={isOnboardingOpen}
           onComplete={handleOnboardingComplete}
         />
+        {shareModal?.isOpen && (
+          <ShareModal
+            isOpen={shareModal.isOpen}
+            onClose={closeShare}
+            cardId={shareModal.cardId}
+            filename={shareModal.filename}
+            title={shareModal.title}
+          />
+        )}
         {completeToast && (
           <motion.div 
             initial={{ y: 50, opacity: 0 }}
