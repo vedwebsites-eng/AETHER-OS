@@ -6335,19 +6335,23 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       </section>
 
       {/* Bottom Strip */}
-      <footer className="h-14 border-t border-white/5 flex items-center justify-between px-8 md:px-16 z-30 bg-[#080808] shrink-0 w-full">
-        <div className="flex items-center gap-3 text-[10px] font-mono text-white/20">
-          <span>01</span>
-          <div className="w-24 h-[1px] bg-white/10" />
-          <span>03</span>
+      <footer className="h-auto sm:h-16 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between px-8 md:px-16 z-30 bg-[#080808] shrink-0 w-full py-4 gap-4">
+        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-[10px] font-mono text-white/30">
+          <span className="font-bold text-[#C8651B] tracking-wider">AETHER @2026</span>
+          <span className="text-white/10 hidden sm:inline">|</span>
+          <span>BUILD_v1.0.4_RELEASE</span>
+          <span className="text-white/10 hidden sm:inline">|</span>
+          <span className="text-white/30">SELF_SYNC_OK</span>
         </div>
-        <div className="flex items-center gap-4 text-[10px] font-mono text-white/20">
+        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-4 text-[10px] font-mono text-white/30">
           <div className="flex items-center gap-2">
             <div className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
-            <span>NETWORK {dbStatus === 'online' ? 'VERIFIED' : 'CONNECTING'}</span>
+            <span>AETHER_NET_OK</span>
           </div>
           <span className="text-white/10">|</span>
-          <span>AES-512 ENCRYPTED</span>
+          <span>LATENCY_12MS</span>
+          <span className="text-white/10">|</span>
+          <span>AES-512_SECURED</span>
         </div>
       </footer>
     </div>
