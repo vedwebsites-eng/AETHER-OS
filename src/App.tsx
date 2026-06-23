@@ -5565,13 +5565,23 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#080808] text-white flex flex-col justify-between selection:bg-[#C8651B]/30 relative overflow-hidden">
+    <div className="min-h-screen overflow-y-auto overflow-x-hidden selection:bg-[#C8651B]/30 relative bg-[#080808] text-white flex flex-col justify-between">
       {/* Top Nav */}
       <header className="h-16 px-8 md:px-16 flex items-center justify-between border-b border-white/5 bg-[#080808] z-30 shrink-0 w-full animate-fade-in">
         <div className="font-serif font-black text-xl text-[#C8651B]">AETHEROS</div>
         <div className="flex items-center gap-6">
-          <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest hover:text-white transition-colors cursor-pointer">Features</span>
-          <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest hover:text-white transition-colors cursor-pointer">About</span>
+          <button
+            onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+            className="text-[10px] font-mono text-white/30 uppercase tracking-widest hover:text-white transition-colors"
+          >
+            Features
+          </button>
+          <button
+            onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })}
+            className="text-[10px] font-mono text-white/30 uppercase tracking-widest hover:text-white transition-colors"
+          >
+            About
+          </button>
         </div>
         <button 
           onClick={handleEnter}
@@ -5583,7 +5593,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       </header>
 
       {/* Hero Section */}
-      <div className="flex flex-col md:flex-row min-h-[calc(100vh-8rem)] flex-grow w-full items-center">
+      <div className="flex flex-col md:flex-row min-h-[calc(100vh-4rem)] flex-grow w-full items-center">
         {/* Left Side */}
         <div className="w-full md:w-1/2 flex flex-col justify-center px-8 md:px-16 py-16 text-left">
           <p className="text-[10px] font-mono text-[#C8651B] uppercase tracking-[0.5em] mb-6">OUR VERSION</p>
@@ -5695,6 +5705,438 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </motion.div>
         </div>
       </div>
+
+      {/* FEATURES SECTION */}
+      <section
+        id="features"
+        style={{ background: '#080808' }}
+        className="min-h-screen px-8 md:px-16 py-32 relative overflow-hidden shrink-0"
+      >
+        {/* Background grid */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: `
+            linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px)
+          `,
+          backgroundSize: '60px 60px',
+          pointerEvents: 'none',
+        }} />
+
+        {/* Section header */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="mb-20 relative"
+        >
+          <p className="text-[10px] font-mono text-[#C8651B] uppercase tracking-[0.5em] mb-4">
+            CORE_MODULES
+          </p>
+          <div className="flex items-end justify-between flex-wrap gap-6">
+            <h2 className="text-5xl md:text-7xl font-serif font-black uppercase italic text-white leading-none">
+              Everything<br/>
+              <span className="text-[#C8651B]">You Need.</span>
+            </h2>
+            <p className="text-sm font-mono text-white/30 max-w-xs leading-relaxed">
+              Nine integrated modules. One operating system.
+              No switching between apps.
+            </p>
+          </div>
+        </motion.div>
+
+        {/* Features grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 relative">
+          {[
+            {
+              number: '01',
+              title: 'TASK_QUEUE',
+              label: 'Task Management',
+              description: 'Priority-based tasks with XP rewards. Challenge mode, speed bonuses, streak multipliers. Every completion moves you forward.',
+              color: '#C8651B',
+              icon: '⚡',
+            },
+            {
+              number: '02',
+              title: 'ROUTINE_MATRIX',
+              label: 'Habit Tracker',
+              description: '52-week heatmap showing your consistency. Daily checkboxes, per-habit streaks, category XP multipliers. Discipline made visible.',
+              color: '#00D9FF',
+              icon: '🔥',
+            },
+            {
+              number: '03',
+              title: 'AETHER_COACH',
+              label: 'AI Life Coach',
+              description: 'An AI that reads your mood, tasks, habits, and life balance — then gives advice specific to YOU. Not generic. Personal.',
+              color: '#7f77dd',
+              icon: '🧠',
+            },
+            {
+              number: '04',
+              title: 'LIFE_SYNC',
+              label: 'Wheel of Life',
+              description: 'Track 8 life areas on a radar chart. Auto-updates from your habits and journal mood. See your balance evolve week by week.',
+              color: '#C9A84C',
+              icon: '🎯',
+            },
+            {
+              number: '05',
+              title: 'NEURAL_LOG',
+              label: 'Smart Journal',
+              description: 'Rich text journaling with mood tracking, reflection prompts, word count XP, and AI-powered insights from your entries.',
+              color: '#5dcaa5',
+              icon: '📝',
+            },
+            {
+              number: '06',
+              title: 'FOCUS_PROTOCOL',
+              label: 'Pomodoro Timer',
+              description: '25/5 or 50/10 work cycles. Session tracking, Web Audio tones, XP per session. Deep work has never been this rewarding.',
+              color: '#ef4444',
+              icon: '⏱',
+            },
+            {
+              number: '07',
+              title: 'TEMPORAL_SYNC',
+              label: 'AI Timetable',
+              description: 'Tell the AI your routine. It builds your entire day schedule. Month, week, and day views. Time blocking made effortless.',
+              color: '#2E6B9E',
+              icon: '📅',
+            },
+            {
+              number: '08',
+              title: 'DEBRIEF_PROTOCOL',
+              label: 'Weekly Review',
+              description: 'Every Sunday, AI pre-fills your weekly wins and struggles from your data. Reflect, adjust, improve. +100 XP for completing.',
+              color: '#C8651B',
+              icon: '📊',
+            },
+            {
+              number: '09',
+              title: 'NEURAL_EVOLUTION',
+              label: 'Stats + Achievements',
+              description: '30 achievements across 4 categories. Month-over-month evolution tracking. Level 1 to 100 with unlockable features.',
+              color: '#C9A84C',
+              icon: '🏆',
+            },
+          ].map((feature, i) => (
+            <motion.div
+              key={feature.number}
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: i * 0.08 }}
+              className="group relative border border-white/5 rounded-2xl p-6 hover:border-white/15 transition-all duration-500 cursor-default"
+              style={{ background: 'rgba(255,255,255,0.02)' }}
+            >
+              {/* Hover glow */}
+              <div
+                className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                style={{
+                  background: `radial-gradient(circle at top left, ${feature.color}08, transparent 60%)`,
+                }}
+              />
+
+              {/* Number + icon row */}
+              <div className="flex items-center justify-between mb-6 relative">
+                <span
+                  className="text-[10px] font-mono tracking-widest"
+                  style={{ color: `${feature.color}60` }}
+                >
+                  #{feature.number}
+                </span>
+                <span className="text-2xl">{feature.icon}</span>
+              </div>
+
+              {/* Title */}
+              <p
+                className="text-[9px] font-mono uppercase tracking-[0.4em] mb-2 relative"
+                style={{ color: feature.color }}
+              >
+                {feature.title}
+              </p>
+              <h3 className="text-lg font-serif font-black uppercase italic text-white mb-3 relative">
+                {feature.label}
+              </h3>
+
+              {/* Description */}
+              <p className="text-xs font-mono text-white/35 leading-relaxed relative">
+                {feature.description}
+              </p>
+
+              {/* Bottom accent line */}
+              <div
+                className="absolute bottom-0 left-6 right-6 h-[1px] opacity-0 group-hover:opacity-100 transition-opacity duration-500"
+                style={{ background: `linear-gradient(90deg, transparent, ${feature.color}40, transparent)` }}
+              />
+            </motion.div>
+          ))}
+        </div>
+
+        {/* XP highlight bar */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8, delay: 0.3 }}
+          className="mt-16 border border-white/5 rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-6"
+          style={{ background: 'rgba(200,101,27,0.04)' }}
+        >
+          <div>
+            <p className="text-[10px] font-mono text-[#C8651B] uppercase tracking-widest mb-2">
+              GAMIFICATION_ENGINE
+            </p>
+            <h3 className="text-2xl font-serif font-black uppercase italic text-white">
+              Everything gives you XP.
+            </h3>
+            <p className="text-sm font-mono text-white/30 mt-2">
+              Tasks, habits, journals, Pomodoros, weekly reviews — all tracked, all rewarded.
+            </p>
+          </div>
+          <div className="flex gap-8 flex-shrink-0">
+            {[
+              { label: 'Max Level', value: '100' },
+              { label: 'Achievements', value: '30' },
+              { label: 'Daily XP Cap', value: '50' },
+            ].map(stat => (
+              <div key={stat.label} className="text-center">
+                <p className="text-3xl font-serif font-black italic text-[#C8651B]">
+                  {stat.value}
+                </p>
+                <p className="text-[9px] font-mono text-white/20 uppercase tracking-widest mt-1">
+                  {stat.label}
+                </p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </section>
+
+      {/* ABOUT SECTION */}
+      <section
+        id="about"
+        style={{ background: '#060606' }}
+        className="min-h-screen px-8 md:px-16 py-32 relative overflow-hidden shrink-0"
+      >
+        {/* Background accent */}
+        <div style={{
+          position: 'absolute',
+          width: '600px',
+          height: '600px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(46,107,158,0.06), transparent 70%)',
+          top: '50%',
+          right: '-100px',
+          transform: 'translateY(-50%)',
+          pointerEvents: 'none',
+        }} />
+
+        <div className="max-w-7xl mx-auto relative overflow-hidden">
+
+          {/* Section header */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="mb-20"
+          >
+            <p className="text-[10px] font-mono text-[#2E6B9E] uppercase tracking-[0.5em] mb-4">
+              THE_MISSION
+            </p>
+            <h2 className="text-5xl md:text-7xl font-serif font-black uppercase italic text-white leading-none">
+              Built for<br/>
+              <span className="text-[#2E6B9E]">Builders.</span>
+            </h2>
+          </motion.div>
+
+          {/* Two column layout */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+
+            {/* Left — story */}
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8 }}
+              className="space-y-6"
+            >
+              <p className="text-base font-mono text-white/50 leading-relaxed">
+                AetherOS was built out of frustration. Notion for planning. Done for habits. Day One for journaling. YouTube for motivation. Four apps, four logins, four context switches — and still no clear picture of progress.
+              </p>
+              <p className="text-base font-mono text-white/50 leading-relaxed">
+                The idea was simple: what if all your self-improvement tools talked to each other? Your mood updates your life balance. Your habits feed your goals. Your AI coach reads everything and gives advice that's actually relevant to you.
+              </p>
+              <p className="text-base font-mono text-white/50 leading-relaxed">
+                That's AetherOS. One operating system for your ambition. Built for founders, students, and anyone serious about becoming better.
+              </p>
+
+              {/* Founder note */}
+              <div
+                className="border border-white/5 rounded-2xl p-6 mt-8"
+                style={{ background: 'rgba(255,255,255,0.02)' }}
+              >
+                <p className="text-xs font-mono text-white/30 uppercase tracking-widest mb-3">
+                  FOUNDER_NOTE
+                </p>
+                <p className="text-sm font-mono text-white/50 italic leading-relaxed">
+                  "I built this at 16 because I couldn't find a single app that did everything I needed without making me switch contexts 10 times a day. AetherOS is the tool I wished existed."
+                </p>
+                <div className="flex items-center gap-3 mt-4">
+                  <div className="w-8 h-8 rounded-full bg-[#C8651B]/20 border border-[#C8651B]/30 flex items-center justify-center">
+                    <span className="text-[10px] font-mono text-[#C8651B]">V</span>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-mono text-white/50 uppercase tracking-widest">
+                      Ved
+                    </p>
+                    <p className="text-[9px] font-mono text-white/20 uppercase tracking-widest">
+                      Founder, AetherOS
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Right — values + stats */}
+            <motion.div
+              initial={{ opacity: 0, x: 30 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="space-y-4"
+            >
+              {/* Core values */}
+              {[
+                {
+                  title: 'FREE FOREVER',
+                  description: 'No paywalls on core features. Self-improvement should be accessible to everyone, not gated behind a subscription.',
+                  color: '#C8651B',
+                  icon: '🔓',
+                },
+                {
+                  title: 'INTEGRATED BY DESIGN',
+                  description: 'Everything talks to everything. Your habits update your life balance. Your mood feeds your AI coach. Nothing is siloed.',
+                  color: '#00D9FF',
+                  icon: '⚡',
+                },
+                {
+                  title: 'AI THAT KNOWS YOU',
+                  description: 'Not a generic chatbot. An AI coach that reads your actual data — mood trends, habit streaks, life balance — and responds accordingly.',
+                  color: '#7f77dd',
+                  icon: '🧠',
+                },
+                {
+                  title: 'PROGRESS MADE VISIBLE',
+                  description: 'Heatmaps, radar charts, XP bars, streak counters. Your growth is always visible, always tangible, always motivating.',
+                  color: '#C9A84C',
+                  icon: '📈',
+                },
+              ].map((value, i) => (
+                <motion.div
+                  key={value.title}
+                  initial={{ opacity: 0, x: 20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.6, delay: i * 0.1 }}
+                  className="flex gap-4 border border-white/5 rounded-xl p-5 hover:border-white/10 transition-all"
+                  style={{ background: 'rgba(255,255,255,0.02)' }}
+                >
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-lg"
+                    style={{ background: `${value.color}15` }}
+                  >
+                    {value.icon}
+                  </div>
+                  <div>
+                    <p
+                      className="text-[9px] font-mono uppercase tracking-widest mb-1"
+                      style={{ color: value.color }}
+                    >
+                      {value.title}
+                    </p>
+                    <p className="text-xs font-mono text-white/35 leading-relaxed">
+                      {value.description}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* FINAL CTA SECTION */}
+      <section
+        style={{ background: '#080808' }}
+        className="px-8 md:px-16 py-32 relative overflow-hidden shrink-0"
+      >
+        {/* Glow */}
+        <div style={{
+          position: 'absolute',
+          width: '800px',
+          height: '400px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(200,101,27,0.08), transparent 70%)',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none',
+        }} />
+
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="max-w-3xl mx-auto text-center relative"
+        >
+          <p className="text-[10px] font-mono text-[#C8651B] uppercase tracking-[0.5em] mb-6">
+            INITIALIZE_SEQUENCE
+          </p>
+          <h2 className="text-5xl md:text-7xl font-serif font-black uppercase italic text-white leading-none mb-8">
+            Ready to<br/>
+            <span className="text-[#C8651B]">Level Up?</span>
+          </h2>
+          <p className="text-sm font-mono text-white/30 leading-relaxed mb-12 max-w-md mx-auto">
+            Join the early access. Free forever.
+            No credit card. No commitment.
+            Just results.
+          </p>
+
+          {/* CTA Button */}
+          <button
+            onClick={handleEnter}
+            className="group flex items-center gap-4 mx-auto"
+          >
+            <div className="w-14 h-14 rounded-full border border-[#C8651B] flex items-center justify-center group-hover:bg-[#C8651B] transition-all duration-500">
+              <ChevronRight className="w-6 h-6 text-[#C8651B] group-hover:text-white transition-colors duration-500" />
+            </div>
+            <span className="text-base font-mono text-white/50 group-hover:text-white transition-colors uppercase tracking-widest">
+              Initialize Boot Sequence
+            </span>
+          </button>
+
+          {/* Social proof */}
+          <div className="flex items-center justify-center gap-8 mt-16">
+            {[
+              { label: 'Free Forever', icon: '🔓' },
+              { label: 'No Credit Card', icon: '💳' },
+              { label: 'Google Sign-In', icon: '🔐' },
+            ].map(item => (
+              <div key={item.label} className="flex items-center gap-2">
+                <span className="text-sm">{item.icon}</span>
+                <span className="text-[10px] font-mono text-white/20 uppercase tracking-widest">
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </section>
 
       {/* Bottom Strip */}
       <footer className="h-14 border-t border-white/5 flex items-center justify-between px-8 md:px-16 z-30 bg-[#080808] shrink-0 w-full">
