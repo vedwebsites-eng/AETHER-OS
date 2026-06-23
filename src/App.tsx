@@ -5571,6 +5571,12 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         <div className="font-serif font-black text-xl text-[#C8651B]">AETHEROS</div>
         <div className="flex items-center gap-6">
           <button
+            onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+            className="text-[10px] font-mono text-white/30 uppercase tracking-widest hover:text-white transition-colors"
+          >
+            How It Works
+          </button>
+          <button
             onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
             className="text-[10px] font-mono text-white/30 uppercase tracking-widest hover:text-white transition-colors"
           >
@@ -5705,6 +5711,196 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </motion.div>
         </div>
       </div>
+
+      {/* HOW IT WORKS SECTION */}
+      <section
+        id="how-it-works"
+        style={{ background: '#060606' }}
+        className="px-8 md:px-16 py-32 relative overflow-hidden shrink-0 border-t border-b border-white/5"
+      >
+        {/* Decorative backdrop glow */}
+        <div style={{
+          position: 'absolute',
+          width: '500px',
+          height: '500px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(200,101,27,0.03), transparent 70%)',
+          top: '20%',
+          left: '10%',
+          pointerEvents: 'none',
+        }} />
+        <div style={{
+          position: 'absolute',
+          width: '500px',
+          height: '500px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(46,107,158,0.03), transparent 70%)',
+          bottom: '10%',
+          right: '10%',
+          pointerEvents: 'none',
+        }} />
+
+        <div className="max-w-7xl mx-auto relative z-10">
+          {/* Section header */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8 }}
+            className="mb-20 text-center md:text-left"
+          >
+            <p className="text-[10px] font-mono text-[#2E6B9E] uppercase tracking-[0.5em] mb-4">
+              THE_WORKFLOW
+            </p>
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+              <h2 className="text-5xl md:text-7xl font-serif font-black uppercase italic text-white leading-none">
+                How It<br/>
+                <span className="text-[#2E6B9E]">Works.</span>
+              </h2>
+              <p className="text-sm font-mono text-white/30 max-w-sm leading-relaxed md:text-right">
+                A streamlined, self-reinforcing productivity cycle designed to build consistency and accelerate personal evolution.
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Steps Timeline Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative">
+            {[
+              {
+                step: '01',
+                title: 'PLAN',
+                heading: 'Plan',
+                description: 'Set goals, habits, and tasks. Let AetherOS organize your day.',
+                color: '#C8651B',
+                icon: '🎯',
+                badge: 'DECIDE_QUEUE'
+              },
+              {
+                step: '02',
+                title: 'FOCUS',
+                heading: 'Focus',
+                description: 'Use the timetable and Pomodoro timer to stay productive.',
+                color: '#2E6B9E',
+                icon: '⚡',
+                badge: 'DEEP_WORK'
+              },
+              {
+                step: '03',
+                title: 'TRACK',
+                heading: 'Track',
+                description: 'Mark habits, review heatmaps, and log progress.',
+                color: '#00D9FF',
+                icon: '🔥',
+                badge: 'MONITOR_METRIC'
+              },
+              {
+                step: '04',
+                title: 'REFLECT',
+                heading: 'Reflect',
+                description: 'Check weekly progress, mood patterns, and AI insights.',
+                color: '#7f77dd',
+                icon: '🧠',
+                badge: 'NEURAL_INTELLIGENCE'
+              }
+            ].map((stepObj, i) => (
+              <motion.div
+                key={stepObj.step}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: i * 0.1 }}
+                className="group relative border border-white/5 rounded-2xl p-6 bg-white/[0.01] hover:border-white/15 transition-all duration-300 flex flex-col justify-between min-h-[220px]"
+              >
+                {/* Accent Hover Glow */}
+                <div
+                  className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                  style={{
+                    background: `radial-gradient(circle at top left, ${stepObj.color}10, transparent 65%)`,
+                  }}
+                />
+
+                <div>
+                  {/* Step ID row */}
+                  <div className="flex items-center justify-between mb-6">
+                    <span
+                      className="text-xs font-mono font-bold"
+                      style={{ color: stepObj.color }}
+                    >
+                      STEP_{stepObj.step}
+                    </span>
+                    <span className="text-2xl">{stepObj.icon}</span>
+                  </div>
+
+                  {/* Title & Badge */}
+                  <p className="text-[8px] font-mono tracking-widest text-white/30 uppercase mb-1">
+                    {stepObj.badge}
+                  </p>
+                  <h3 className="text-xl font-serif font-black uppercase italic text-white mb-2">
+                    {stepObj.heading}
+                  </h3>
+
+                  {/* Description */}
+                  <p className="text-xs font-mono text-white/40 leading-relaxed group-hover:text-white/60 transition-colors">
+                    {stepObj.description}
+                  </p>
+                </div>
+
+                {/* Subtle bottom indicator */}
+                <div className="mt-6 flex items-center justify-between">
+                  <div className="w-10 h-[1px] bg-white/10 group-hover:w-16 transition-all duration-300" style={{ backgroundColor: `${stepObj.color}40` }} />
+                  {i < 3 && (
+                    <span className="hidden lg:inline text-white/10 group-hover:text-white/30 transition-colors font-mono text-xs">
+                      →
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Sequence Loop & Call-to-action */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="mt-16 border border-white/5 rounded-2xl p-8 text-center relative overflow-hidden"
+            style={{ background: 'rgba(46,107,158,0.02)' }}
+          >
+            {/* Loop indicator */}
+            <p className="text-[10px] font-mono text-white/30 uppercase tracking-[0.3em] mb-4">
+              THE_INFINITE_LOOP
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-sm font-mono uppercase tracking-widest font-bold text-white mb-8">
+              <span className="text-[#C8651B]">Plan</span>
+              <span className="text-white/20">→</span>
+              <span className="text-[#2E6B9E]">Focus</span>
+              <span className="text-white/20">→</span>
+              <span className="text-[#00D9FF]">Track</span>
+              <span className="text-white/20">→</span>
+              <span className="text-[#7f77dd]">Reflect</span>
+              <span className="text-white/20">→</span>
+              <span className="text-[#C8651B] animate-pulse">Repeat</span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <button
+                onClick={handleEnter}
+                className="w-full sm:w-auto px-8 py-3 bg-[#C8651B] hover:bg-[#b05412] text-white text-xs font-mono font-bold uppercase tracking-widest rounded-full transition-all duration-300 shadow-[0_0_20px_rgba(200,101,27,0.2)]"
+              >
+                Get Started
+              </button>
+              <button
+                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+                className="w-full sm:w-auto px-8 py-3 border border-white/10 hover:border-white/20 hover:bg-white/5 text-white/70 hover:text-white text-xs font-mono uppercase tracking-widest rounded-full transition-all duration-300"
+              >
+                Explore Features
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      </section>
 
       {/* FEATURES SECTION */}
       <section
