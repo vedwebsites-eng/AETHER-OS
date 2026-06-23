@@ -943,6 +943,403 @@ const WheelOfLifeShareCard = ({
   );
 };
 
+const HabitHeatmapShareCard = ({
+  stats,
+  user,
+  habits,
+  habitLogs,
+}: {
+  stats: UserStats | null;
+  user: User | null;
+  habits: Habit[];
+  habitLogs: HabitLog[];
+}) => {
+  const level = stats?.level || 1;
+  const streak = stats?.currentStreak || 0;
+  const date = new Date().toISOString().split('T')[0];
+
+  // Build 52 weeks x 7 days grid
+  const totalDays = 364;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const gridData = Array.from({ length: totalDays }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - (totalDays - 1 - i));
+    const dateStr = d.toISOString().split('T')[0];
+    const logsForDay = habitLogs.filter(
+      l => l.date === dateStr && l.completed
+    );
+    return {
+      date: dateStr,
+      count: logsForDay.length,
+    };
+  });
+
+  // Total habits completed all time
+  const totalCompleted = habitLogs.filter(l => l.completed).length;
+
+  // Best single day
+  const bestDay = gridData.reduce(
+    (best, day) => day.count > best.count ? day : best,
+    { date: '', count: 0 }
+  );
+
+  // Active days (days with at least 1 habit)
+  const activeDays = gridData.filter(d => d.count > 0).length;
+
+  // Color intensity for each square
+  const getColor = (count: number) => {
+    if (count === 0) return 'rgba(255,255,255,0.04)';
+    if (count === 1) return 'rgba(0,217,255,0.25)';
+    if (count === 2) return 'rgba(0,217,255,0.45)';
+    if (count === 3) return 'rgba(0,217,255,0.65)';
+    if (count >= 4) return 'rgba(0,217,255,0.90)';
+    return 'rgba(0,217,255,0.90)';
+  };
+
+  const squareSize = 16;
+  const gap = 3;
+  const weeks = 52;
+  const days = 7;
+
+  const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  return (
+    <div
+      id="heatmap-share-card"
+      style={{
+        width: '1920px',
+        height: '640px',
+        background: '#080808',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        fontFamily: 'monospace',
+        position: 'relative',
+        overflow: 'hidden',
+        padding: '60px 80px',
+      }}
+    >
+      {/* Background glow — left side */}
+      <div style={{
+        position: 'absolute',
+        width: '500px',
+        height: '500px',
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(0,217,255,0.06), transparent 70%)',
+        top: '50%',
+        left: '20%',
+        transform: 'translate(-50%, -50%)',
+      }} />
+
+      {/* Grid lines */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        backgroundImage: `
+          linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px)
+        `,
+        backgroundSize: '60px 60px',
+      }} />
+
+      {/* Border */}
+      <div style={{
+        position: 'absolute',
+        inset: '16px',
+        border: '1px solid rgba(0,217,255,0.1)',
+        borderRadius: '24px',
+        pointerEvents: 'none',
+      }} />
+
+      {/* LEFT SECTION — Title + Stats */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'center',
+        height: '100%',
+        position: 'relative',
+        zIndex: 10,
+      }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          width: '420px',
+          flexShrink: 0,
+          marginRight: '80px',
+          height: '100%',
+          paddingTop: '10px',
+          paddingBottom: '10px',
+          position: 'relative',
+        }}>
+          {/* Top — label + title */}
+          <div>
+            <p style={{
+              color: 'rgba(255,255,255,0.2)',
+              fontSize: '13px',
+              letterSpacing: '0.5em',
+              textTransform: 'uppercase',
+              marginBottom: '16px',
+            }}>
+              ROUTINE_MATRIX
+            </p>
+            <h1 style={{
+              color: '#ffffff',
+              fontSize: '64px',
+              fontWeight: '900',
+              fontStyle: 'italic',
+              fontFamily: 'Georgia, serif',
+              textTransform: 'uppercase',
+              lineHeight: '0.9',
+              margin: '0 0 8px 0',
+            }}>
+              52 WEEKS
+            </h1>
+            <h2 style={{
+              color: 'rgba(0,217,255,0.7)',
+              fontSize: '32px',
+              fontWeight: '900',
+              fontStyle: 'italic',
+              fontFamily: 'Georgia, serif',
+              textTransform: 'uppercase',
+              margin: '0',
+            }}>
+              OF DISCIPLINE
+            </h2>
+          </div>
+
+          {/* Middle — stats grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '16px',
+          }}>
+            {[
+              { label: 'TOTAL_DONE', value: totalCompleted },
+              { label: 'ACTIVE_DAYS', value: activeDays },
+              { label: 'BEST_STREAK', value: `${streak}d` },
+              { label: 'BEST_DAY', value: `${bestDay.count} habits` },
+            ].map((stat, i) => (
+              <div key={i} style={{
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.07)',
+                borderRadius: '12px',
+                padding: '14px 16px',
+              }}>
+                <p style={{
+                  color: 'rgba(255,255,255,0.2)',
+                  fontSize: '11px',
+                  letterSpacing: '0.3em',
+                  textTransform: 'uppercase',
+                  marginBottom: '6px',
+                }}>
+                  {stat.label}
+                </p>
+                <p style={{
+                  color: 'rgba(0,217,255,0.9)',
+                  fontSize: '24px',
+                  fontWeight: '900',
+                  fontFamily: 'Georgia, serif',
+                  fontStyle: 'italic',
+                }}>
+                  {stat.value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Bottom — user info */}
+          <div>
+            <div style={{
+              width: '80px',
+              height: '1px',
+              background: 'rgba(0,217,255,0.3)',
+              marginBottom: '16px',
+            }} />
+            <p style={{
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: '18px',
+              letterSpacing: '0.2em',
+              textTransform: 'uppercase',
+              marginBottom: '4px',
+            }}>
+              {user?.displayName || 'OPERATIVE'}
+            </p>
+            <p style={{
+              color: 'rgba(255,255,255,0.2)',
+              fontSize: '13px',
+              letterSpacing: '0.3em',
+              textTransform: 'uppercase',
+            }}>
+              LEVEL {level} · {habits.length} ACTIVE HABITS
+            </p>
+          </div>
+        </div>
+
+        {/* RIGHT SECTION — Heatmap */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          flex: 1,
+          position: 'relative',
+        }}>
+          {/* Month labels row */}
+          <div style={{
+            display: 'flex',
+            gap: `${gap}px`,
+            marginBottom: '8px',
+            paddingLeft: '24px',
+          }}>
+            {Array.from({ length: 12 }, (_, i) => {
+              const monthDate = new Date(today);
+              monthDate.setDate(monthDate.getDate() - (totalDays - 1));
+              monthDate.setMonth(monthDate.getMonth() + i);
+              return (
+                <div key={i} style={{
+                  width: `${(weeks / 12) * (squareSize + gap)}px`,
+                  color: 'rgba(255,255,255,0.2)',
+                  fontSize: '11px',
+                  letterSpacing: '0.2em',
+                  textTransform: 'uppercase',
+                  flexShrink: 0,
+                }}>
+                  {monthDate.toLocaleString('default', { month: 'short' }).toUpperCase()}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Grid + day labels */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {/* Day labels */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: `${gap}px`,
+              paddingTop: '0px',
+            }}>
+              {dayLabels.map((label, i) => (
+                <div key={i} style={{
+                  width: '16px',
+                  height: `${squareSize}px`,
+                  color: 'rgba(255,255,255,0.15)',
+                  fontSize: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  letterSpacing: '0.1em',
+                }}>
+                  {i % 2 === 0 ? label : ''}
+                </div>
+              ))}
+            </div>
+
+            {/* Heatmap squares */}
+            <div style={{
+              display: 'flex',
+              gap: `${gap}px`,
+            }}>
+              {Array.from({ length: weeks }, (_, weekIdx) => (
+                <div key={weekIdx} style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: `${gap}px`,
+                }}>
+                  {Array.from({ length: days }, (_, dayIdx) => {
+                    const dataIdx = weekIdx * days + dayIdx;
+                    const dayData = gridData[dataIdx];
+                    const color = dayData
+                      ? getColor(dayData.count)
+                      : 'rgba(255,255,255,0.04)';
+                    const isToday = dayData?.date === date;
+
+                    return (
+                      <div key={dayIdx} style={{
+                        width: `${squareSize}px`,
+                        height: `${squareSize}px`,
+                        borderRadius: '3px',
+                        background: color,
+                        border: isToday
+                          ? '1px solid rgba(0,217,255,0.8)'
+                          : '1px solid rgba(255,255,255,0.03)',
+                        boxShadow: dayData && dayData.count >= 4
+                          ? '0 0 6px rgba(0,217,255,0.4)'
+                          : 'none',
+                      }} />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            marginTop: '16px',
+            paddingLeft: '24px',
+          }}>
+            <p style={{
+              color: 'rgba(255,255,255,0.2)',
+              fontSize: '11px',
+              letterSpacing: '0.2em',
+              marginRight: '8px',
+            }}>
+              LESS
+            </p>
+            {[0, 1, 2, 3, 4].map(count => (
+              <div key={count} style={{
+                width: '16px',
+                height: '16px',
+                borderRadius: '3px',
+                background: getColor(count),
+                border: '1px solid rgba(255,255,255,0.03)',
+              }} />
+            ))}
+            <p style={{
+              color: 'rgba(255,255,255,0.2)',
+              fontSize: '11px',
+              letterSpacing: '0.2em',
+              marginLeft: '8px',
+            }}>
+              MORE
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* AetherOS watermark */}
+      <p style={{
+        position: 'absolute',
+        bottom: '36px',
+        right: '60px',
+        color: 'rgba(255,255,255,0.08)',
+        fontSize: '16px',
+        letterSpacing: '0.4em',
+        textTransform: 'uppercase',
+      }}>
+        AETHEROS
+      </p>
+
+      {/* Date */}
+      <p style={{
+        position: 'absolute',
+        bottom: '36px',
+        left: '100px',
+        color: 'rgba(255,255,255,0.08)',
+        fontSize: '14px',
+        letterSpacing: '0.2em',
+      }}>
+        {date}
+      </p>
+    </div>
+  );
+};
+
 const ShareModal = ({
   isOpen,
   onClose,
@@ -4445,6 +4842,7 @@ export default function App() {
                     subTab={dailyWorkSubTab}
                     setSubTab={setDailyWorkSubTab}
                     addToTerminal={addToTerminal}
+                    openShare={openShare}
                   />
                 </ErrorBoundary>
               )}
@@ -4679,6 +5077,12 @@ export default function App() {
           stats={stats}
           user={user}
           categories={stats?.lifeSyncCategories || LIFE_CATEGORIES}
+        />
+        <HabitHeatmapShareCard
+          stats={stats}
+          user={user}
+          habits={habits}
+          habitLogs={habitLogs}
         />
       </ShareCardWrapper>
     </div>
@@ -9040,7 +9444,8 @@ function RoutineMatrixView({
   user, 
   onAddHabit, 
   onToggleHabit, 
-  onDeleteHabit 
+  onDeleteHabit,
+  openShare
 }: { 
   habits: Habit[]; 
   habitLogs: HabitLog[]; 
@@ -9048,6 +9453,7 @@ function RoutineMatrixView({
   onAddHabit: (h: any) => Promise<void>; 
   onToggleHabit: (h: Habit, date: string) => Promise<void>;
   onDeleteHabit: (id: string) => Promise<void>;
+  openShare?: any;
 }) {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [selectedHabit, setSelectedHabit] = useState<Habit | null>(null);
@@ -9177,13 +9583,28 @@ function RoutineMatrixView({
              </div>
           </div>
         </div>
-        <button 
-          onClick={() => setIsAddModalOpen(true)}
-          className="flex items-center gap-2 px-6 py-3 bg-accent text-white font-mono font-black uppercase text-xs rounded-xl accent-glow"
-        >
-          <Plus size={16} />
-          Initialize_New_Habit
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => openShare?.(
+              'heatmap-share-card',
+              `AETHEROS_HEATMAP_${new Date().toISOString().split('T')[0]}`,
+              'HABIT HEATMAP CARD'
+            )}
+            className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 hover:border-cyan/40 hover:bg-cyan/5 transition-all group cursor-pointer active:scale-95"
+          >
+            <Share2 size={14} className="text-white/30 group-hover:text-cyan" />
+            <span className="text-[10px] font-mono text-white/30 group-hover:text-cyan uppercase tracking-widest font-black">
+              SHARE_HEATMAP
+            </span>
+          </button>
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-2 px-6 py-3 bg-accent text-white font-mono font-black uppercase text-xs rounded-xl accent-glow"
+          >
+            <Plus size={16} />
+            Initialize_New_Habit
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
@@ -11585,6 +12006,7 @@ function DailyWorkView({
   subTab = 'tasks',
   setSubTab,
   addToTerminal,
+  openShare,
 }: any) {
   const activeTab = subTab;
   const setActiveTab = setSubTab || (() => {});
@@ -11961,6 +12383,7 @@ function DailyWorkView({
                    onAddHabit={onAddHabit}
                    onToggleHabit={onToggleHabit}
                    onDeleteHabit={onDeleteHabit}
+                    openShare={openShare}
                  />
                )}
                {activeTab === 'timetable' && (
