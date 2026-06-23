@@ -5517,6 +5517,7 @@ function AuthorizationPage({ onBack, onGoogleLogin }: { onBack: () => void; onGo
 function LandingPage({ onEnter }: { onEnter: () => void }) {
   const [dbStatus, setDbStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [isInitializing, setIsInitializing] = useState(false);
+  const [activeFaqIndex, setActiveFaqIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const checkDb = async () => {
@@ -5899,6 +5900,82 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               </button>
             </div>
           </motion.div>
+
+          {/* FAQ SUB-SECTION */}
+          <div className="mt-24 border-t border-white/5 pt-16">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8 }}
+              className="mb-12 text-center"
+            >
+              <p className="text-[10px] font-mono text-[#2E6B9E] uppercase tracking-[0.5em] mb-3">
+                SYSTEM_FAQ
+              </p>
+              <h3 className="text-3xl md:text-4xl font-serif font-black uppercase italic text-white leading-tight">
+                Frequently Asked <span className="text-[#2E6B9E]">Questions.</span>
+              </h3>
+            </motion.div>
+
+            <div className="max-w-3xl mx-auto space-y-4">
+              {[
+                {
+                  q: "How is my data stored?",
+                  a: "Your data is stored securely in Firebase Firestore. We use encrypted transport layers and strict client-side verification to ensure that only you can ever view or modify your habits, journals, and tasks.",
+                },
+                {
+                  q: "Is it truly free?",
+                  a: "Yes, absolutely. AetherOS has no hidden fees, paywalls, or premium tiers for core features. All tracking tools, habit heatmaps, and stats are accessible to everyone, completely free.",
+                },
+                {
+                  q: "How does Aether Coach AI work?",
+                  a: "The coach processes your task completion rates, habit streak patterns, mood scores, and Wheel of Life balances dynamically. It operates within strict security boundaries to deliver hyper-personalized coaching without exposing your details.",
+                },
+                {
+                  q: "Can I use AetherOS on multiple devices?",
+                  a: "Yes. All your achievements, stats, routines, and progress levels sync in real-time to your Google Account or registered email across any desktop, tablet, or smartphone.",
+                },
+              ].map((faq, idx) => {
+                const isOpen = activeFaqIndex === idx;
+                return (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, y: 15 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.5, delay: idx * 0.05 }}
+                    className="border border-white/5 rounded-xl bg-white/[0.01] hover:bg-white/[0.02] hover:border-white/10 transition-all duration-300 overflow-hidden"
+                  >
+                    <button
+                      onClick={() => setActiveFaqIndex(isOpen ? null : idx)}
+                      className="w-full flex items-center justify-between p-5 text-left font-mono text-sm text-white hover:text-[#2E6B9E] transition-colors"
+                    >
+                      <span className="font-bold tracking-tight">{faq.q}</span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-white/30 transition-transform duration-300 ${isOpen ? 'rotate-180 text-[#2E6B9E]' : ''}`}
+                      />
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3, ease: 'easeInOut' }}
+                          className="border-t border-white/5 bg-white/[0.005]"
+                        >
+                          <p className="p-5 text-xs font-mono text-white/40 leading-relaxed">
+                            {faq.a}
+                          </p>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </section>
 
