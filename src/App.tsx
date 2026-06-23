@@ -1934,7 +1934,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
         collection(db, 'life_snapshots'),
         where('userId', '==', user.uid),
         orderBy('date', 'desc'),
-        limit(100)
+        limit(12)
       );
       return onSnapshot(q, (snapshot) => {
         if (!snapshot) return;
@@ -2892,6 +2892,8 @@ export default function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
+  const [habits, setHabits] = useState<Habit[]>([]);
+  const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [motivationItems, setMotivationItems] = useState<MotivationItem[]>([]);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -2909,11 +2911,85 @@ export default function App() {
 
   const [sharingAchievement, setSharingAchievement] = useState<Achievement | null>(null);
 
+  const [shareCardReady, setShareCardReady] = useState(false);
+
   const openShare = (cardId: string, filename: string, title: string) => {
-    setShareModal({ isOpen: true, cardId, filename, title });
+    setShareCardReady(true); // Mount cards
+    setTimeout(() => {
+      // Wait for render then open modal
+      setShareModal({ isOpen: true, cardId, filename, title });
+    }, 150);
   };
 
-  const closeShare = () => setShareModal(null);
+  const closeShare = () => {
+    setShareModal(null);
+    setTimeout(() => setShareCardReady(false), 500); // Unmount after modal closes
+  };
+
+  // Journal stats
+  const journalStats = useMemo(() => {
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const weekStart = format(startOfWeek(new Date()), 'yyyy-MM-dd');
+    return {
+      dailyWords: journals
+        .filter(j => j.createdAt?.startsWith(todayStr))
+        .reduce((sum, j) => sum + (j.wordCount || 0), 0),
+      weeklyWords: journals
+        .filter(j => j.createdAt >= weekStart)
+        .reduce((sum, j) => sum + (j.wordCount || 0), 0),
+      allTimeWords: journals
+        .reduce((sum, j) => sum + (j.wordCount || 0), 0),
+      totalEntries: journals.length,
+    };
+  }, [journals]);
+
+  // Mood chart data
+  const moodDataEx = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = subDays(new Date(), 6 - i);
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const entry = journals.find(j => j.createdAt?.startsWith(dateStr));
+      return {
+        date: format(date, 'EEE'),
+        mood: entry ? ({ ecstatic: 5, happy: 4, neutral: 3, worried: 2, sad: 1 }[entry.mood] ?? 0) : 0,
+        words: entry?.wordCount || 0,
+      };
+    });
+  }, [journals]);
+
+  // Task stats
+  const taskStats = useMemo(() => ({
+    completed: tasks.filter(t => t.status === 'completed').length,
+    pending: tasks.filter(t => t.status !== 'completed').length,
+    todayCompleted: tasks.filter(t =>
+      t.status === 'completed' &&
+      t.completedAt?.startsWith(format(new Date(), 'yyyy-MM-dd'))
+    ).length,
+  }), [tasks]);
+
+  // Achievement progress
+  const achievementStats = useMemo(() => {
+    const earned = ACHIEVEMENTS.filter(a =>
+      stats?.unlockedAchievements?.includes(a.id)
+    );
+    return {
+      earned: earned.length,
+      total: ACHIEVEMENTS.length,
+      percentage: Math.round((earned.length / ACHIEVEMENTS.length) * 100),
+    };
+  }, [stats?.unlockedAchievements]);
+
+  // Habit completion today
+  const todayHabitStats = useMemo(() => {
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const todayLogs = habitLogs.filter(l => l.date === todayStr && l.completed);
+    return {
+      completedToday: todayLogs.length,
+      totalHabits: habits.length,
+      percentage: habits.length > 0
+        ? Math.round((todayLogs.length / habits.length) * 100) : 0,
+    };
+  }, [habitLogs, habits]);
 
   // Extract YouTube video ID from any YouTube URL
   const getYoutubeId = (url: string): string | null => {
@@ -2986,8 +3062,6 @@ export default function App() {
     setCurrentlyPlaying(startItem.id);
     setIsPlaying(true);
   };
-  const [habits, setHabits] = useState<Habit[]>([]);
-  const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [weeklyReviews, setWeeklyReviews] = useState<WeeklyReview[]>([]);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isDebriefModalOpen, setIsDebriefModalOpen] = useState(false);
@@ -3121,6 +3195,7 @@ export default function App() {
       };
 
       await setDoc(newReviewRef, reviewData);
+      await fetchWeeklyReviews();
       await addXP(50, 'DEBRIEF_PROTOCOL_COMPLETED');
       setCompleteToast('DEBRIEF_SAVED_TRAJECTORY_ALIGNMENT_AWARD_XP');
     } catch (e) {
@@ -3351,7 +3426,7 @@ export default function App() {
       collection(db, 'tasks'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc'),
-      limit(100)
+      limit(200)
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
@@ -3423,7 +3498,7 @@ export default function App() {
       collection(db, 'motivation_items'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc'),
-      limit(100)
+      limit(50)
     );
     const motivUnsub = onSnapshot(motivQ, (snapshot) => {
       if (!snapshot) return;
@@ -3484,37 +3559,30 @@ export default function App() {
   }, [user]);
 
   // Fetch Weekly Reviews
-  useEffect(() => {
-    if (!user) {
-      setWeeklyReviews([]);
-      return;
-    }
-
+  const fetchWeeklyReviews = async () => {
+    if (!user) return;
     const q = query(
       collection(db, 'weekly_reviews'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc'),
-      limit(100)
+      limit(20)
     );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      if (!snapshot) return;
-      if (snapshot.empty) {
-        setWeeklyReviews([]);
-        return;
-      }
-      setWeeklyReviews((snapshot.docs || []).map(doc => ({ ...doc.data(), id: doc.id } as WeeklyReview)));
+    try {
+      const snap = await getDocs(q);
+      setWeeklyReviews((snap.docs || []).map(doc => ({ ...doc.data(), id: doc.id } as WeeklyReview)));
       if (syncFailed) {
         setSyncFailed(false);
         setCompleteToast('DATA_SYNC_RESTORED');
       }
-    }, (err) => {
-      console.error('FIRESTORE_SYNC_FAILED: ' + err.message);
+    } catch (err: any) {
+      console.error('FIRESTORE_FETCH_FAILED: ' + err.message);
       setSyncFailed(true);
       handleFirestoreError(err, OperationType.LIST, 'weekly_reviews');
-    });
+    }
+  };
 
-    return () => unsub();
+  useEffect(() => {
+    fetchWeeklyReviews();
   }, [user]);
 
   // Daily Sync (Streaks & Challenges)
@@ -5066,25 +5134,27 @@ export default function App() {
         </div>
       )}
 
-      <ShareCardWrapper id="streak-share-card-wrapper">
-        <StreakShareCard stats={stats} user={user} />
-        <AchievementShareCard
-          achievement={sharingAchievement}
-          stats={stats}
-          user={user}
-        />
-        <WheelOfLifeShareCard
-          stats={stats}
-          user={user}
-          categories={stats?.lifeSyncCategories || LIFE_CATEGORIES}
-        />
-        <HabitHeatmapShareCard
-          stats={stats}
-          user={user}
-          habits={habits}
-          habitLogs={habitLogs}
-        />
-      </ShareCardWrapper>
+      {shareCardReady && (
+        <ShareCardWrapper id="share-cards-wrapper">
+          <StreakShareCard stats={stats} user={user} />
+          <AchievementShareCard
+            achievement={sharingAchievement}
+            stats={stats}
+            user={user}
+          />
+          <WheelOfLifeShareCard
+            stats={stats}
+            user={user}
+            categories={stats?.lifeSyncCategories || LIFE_CATEGORIES}
+          />
+          <HabitHeatmapShareCard
+            stats={stats}
+            user={user}
+            habits={habits}
+            habitLogs={habitLogs}
+          />
+        </ShareCardWrapper>
+      )}
     </div>
   );
 }
@@ -9281,6 +9351,14 @@ function TipTapEditor({
   onWordCountChange: (count: number) => void,
   readOnly?: boolean
 }) {
+  const wordCountTimer = React.useRef<NodeJS.Timeout | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (wordCountTimer.current) clearTimeout(wordCountTimer.current);
+    };
+  }, []);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -9293,10 +9371,14 @@ function TipTapEditor({
     editable: !readOnly,
     onUpdate: ({ editor }) => {
       const html = editor.getHTML();
-      const text = editor.getText();
-      const wordCount = text.split(/\s+/).filter(w => w.length > 0).length;
       onChange(html);
-      onWordCountChange(wordCount);
+      
+      if (wordCountTimer.current) clearTimeout(wordCountTimer.current);
+      wordCountTimer.current = setTimeout(() => {
+        const text = editor.getText();
+        const words = text.trim() === '' ? 0 : text.trim().split(/\s+/).filter(w => w.length > 0).length;
+        onWordCountChange(words);
+      }, 500);
     },
   });
 
@@ -9464,6 +9546,22 @@ function RoutineMatrixView({
     targetStreak: 30,
     color: '#00D9FF'
   });
+
+  const [heatmapVisible, setHeatmapVisible] = React.useState(false);
+  const heatmapRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => { 
+        if (entry.isIntersecting) {
+          setHeatmapVisible(true);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    if (heatmapRef.current) observer.observe(heatmapRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   const todayStr = format(new Date(), 'yyyy-MM-dd');
   
@@ -9634,9 +9732,8 @@ function RoutineMatrixView({
                 
                 return (
                   <div key={`habit-list-${habit.id}-${idx}`}>
-                    <motion.div 
-                      layoutId={habit.id}
-                      className="glass rounded-2xl border border-white/5 bg-white/2 overflow-hidden group hover:border-cyan/30 transition-all cursor-pointer active:scale-[0.98]"
+                    <div 
+                      className="glass rounded-2xl border border-white/5 bg-white/2 overflow-hidden group hover:border-cyan/30 transition-all cursor-pointer active:scale-[0.98] animate-in fade-in slide-in-from-bottom-1 duration-200"
                     >
                     <div className="p-4 sm:p-5 md:p-6 flex items-center justify-between min-h-[60px]">
                       <div className="flex items-center gap-4 flex-1" onClick={() => setSelectedHabit(habit)}>
@@ -9677,7 +9774,7 @@ function RoutineMatrixView({
                         <CheckCircle2 size={24} />
                       </button>
                     </div>
-                  </motion.div>
+                  </div>
                 </div>
               );
             })
@@ -9687,7 +9784,13 @@ function RoutineMatrixView({
 
         {/* Right Panel - Heatmap */}
         <div className="flex-1 min-w-0 space-y-6">
-          <HabitHeatmap heatmapData={heatmapData} />
+          <div ref={heatmapRef}>
+            {heatmapVisible ? (
+              <HabitHeatmap heatmapData={heatmapData} />
+            ) : (
+              <div className="h-32 bg-white/5 rounded-xl animate-pulse" />
+            )}
+          </div>
           <div className="hidden">
              <div className="absolute top-0 right-0 w-64 h-64 bg-cyan/5 rounded-full -translate-y-32 translate-x-32 blur-3xl" />
              
@@ -10429,14 +10532,12 @@ function JournalView({
     return (
       <div className="space-y-3">
         {journals.map((journal) => (
-          <motion.div
+          <div
             key={journal.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
             onClick={() => setExpandedJournalId(
               expandedJournalId === journal.id ? null : journal.id
             )}
-            className="glass border border-white/5 rounded-2xl overflow-hidden cursor-pointer hover:border-white/15 transition-all"
+            className="glass border border-white/5 rounded-2xl overflow-hidden cursor-pointer hover:border-white/15 transition-all animate-in fade-in slide-in-from-bottom-2 duration-200"
           >
             {/* Header — always visible */}
             <div className="flex items-center justify-between px-6 py-4">
@@ -10509,7 +10610,7 @@ function JournalView({
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
+          </div>
         ))}
       </div>
     );
@@ -12452,30 +12553,29 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  useEffect(() => {
-    if (!user) {
-      setMessages([]);
-      return;
-    }
-
+  const fetchCoachMessages = async () => {
+    if (!user) return;
     const q = query(
       collection(db, 'coach_messages'),
       where('userId', '==', user.uid),
       orderBy('createdAt', 'desc'),
       limit(50)
     );
-
-    const unsub = onSnapshot(q, (snapshot) => {
-      if (!snapshot) return;
-      const queriedMessages = snapshot.docs.map(doc => ({
+    try {
+      const snap = await getDocs(q);
+      const queriedMessages = (snap.docs || []).map(doc => ({
         id: doc.id,
         ...doc.data()
       } as any));
       queriedMessages.reverse();
       setMessages(queriedMessages);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'coach_messages'));
+    } catch (err: any) {
+      handleFirestoreError(err, OperationType.LIST, 'coach_messages');
+    }
+  };
 
-    return () => unsub();
+  useEffect(() => {
+    fetchCoachMessages();
   }, [user]);
 
   const weakestSphere = useMemo(() => {
@@ -12611,75 +12711,79 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         createdAt: new Date().toISOString()
       });
       await addDoc(collection(db, 'coach_messages'), userMsgData);
-
-      // Create history representation using existing local messages state
-      const history = messages.slice(-10).map(m => ({
-        role: m.sender === 'user' ? 'user' as const : 'model' as const,
-        parts: [{ text: m.text }]
-      }));
-      history.push({
-        role: 'user',
-        parts: [{ text: textToSend }]
-      });
-
-      const coachReply = await generateCoachResponse(history, stats, weakestSphere, buildCoachContext());
-      
-      // 2. Add coach reply
-      const coachMsgData = removeUndefinedFields({
-        userId: user.uid,
-        sender: 'coach',
-        text: coachReply || "NEURAL_SYNAPSE_TIMEOUT. Please retry.",
-        createdAt: new Date().toISOString()
-      });
-      await addDoc(collection(db, 'coach_messages'), coachMsgData);
-
-    } catch (err: any) {
-      console.warn("Coach response error logs captured:", err);
-      const errMsg = err?.message || String(err);
-      let coachErrorText = "Error establishing connection to Aether Mind. Please check your config parameters.";
-      
-      if (errMsg.includes("leaked") || errMsg.includes("Key blocked") || errMsg.includes("403") || errMsg.includes("PERMISSION_DENIED")) {
-        coachErrorText = "AETHER_OS_ERROR: Gemini API Key Verification Failed. Your configured GEMINI_API_KEY has been disabled or reported as leaked. Please update or replace your API key via the 'Settings > Secrets' menu on AI Studio to restore full neural analysis systems.";
-      }
-
-      try {
-        const errorMsgData = removeUndefinedFields({
-          userId: user.uid,
-          sender: 'coach',
-          text: coachErrorText,
-          createdAt: new Date().toISOString()
-        });
-        await addDoc(collection(db, 'coach_messages'), errorMsgData);
-      } catch (innerErr) {
-        console.warn("Failed to persist error message:", innerErr);
-      }
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleClearConversation = async () => {
-    if (!user) return;
-    const confirmClear = window.confirm("Are you sure you want to completely erase your neural log with the Aether Coach? This cannot be undone.");
-    if (!confirmClear) return;
-
-    try {
-      const q = query(
-        collection(db, 'coach_messages'),
-        where('userId', '==', user.uid)
-      );
-      const snapshot = await getDocs(q);
-      if (snapshot.empty) return;
-
-      const batch = writeBatch(db);
-      snapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
-    } catch (e) {
-      handleFirestoreError(e, OperationType.DELETE, 'coach_messages');
-    }
-  };
+      await fetchCoachMessages();
+ 
+       // Create history representation using existing local messages state
+       const history = messages.slice(-10).map(m => ({
+         role: m.sender === 'user' ? 'user' as const : 'model' as const,
+         parts: [{ text: m.text }]
+       }));
+       history.push({
+         role: 'user',
+         parts: [{ text: textToSend }]
+       });
+ 
+       const coachReply = await generateCoachResponse(history, stats, weakestSphere, buildCoachContext());
+       
+       // 2. Add coach reply
+       const coachMsgData = removeUndefinedFields({
+         userId: user.uid,
+         sender: 'coach',
+         text: coachReply || "NEURAL_SYNAPSE_TIMEOUT. Please retry.",
+         createdAt: new Date().toISOString()
+       });
+       await addDoc(collection(db, 'coach_messages'), coachMsgData);
+       await fetchCoachMessages();
+ 
+     } catch (err: any) {
+       console.warn("Coach response error logs captured:", err);
+       const errMsg = err?.message || String(err);
+       let coachErrorText = "Error establishing connection to Aether Mind. Please check your config parameters.";
+       
+       if (errMsg.includes("leaked") || errMsg.includes("Key blocked") || errMsg.includes("403") || errMsg.includes("PERMISSION_DENIED")) {
+         coachErrorText = "AETHER_OS_ERROR: Gemini API Key Verification Failed. Your configured GEMINI_API_KEY has been disabled or reported as leaked. Please update or replace your API key via the 'Settings > Secrets' menu on AI Studio to restore full neural analysis systems.";
+       }
+ 
+       try {
+         const errorMsgData = removeUndefinedFields({
+           userId: user.uid,
+           sender: 'coach',
+           text: coachErrorText,
+           createdAt: new Date().toISOString()
+         });
+         await addDoc(collection(db, 'coach_messages'), errorMsgData);
+         await fetchCoachMessages();
+       } catch (innerErr) {
+         console.warn("Failed to persist error message:", innerErr);
+       }
+     } finally {
+       setIsGenerating(false);
+     }
+   };
+ 
+   const handleClearConversation = async () => {
+     if (!user) return;
+     const confirmClear = window.confirm("Are you sure you want to completely erase your neural log with the Aether Coach? This cannot be undone.");
+     if (!confirmClear) return;
+ 
+     try {
+       const q = query(
+         collection(db, 'coach_messages'),
+         where('userId', '==', user.uid)
+       );
+       const snapshot = await getDocs(q);
+       if (snapshot.empty) return;
+ 
+       const batch = writeBatch(db);
+       snapshot.docs.forEach((doc) => {
+         batch.delete(doc.ref);
+       });
+       await batch.commit();
+       setMessages([]);
+     } catch (e) {
+       handleFirestoreError(e, OperationType.DELETE, 'coach_messages');
+     }
+   };
 
   if (!user) {
     return (
