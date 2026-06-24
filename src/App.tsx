@@ -9353,6 +9353,32 @@ function TemporalHub({
       .slice(0, 4);
   }, [tasks]);
 
+  const xpAndCompletionLookup = useMemo(() => {
+    const taskCountMap: Record<string, { total: number; completed: number }> = {};
+    tasks.forEach(t => {
+      if (!t.createdAt) return;
+      const dayStr = t.createdAt.split('T')[0];
+      if (!taskCountMap[dayStr]) {
+        taskCountMap[dayStr] = { total: 0, completed: 0 };
+      }
+      taskCountMap[dayStr].total++;
+      if (t.status === 'completed') {
+        taskCountMap[dayStr].completed++;
+      }
+    });
+
+    const xpMap: Record<string, number> = {};
+    if (stats?.activityLog) {
+      stats.activityLog.forEach(a => {
+        if (!a.timestamp) return;
+        const dayStr = a.timestamp.split('T')[0];
+        xpMap[dayStr] = (xpMap[dayStr] || 0) + a.xp;
+      });
+    }
+
+    return { taskCountMap, xpMap };
+  }, [tasks, stats?.activityLog]);
+
   const handleAddSuggestedTask = async (s: any) => {
     try {
       const newTask = {
@@ -9605,14 +9631,14 @@ function TemporalHub({
 
   const getDayCompletion = (date: Date) => {
     const dayStr = format(date, 'yyyy-MM-dd');
-    const dayTasks = tasks.filter(t => t.createdAt.startsWith(dayStr));
-    const completed = dayTasks.filter(t => t.status === 'completed').length;
-    return dayTasks.length === 0 ? 0 : completed / dayTasks.length;
+    const counts = xpAndCompletionLookup.taskCountMap[dayStr];
+    if (!counts || counts.total === 0) return 0;
+    return counts.completed / counts.total;
   };
 
   const getDayXP = (date: Date) => {
     const dayStr = format(date, 'yyyy-MM-dd');
-    return stats?.activityLog?.filter(a => a.timestamp.startsWith(dayStr)).reduce((acc, a) => acc + a.xp, 0) || 0;
+    return xpAndCompletionLookup.xpMap[dayStr] || 0;
   };
 
   const renderMonthView = () => {
@@ -10552,79 +10578,6 @@ function RoutineMatrixView({
               <div className="h-32 bg-white/5 rounded-xl animate-pulse" />
             )}
           </div>
-          <div className="hidden">
-             <div className="absolute top-0 right-0 w-64 h-64 bg-cyan/5 rounded-full -translate-y-32 translate-x-32 blur-3xl" />
-             
-             <div className="flex justify-between items-center mb-8 relative z-10">
-               <div>
-                 <h3 className="text-xs font-mono font-black text-white uppercase tracking-widest">Global_Consistency_Map</h3>
-                 <p className="text-[10px] font-mono text-text-m uppercase opacity-50">52_Week_Neural_Engagement_Grid</p>
-               </div>
-               <div className="flex gap-2">
-                 <div className="flex items-center gap-1.5">
-                   <div className="w-2.5 h-2.5 rounded-sm bg-white/5 border border-white/10" />
-                   <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">0</span>
-                 </div>
-                 <div className="flex items-center gap-1.5">
-                   <div className="w-2.5 h-2.5 rounded-sm bg-cyan/20 border border-cyan/20" />
-                   <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">1-2</span>
-                 </div>
-                 <div className="flex items-center gap-1.5">
-                   <div className="w-2.5 h-2.5 rounded-sm bg-cyan/50 border border-cyan/50" />
-                   <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">3-4</span>
-                 </div>
-                 <div className="flex items-center gap-1.5">
-                   <div className="w-2.5 h-2.5 rounded-sm bg-cyan border border-cyan" />
-                   <span className="text-[11px] font-mono text-text-m opacity-50 uppercase">5+</span>
-                 </div>
-               </div>
-             </div>
-
-             <div className="relative z-10 w-full overflow-x-auto scrollbar-hide no-scrollbar">
-                <div className="flex gap-2 pb-4 min-w-[700px] w-full">
-                  {/* Grid Labels: Days */}
-                  <div className="flex flex-col justify-around text-[10px] font-mono text-text-m opacity-40 pr-3 uppercase pb-2">
-                    <span>Mon</span>
-                    <span className="opacity-0">Tue</span>
-                    <span>Wed</span>
-                    <span className="opacity-0">Thu</span>
-                    <span>Fri</span>
-                    <span className="opacity-0">Sat</span>
-                    <span>Sun</span>
-                  </div>
-
-                  {/* Grid Columns (Weeks) */}
-                  <div className="flex gap-0.5 sm:gap-1">
-                    {Array.from({ length: 52 }).map((_, weekIdx) => (
-                      <div key={`heatmap-week-${weekIdx}`} className="flex flex-col gap-0.5 sm:gap-1">
-                        {Array.from({ length: 7 }).map((_, dayIdx) => {
-                          const dataIdx = weekIdx * 7 + dayIdx;
-                          const dayData = heatmapData[dataIdx];
-                          if (!dayData) return <div key={`heatmap-day-empty-${weekIdx}-${dayIdx}`} className="w-3 h-3 sm:w-4 sm:h-4 rounded-sm bg-transparent" />;
-                          
-                          return (
-                            <div 
-                              key={`heatmap-day-${weekIdx}-${dayIdx}`}
-                              title={`${dayData.date} - ${dayData.count} habits completed`}
-                              className={cn(
-                                "w-3 h-3 sm:w-4 sm:h-4 rounded-sm border border-black/5 flex items-center justify-center transition-all hover:scale-135 hover:z-20 hover:shadow-md cursor-help",
-                                getIntensity(dayData.count)
-                              )}
-                            />
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                <div className="mt-4 flex justify-between text-[10px] font-mono text-text-m opacity-30 uppercase">
-                  <span>LAST_SYNC: 52_WEEKS_AGO</span>
-                  <span>SYNC_TARGET: PRESENT_DAY</span>
-                </div>
-             </div>
-          </div>
-
           {/* Habit Details View */}
           <AnimatePresence mode="wait">
             {selectedHabit && (
@@ -12126,52 +12079,55 @@ function StatsView({
       </div>
 
       {/* Evolution Subtab */}
-      <div className={cn("space-y-12", activeSubTab === 'evolution' ? "block animate-in fade-in duration-300" : "hidden")}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <EvolutionMetric label="Routine_Sync (Habits)" current={curHabits} previous={prevHabits} icon={<Flame size={20} />} />
-          <EvolutionMetric label="Protocol_Execution (Tasks)" current={curTasks} previous={prevTasks} icon={<CheckCircle2 size={20} />} />
-          <EvolutionMetric label="Temporal_Adherence (Calendar)" current={curCalendar} previous={prevCalendar} icon={<Calendar size={20} />} />
-          <EvolutionMetric label="Neural_Archival (Journal)" current={curJournals} previous={prevJournals} icon={<Book size={20} />} />
-        </div>
+      {activeSubTab === 'evolution' && (
+        <div className="space-y-12 block animate-in fade-in duration-300">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <EvolutionMetric label="Routine_Sync (Habits)" current={curHabits} previous={prevHabits} icon={<Flame size={20} />} />
+            <EvolutionMetric label="Protocol_Execution (Tasks)" current={curTasks} previous={prevTasks} icon={<CheckCircle2 size={20} />} />
+            <EvolutionMetric label="Temporal_Adherence (Calendar)" current={curCalendar} previous={prevCalendar} icon={<Calendar size={20} />} />
+            <EvolutionMetric label="Neural_Archival (Journal)" current={curJournals} previous={prevJournals} icon={<Book size={20} />} />
+          </div>
 
-        <div className="glass p-10 rounded-[3rem] border border-white/5 bg-accent/5 relative overflow-hidden">
-           <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
-              <TrendingUp size={120} className="text-accent" />
-           </div>
-           <div className="max-w-2xl space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/20 rounded-full">
-                 <Sparkles size={12} className="text-accent" />
-                 <span className="text-[10px] font-mono text-accent font-black uppercase tracking-widest">NEURAL_MOTIVATION_CORE</span>
-              </div>
-              <h3 className="text-3xl font-serif font-black text-white italic leading-tight uppercase">
-                {curTasks > prevTasks ? "Your neural streams are expanding. Synchronization with reality is at peak efficiency." : "Stagnation is merely a calibration phase. Refactor your protocols and initialize a new push."}
-              </h3>
-              <p className="text-sm font-mono text-text-m opacity-60 leading-relaxed uppercase">
-                Consistency is the only variable that matters. Monitor your deltas above and ensure the next cycle outperforms the previous. You are building a legend, one protocol at a time.
-              </p>
-           </div>
-        </div>
-
-        {/* PAST DEBRIEFS SECTION */}
-        <div className="space-y-4 mt-8">
-           <h3 className="text-xs font-mono font-black text-text-p uppercase tracking-[0.2em] px-2">WEEKLY_REVIEWS (WEEKLY_DEBRIEFS)</h3>
-           {weeklyReviews.length === 0 ? (
-             <EmptyState
-               icon={<Book size={20} className="text-accent" />}
-               title="NO_PAST_DEBRIEFS_FOUND"
-             />
-           ) : (
-             <div className="grid grid-cols-1 gap-4">
-               {weeklyReviews.map((review, idx) => (
-                 <WeeklyReviewItem key={`weekly-review-${review.id}-${idx}`} review={review} />
-               ))}
+          <div className="glass p-10 rounded-[3rem] border border-white/5 bg-accent/5 relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
+                <TrendingUp size={120} className="text-accent" />
              </div>
-           )}
+             <div className="max-w-2xl space-y-6">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-accent/10 border border-accent/20 rounded-full">
+                   <Sparkles size={12} className="text-accent" />
+                   <span className="text-[10px] font-mono text-accent font-black uppercase tracking-widest">NEURAL_MOTIVATION_CORE</span>
+                </div>
+                <h3 className="text-3xl font-serif font-black text-white italic leading-tight uppercase">
+                  {curTasks > prevTasks ? "Your neural streams are expanding. Synchronization with reality is at peak efficiency." : "Stagnation is merely a calibration phase. Refactor your protocols and initialize a new push."}
+                </h3>
+                <p className="text-sm font-mono text-text-m opacity-60 leading-relaxed uppercase">
+                  Consistency is the only variable that matters. Monitor your deltas above and ensure the next cycle outperforms the previous. You are building a legend, one protocol at a time.
+                </p>
+             </div>
+          </div>
+
+          {/* PAST DEBRIEFS SECTION */}
+          <div className="space-y-4 mt-8">
+             <h3 className="text-xs font-mono font-black text-text-p uppercase tracking-[0.2em] px-2">WEEKLY_REVIEWS (WEEKLY_DEBRIEFS)</h3>
+             {weeklyReviews.length === 0 ? (
+               <EmptyState
+                 icon={<Book size={20} className="text-accent" />}
+                 title="NO_PAST_DEBRIEFS_FOUND"
+               />
+             ) : (
+               <div className="grid grid-cols-1 gap-4">
+                 {weeklyReviews.map((review, idx) => (
+                   <WeeklyReviewItem key={`weekly-review-${review.id}-${idx}`} review={review} />
+                 ))}
+               </div>
+             )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Archive (Achievements) Subtab */}
-      <div className={cn("space-y-12", activeSubTab === 'achievements' ? "block animate-in fade-in duration-300" : "hidden")}>
+      {activeSubTab === 'achievements' && (
+        <div className="space-y-12 block animate-in fade-in duration-300">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
            <div className="glass p-6 rounded-2xl border-b-4 border-accent bg-accent/5">
               <h3 className="text-[10px] font-mono text-accent uppercase font-black mb-1">Total_Archived</h3>
@@ -12262,7 +12218,7 @@ function StatsView({
           </div>
         </div>
       </div>
-
+      )}
 
     </div>
   );
