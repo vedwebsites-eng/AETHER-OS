@@ -6843,17 +6843,20 @@ const QuickStatsGrid = React.memo(function QuickStatsGrid({ stats, journals }: {
 });
 
 const RecentActivityFeed = React.memo(function RecentActivityFeed({ log }: { log?: ActivityEntry[] }) {
-  if (!log || log.length === 0) return (
+  const safeLog = (log || [])
+    .filter(entry => entry && entry.timestamp)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+    .slice(0, 5);
+
+  if (safeLog.length === 0) return (
     <div className="glass p-6 rounded-xl border border-white/5 animate-pulse text-center">
       <p className="text-[10px] font-mono text-text-m uppercase tracking-widest italic opacity-40">NO_ACTIVITY_DETECTED_IN_FEED</p>
     </div>
   );
 
-  const activityLog = log;
-
   return (
     <div className="space-y-3">
-      {activityLog.slice(0, 5).map((activity, i) => (
+      {safeLog.map((activity, i) => (
         <div key={`${activity.id || 'activity'}-${i}`}>
           <motion.div 
             initial={{ x: -20, opacity: 0 }}
