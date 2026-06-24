@@ -6676,6 +6676,20 @@ function ProfileCard({
   const xpNeeded = nextLevelXP - currentXP;
   const estimatedDays = Math.ceil(xpNeeded / Math.max(todayXP, 100));
 
+  const streak = stats.currentStreak || 0;
+  const streakColor =
+    streak >= 365 ? 'text-yellow-400' :
+    streak >= 90  ? 'text-orange-400' :
+    streak >= 30  ? 'text-purple-400' :
+    streak >= 7   ? 'text-cyan-400' :
+    'text-white/60';
+
+  const streakEmoji =
+    streak >= 365 ? '👑' :
+    streak >= 90  ? '🔥' :
+    streak >= 30  ? '⚡' :
+    streak >= 7   ? '🌟' : '🔆';
+
   return (
     <div className="glass p-4 sm:p-8 rounded-2xl border-l-[6px] sm:border-l-8 border-accent relative overflow-hidden group premium-transition">
       <NeuralCore stats={stats} />
@@ -6700,8 +6714,8 @@ function ProfileCard({
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-4">
               <p className="text-[8px] sm:text-[10px] font-mono text-accent uppercase tracking-[0.2em] sm:tracking-[0.5em] font-black whitespace-nowrap">LVL {stats.level} / 100</p>
               <span className="text-[8px] sm:text-[10px] font-mono text-text-m opacity-50 uppercase tracking-widest whitespace-nowrap">• {getTitleForLevel(stats.level)}</span>
-              <span className="flex items-center gap-1 text-[8px] sm:text-[10px] font-mono text-warning font-black uppercase whitespace-nowrap">
-                <Flame className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {stats.currentStreak}D STREAK
+              <span className={`flex items-center gap-1 text-[8px] sm:text-[10px] font-mono font-black uppercase whitespace-nowrap ${streakColor}`}>
+                <span className="text-xs">{streakEmoji}</span> {streak}D STREAK
               </span>
               {openShare && (
                 <button
@@ -7560,6 +7574,19 @@ function Dashboard({
 
   const isStreakAtRisk = (stats?.currentStreak || 0) > 0 && stats?.lastActiveDate?.split('T')[0] !== new Date().toISOString().split('T')[0];
 
+  const handleClearNeuralHistory = async () => {
+    if (!user) return;
+    const confirmClear = window.confirm("Are you sure you want to completely clear everything in your history? This will permanently erase your entire neural history log, including all past activity, task completions, and XP records. This action cannot be undone.");
+    if (!confirmClear) return;
+    try {
+      await updateDoc(doc(db, 'user_stats', user.uid), {
+        activityLog: []
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `user_stats/${user.uid}/clear_activity_log`);
+    }
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -7830,10 +7857,22 @@ function Dashboard({
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-xs font-mono font-black uppercase tracking-[0.3em] text-text-m flex items-center gap-2">
-              <Activity size={14} className="text-accent" />
-              NEURAL_HISTORY
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-mono font-black uppercase tracking-[0.3em] text-text-m flex items-center gap-2">
+                <Activity size={14} className="text-accent" />
+                NEURAL_HISTORY
+              </h3>
+              {stats?.activityLog && stats.activityLog.length > 0 && (
+                <button
+                  onClick={handleClearNeuralHistory}
+                  className="text-[9px] font-mono text-white/30 hover:text-red-400 uppercase tracking-widest transition-colors cursor-pointer flex items-center gap-1.5 px-2 py-1 rounded bg-white/[0.02] border border-white/5 hover:bg-white/[0.05] hover:border-red-500/30"
+                  title="Clear all neural history"
+                >
+                  <Trash2 size={10} />
+                  <span>CLEAR_LOG</span>
+                </button>
+              )}
+            </div>
             <RecentActivityFeed log={stats?.activityLog} />
           </section>
         </div>
