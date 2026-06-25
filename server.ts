@@ -93,6 +93,26 @@ app.post("/api/gemini/analyze-journal", async (req, res) => {
   }
 });
 
+app.post("/api/gemini/suggest-password", async (req, res) => {
+  try {
+    const ai = getAI();
+    const prompt = `Generate a strong, secure password for a new user account.
+    The password should be at least 12 characters long, include uppercase, lowercase, numbers, and special characters.
+    Return only the password as a string.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+    });
+
+    res.json({ password: response.text.trim() });
+  } catch (err: any) {
+    handleGeminiError(err, res, "Error suggesting password", {
+      password: "DefaultSecure123!#" // Fallback password
+    });
+  }
+});
+
 app.post("/api/gemini/breakdown-task", async (req, res) => {
   try {
     const { title, category } = req.body;

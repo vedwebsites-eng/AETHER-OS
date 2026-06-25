@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFirestoreError, OperationType, removeUndefinedFields } from './lib/firebase';
 import { onAuthStateChanged, User, signOut, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit, getDocs } from 'firebase/firestore';
-import { analyzeJournalEntry, breakdownBossTask, generateDailyBriefing, generateLifeInsight, analyzeLifeBalance, generateCoachResponse } from './services/geminiService';
+import { analyzeJournalEntry, breakdownBossTask, generateDailyBriefing, generateLifeInsight, analyzeLifeBalance, generateCoachResponse, suggestPassword } from './services/geminiService';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { 
@@ -17,7 +17,7 @@ import {
   ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download, Briefcase,
   Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
   Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon, Info,
-  RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink, ChevronDown, Share2
+  RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink, ChevronDown, Share2, Eye, EyeOff
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -5427,6 +5427,21 @@ function AuthorizationPage({ onBack, onGoogleLogin }: { onBack: () => void; onGo
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'signin' | 'signup' | 'login'>('login');
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  const handleGeneratePassword = async () => {
+    setPasswordLoading(true);
+    try {
+      const suggested = await suggestPassword();
+      setPassword(suggested);
+    } catch (err) {
+      setError("FAILED_TO_GENERATE_PASSWORD");
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   const handleAuth = async (targetMode: 'signin' | 'signup' | 'login') => {
     if (!email || !password) {
       setError("EMAIL_AND_PASSWORD_REQUIRED");
@@ -5520,13 +5535,35 @@ function AuthorizationPage({ onBack, onGoogleLogin }: { onBack: () => void; onGo
 
         {/* 6. Password input */}
         <div className="mb-6">
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-sm font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-[#C8651B]/50 focus:bg-white/8 transition-all"
-          />
+          <div className="relative">
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-sm font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-[#C8651B]/50 focus:bg-white/8 transition-all"
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="p-2 text-white/50 hover:text-white"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+              {mode === 'signup' && (
+                <button
+                  type="button"
+                  onClick={handleGeneratePassword}
+                  disabled={passwordLoading}
+                  className="p-2 text-[#C8651B] hover:text-[#b55a17] disabled:opacity-50"
+                  title="Generate secure password"
+                >
+                  <Sparkles size={16} />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* 7. Error message */}
