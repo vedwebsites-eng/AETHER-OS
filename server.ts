@@ -26,14 +26,21 @@ const getAI = () => {
   });
 };
 
-const handleGeminiError = (err: any, res: any, contextMsg: string) => {
-  console.warn(`${contextMsg}:`, err);
-  const errMsg = err.message || String(err);
-  if (errMsg.includes("leaked") || errMsg.includes("Key blocked") || errMsg.includes("403") || errMsg.includes("PERMISSION_DENIED")) {
-    return res.status(403).json({
-      error: "Gemini API key verification failed. Your configured GEMINI_API_KEY has been disabled or reported as leaked. Please rotate or replace your API key via the 'Settings > Secrets' menu on AI Studio to restore full neural analysis systems."
+const handleGeminiError = (err: any, res: any, contextMsg: string, fallbackData?: any) => {
+  const errMsg = err?.message || String(err);
+  const isLeaked = errMsg.includes("leaked") || errMsg.includes("Key blocked") || errMsg.includes("403") || errMsg.includes("PERMISSION_DENIED") || errMsg.includes("required");
+  
+  if (isLeaked) {
+    console.log(`[Aether_OS Server] Gemini service operating in offline mode for: ${contextMsg}`);
+    if (fallbackData !== undefined) {
+      return res.status(200).json(fallbackData);
+    }
+    return res.status(200).json({ 
+      text: "Aether_OS // LINK_STATUS: OFFLINE\n\nYour GEMINI_API_KEY is invalid or has been reported as leaked. Please rotate or replace your API key via the 'Settings > Secrets' menu on AI Studio to restore full neural analysis systems." 
     });
   }
+  
+  console.warn(`${contextMsg}:`, err);
   return res.status(500).json({ error: errMsg });
 };
 
@@ -77,7 +84,12 @@ app.post("/api/gemini/analyze-journal", async (req, res) => {
 
     res.json(JSON.parse(response.text));
   } catch (err: any) {
-    handleGeminiError(err, res, "Error analyzing journal entry");
+    handleGeminiError(err, res, "Error analyzing journal entry", {
+      emotionalState: "Reflective",
+      keyTheme: "Calibration",
+      alignmentScore: 50,
+      insight: "Your GEMINI_API_KEY is inactive or has been reported as leaked. Please rotate or replace your API key via the 'Settings > Secrets' menu on AI Studio to restore full neural analysis systems."
+    });
   }
 });
 
@@ -115,7 +127,11 @@ app.post("/api/gemini/breakdown-task", async (req, res) => {
 
     res.json(JSON.parse(response.text));
   } catch (err: any) {
-    handleGeminiError(err, res, "Error breaking down task");
+    handleGeminiError(err, res, "Error breaking down task", [
+      { "title": "Check Aether_OS Settings", "duration": 5 },
+      { "title": "Rotate Gemini API Key in Settings > Secrets", "duration": 10 },
+      { "title": "Calibrate core priorities manually", "duration": 15 }
+    ]);
   }
 });
 
@@ -143,7 +159,9 @@ app.post("/api/gemini/daily-briefing", async (req, res) => {
 
     res.json({ text: response.text });
   } catch (err: any) {
-    handleGeminiError(err, res, "Error generating daily briefing");
+    handleGeminiError(err, res, "Error generating daily briefing", {
+      text: "Aether_OS // LINK_STATUS: OFFLINE\n\nYour GEMINI_API_KEY has been reported as leaked or is invalid. Please rotate/replace your API key via the 'Settings > Secrets' menu on AI Studio to restore full neural analysis systems."
+    });
   }
 });
 
@@ -194,7 +212,16 @@ app.post("/api/gemini/life-balance", async (req, res) => {
 
     res.json(JSON.parse(response.text));
   } catch (err: any) {
-    handleGeminiError(err, res, "Error analyzing life balance");
+    handleGeminiError(err, res, "Error analyzing life balance", {
+      GYM: 5,
+      DIET: 5,
+      LOVE: 5,
+      STUDIES: 5,
+      FINANCE: 5,
+      SLEEP: 5,
+      SOCIAL: 5,
+      MENTAL_HEALTH: 5
+    });
   }
 });
 
@@ -219,7 +246,9 @@ app.post("/api/gemini/life-insight", async (req, res) => {
 
     res.json({ text: response.text });
   } catch (err: any) {
-    handleGeminiError(err, res, "Error generating life insight");
+    handleGeminiError(err, res, "Error generating life insight", {
+      text: "Aether_OS // SYSTEM_CALIBRATION\n\nYour Gemini API key needs rotation. Select Settings > Secrets and input a new valid Gemini API key to activate Life Spheres Analysis."
+    });
   }
 });
 
@@ -295,7 +324,9 @@ app.post("/api/gemini/coach-response", async (req, res) => {
 
     res.json({ text: response.text });
   } catch (err: any) {
-    handleGeminiError(err, res, "Error generating coach response");
+    handleGeminiError(err, res, "Error generating coach response", {
+      text: "### Aether_OS Cybernetic Mentor // OFFLINE FALLBACK\n\nYour Gemini API key has been reported as leaked or is invalid. To resume full cognitive coaching and real-time guidance, please rotate/replace your API key via the **Settings > Secrets** panel in AI Studio.\n\nIn the meantime, stay disciplined, follow your daily protocols, and maintain your streaks."
+    });
   }
 });
 
@@ -327,7 +358,9 @@ app.post("/api/gemini/estimate-xp", async (req, res) => {
 
     res.json({ text: response.text });
   } catch (err: any) {
-    handleGeminiError(err, res, "Error estimating XP");
+    handleGeminiError(err, res, "Error estimating XP", {
+      text: "100"
+    });
   }
 });
 
@@ -374,7 +407,13 @@ app.post("/api/gemini/generate-timetable", async (req, res) => {
 
     res.json(JSON.parse(response.text));
   } catch (err: any) {
-    handleGeminiError(err, res, "Error generating timetable");
+    const todayStr = req.body.todayStr || new Date().toISOString().split('T')[0];
+    handleGeminiError(err, res, "Error generating timetable", [
+      { "title": "Aether_OS Wakeup & Calibration", "type": "routine", "startTime": `${todayStr}T07:00`, "endTime": `${todayStr}T08:00` },
+      { "title": "Focused Protocol Execution", "type": "task", "startTime": `${todayStr}T09:00`, "endTime": `${todayStr}T12:00` },
+      { "title": "Recreation & System Maintenance", "type": "break", "startTime": `${todayStr}T12:00`, "endTime": `${todayStr}T13:00` },
+      { "title": "Neural Archival & Reflection", "type": "routine", "startTime": `${todayStr}T21:00`, "endTime": `${todayStr}T22:00` }
+    ]);
   }
 });
 

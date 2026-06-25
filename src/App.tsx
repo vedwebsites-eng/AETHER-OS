@@ -11245,9 +11245,9 @@ function JournalView({
 
     return (
       <div className="space-y-3">
-        {journals.map((journal) => (
+        {journals.map((journal, index) => (
           <div
-            key={journal.id}
+            key={`journal-history-${journal.id || 'journal'}-${index}`}
             onClick={() => setExpandedJournalId(
               expandedJournalId === journal.id ? null : journal.id
             )}
