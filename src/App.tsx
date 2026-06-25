@@ -2627,7 +2627,7 @@ interface Task {
   userId: string;
   title: string;
   priority: 'low' | 'medium' | 'high' | 'critical';
-  status: 'pending' | 'completed';
+  status: 'pending' | 'completed' | 'expired';
   createdAt: string;
   category: 'health' | 'learning' | 'creative' | 'work' | 'personal' | 'routine';
   estimate: number; // in minutes
@@ -2643,6 +2643,9 @@ interface Task {
   adherenceStatus?: 'ontime' | 'late' | 'partial' | 'missed';
   habitId?: string;
   xpAwarded?: boolean;
+  expiresAt?: string;
+  isExpired?: boolean;
+  warnedAt?: string;
 }
 
 
@@ -3105,6 +3108,53 @@ export default function App() {
       addToTerminal(`SYSTEM_BOOT_SEQUENCE_COMPLETE: NODE_${user.uid.slice(0, 8)} CONNECTED`, 'success');
     }
   }, [user]);
+
+  useEffect(() => {
+    const showToast = (msg: string) => {
+      setCompleteToast(msg);
+      setTimeout(() => setCompleteToast(null), 5000);
+    };
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      tasks.forEach(async (task) => {
+        if (task.status === 'completed' || task.isExpired || !task.expiresAt) return;
+        const expiresAt = new Date(task.expiresAt);
+        const msLeft = expiresAt.getTime() - now.getTime();
+
+        // Mark as expired when time runs out
+        if (msLeft <= 0) {
+          try {
+            await updateDoc(doc(db, 'tasks', task.id), {
+              isExpired: true,
+              status: 'expired',
+              expiredAt: now.toISOString(),
+            });
+            // Show toast notification
+            showToast(`TASK_EXPIRED: "${task.title.toUpperCase()}" — Protocol failed.`);
+            // Deduct XP penalty
+            addXP(-5, 'TASK_EXPIRED_PENALTY');
+          } catch (err) {
+            console.error("Failed to expire task", err);
+          }
+        }
+
+        // 1 hour warning
+        if (msLeft > 0 && msLeft <= 60 * 60 * 1000 && !task.warnedAt) {
+          try {
+            await updateDoc(doc(db, 'tasks', task.id), {
+              warnedAt: now.toISOString(),
+            });
+            showToast(`⚠️ WARNING: "${task.title.toUpperCase()}" expires in 1 hour!`);
+          } catch (err) {
+            console.error("Failed to update task warning", err);
+          }
+        }
+      });
+    }, 60000); // Check every 60 seconds
+
+    return () => clearInterval(interval);
+  }, [tasks, user, stats]);
 
   // Helper For ISO Week Calculation
   const getISOWeekString = (date: Date) => {
@@ -4062,7 +4112,9 @@ export default function App() {
           difficulty: 'medium',
           scheduledStart: block.startTime,
           scheduledEnd: block.endTime,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          isExpired: false
         });
       } else {
         await addDoc(collection(db, 'time_blocks'), {
@@ -8042,7 +8094,9 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
         customXP: customXP || null,
         isSpeedRun: false, // Updated on completion if user marks it
         difficulty: 'medium', // legacy
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        isExpired: false
       });
       setNewTitle('');
       setCustomXP('');
@@ -8197,14 +8251,16 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
                             const newTask = {
                               userId: user.uid,
                               title: h.name,
-                              priority: 'medium',
-                              status: 'pending',
+                              priority: 'medium' as const,
+                              status: 'pending' as const,
                               category: h.category || 'routine',
                               estimate: 30,
                               isChallenging: false,
                               isBoss: false,
                               habitId: h.id,
-                              createdAt: new Date().toISOString()
+                              createdAt: new Date().toISOString(),
+                              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                              isExpired: false
                             };
                             await addDoc(collection(db, 'tasks'), newTask);
                             setCompleteToast(`Activated Habit as Task today: ${h.name}`);
@@ -8487,14 +8543,16 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
                             const newTask = {
                               userId: user.uid,
                               title: h.name,
-                              priority: 'medium',
-                              status: 'pending',
+                              priority: 'medium' as const,
+                              status: 'pending' as const,
                               category: h.category || 'routine',
                               estimate: 30,
                               isChallenging: false,
                               isBoss: false,
                               habitId: h.id,
-                              createdAt: new Date().toISOString()
+                              createdAt: new Date().toISOString(),
+                              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                              isExpired: false
                             };
                             await addDoc(collection(db, 'tasks'), newTask);
                             setCompleteToast(`Synced Habit as active Task today: ${h.name}`);
@@ -9384,12 +9442,14 @@ function TemporalHub({
       const newTask = {
         userId: user.uid,
         title: s.title,
-        priority: s.priority || 'medium',
-        status: 'pending',
-        category: s.category || 'work',
+        priority: (s.priority || 'medium') as any,
+        status: 'pending' as const,
+        category: (s.category || 'work') as any,
         estimate: s.estimate || 30,
         subTasks: [],
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        isExpired: false
       };
       await addDoc(collection(db, 'tasks'), newTask);
       onAddXP(8, 'SUGGESTED_TASK_ADDED');
@@ -12846,13 +12906,15 @@ function DailyWorkView({
     try {
       const newTask = {
         title: quickTaskTitle.trim(),
-        status: 'pending',
-        priority: 'medium',
-        category: 'work',
+        status: 'pending' as const,
+        priority: 'medium' as const,
+        category: 'work' as const,
         estimate: 30,
         subTasks: [],
         userId: user.uid,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        isExpired: false
       };
       await addDoc(collection(db, 'tasks'), newTask);
       onAddXP(8, 'TASK_CREATED');
@@ -13042,14 +13104,16 @@ function DailyWorkView({
                                               const newTask = {
                                                  userId: user.uid,
                                                  title: h.name,
-                                                 priority: 'medium',
-                                                 status: 'pending',
+                                                 priority: 'medium' as const,
+                                                 status: 'pending' as const,
                                                  category: h.category || 'routine',
                                                  estimate: 30,
                                                  isChallenging: false,
                                                  isBoss: false,
                                                  habitId: h.id,
-                                                 createdAt: new Date().toISOString()
+                                                 createdAt: new Date().toISOString(),
+                                                 expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                                                 isExpired: false
                                               };
                                               await addDoc(collection(db, 'tasks'), newTask);
                                               if (typeof setCompleteToast === 'function') {
