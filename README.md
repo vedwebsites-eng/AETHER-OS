@@ -21,7 +21,8 @@
 
 ---
 
-![AetherOS Landing Page](landing.png)
+<img width="1350" height="580" alt="landing" src="https://github.com/user-attachments/assets/efe20e1e-45c6-4ba5-8b93-d2e33ed70b43" />
+
 
 *Built by a 15-year-old founder who got tired of switching between 5 apps to track his life.*
 
@@ -45,7 +46,9 @@ Notion + Done + Day One + Superhuman + YouTube coach = AetherOS
 
 ## 🌐 About
 
-![About Section](about.png)
+![About Section]
+<img width="1353" height="580" alt="about" src="https://github.com/user-attachments/assets/7ccbf3bf-4967-4441-a20b-1dc08c02b53b" />
+
 
 AetherOS was built out of frustration. Four apps, four logins, four context switches — and still no clear picture of progress.
 
@@ -61,7 +64,9 @@ That's AetherOS. One operating system for your ambition. Built for founders, stu
 
 ## ✨ Features
 
-![Features Grid](features.png)
+![Features Grid]
+<img width="1341" height="598" alt="features" src="https://github.com/user-attachments/assets/fdac5d04-284b-4345-b02a-e86194f7815e" />
+
 
 ### 6 Core Modules
 
@@ -69,7 +74,9 @@ That's AetherOS. One operating system for your ambition. Built for founders, stu
 
 ### 🖥 CORE_COMMAND — Dashboard
 
-![Dashboard](dashboard.png)
+![Dashboard]
+<img width="1351" height="581" alt="dashboard" src="https://github.com/user-attachments/assets/94d253af-80d9-48e8-a951-5c0b5fab91f9" />
+
 
 Your mission control. The moment you open AetherOS, you see everything at once:
 
@@ -83,7 +90,9 @@ Your mission control. The moment you open AetherOS, you see everything at once:
 
 ### ⚡ DAILY_WORK — Tasks + Habits + Timetable
 
-![Daily Work](dailywork.png)
+![Daily Work]
+<img width="1352" height="588" alt="dailywork" src="https://github.com/user-attachments/assets/4b75af4e-5bc6-41f8-bd11-1a99b3660baf" />
+
 
 The engine room. Where you actually get things done:
 
@@ -96,7 +105,9 @@ The engine room. Where you actually get things done:
 
 ### 📝 REFLECT — Journal + Insights
 
-![Journal](journal.png)
+![Journal]
+<img width="1184" height="582" alt="journal" src="https://github.com/user-attachments/assets/c78a9d09-6224-4d9a-b099-024b93daa8d7" />
+
 
 Not just a journal. A neural archive:
 
@@ -111,6 +122,8 @@ Not just a journal. A neural archive:
 ---
 
 ### 📈 GROW — Wheel of Life + Stats + Achievements
+![Wheel of Life]
+
 
 Track 8 life areas on a fully customizable radar chart:
 
@@ -122,6 +135,9 @@ Track 8 life areas on a fully customizable radar chart:
 ---
 
 ### 🧠 AETHER_COACH — AI Life Coach
+![Aether Coach]
+<img width="1350" height="610" alt="aethercoach" src="https://github.com/user-attachments/assets/004e5a0f-32f1-4d8c-b087-979eee80c4e9" />
+
 
 Not a generic chatbot. A coach that actually knows you:
 
@@ -137,6 +153,9 @@ Not a generic chatbot. A coach that actually knows you:
 ---
 
 ### ⚙️ CONFIG_OS — Settings + Shop
+![Settings]
+<img width="1351" height="612" alt="configos" src="https://github.com/user-attachments/assets/f5b35d60-0561-4a25-834d-f4487ddd8189" />
+
 
 - **Profile** — display name, email, auth status
 - **Gameplay** — difficulty (0.5x / 1x / 2x XP multiplier)
