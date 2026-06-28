@@ -1897,6 +1897,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isSyncingAI, setIsSyncingAI] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Dynamic sphere management states
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -2108,7 +2109,16 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
         {/* Left: Radar Chart */}
-        <div className="glass p-8 lg:p-12 rounded-[2rem] border border-white/5 flex flex-col items-center justify-center min-h-[400px]">
+        <div className={cn(
+          "glass p-8 lg:p-12 rounded-[2rem] border border-white/5 flex flex-col items-center justify-center min-h-[400px] relative transition-all duration-300",
+          isFullscreen ? "fixed inset-0 z-[1000] bg-background p-20" : ""
+        )}>
+          <button
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="absolute top-4 right-4 p-2 bg-white/5 rounded-full hover:bg-white/10 z-[1001]"
+          >
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
           <RadarChart values={displayedValues} categories={categories} />
           
           <div className="mt-8 w-full max-w-md space-y-4 border-t border-white/5 pt-6">
