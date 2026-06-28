@@ -46,7 +46,7 @@ Notion + Done + Day One + Superhuman + YouTube coach = AetherOS
 
 ## 🌐 About
 
-![About Section]
+[About Section]
 <img width="1353" height="580" alt="about" src="https://github.com/user-attachments/assets/7ccbf3bf-4967-4441-a20b-1dc08c02b53b" />
 
 
@@ -64,7 +64,7 @@ That's AetherOS. One operating system for your ambition. Built for founders, stu
 
 ## ✨ Features
 
-![Features Grid]
+[Features Grid]
 <img width="1341" height="598" alt="features" src="https://github.com/user-attachments/assets/fdac5d04-284b-4345-b02a-e86194f7815e" />
 
 
@@ -74,7 +74,7 @@ That's AetherOS. One operating system for your ambition. Built for founders, stu
 
 ### 🖥 CORE_COMMAND — Dashboard
 
-![Dashboard]
+[Dashboard]
 <img width="1351" height="581" alt="dashboard" src="https://github.com/user-attachments/assets/94d253af-80d9-48e8-a951-5c0b5fab91f9" />
 
 
@@ -90,7 +90,7 @@ Your mission control. The moment you open AetherOS, you see everything at once:
 
 ### ⚡ DAILY_WORK — Tasks + Habits + Timetable
 
-![Daily Work]
+[Daily Work]
 <img width="1352" height="588" alt="dailywork" src="https://github.com/user-attachments/assets/4b75af4e-5bc6-41f8-bd11-1a99b3660baf" />
 
 
@@ -105,7 +105,7 @@ The engine room. Where you actually get things done:
 
 ### 📝 REFLECT — Journal + Insights
 
-![Journal]
+[Journal]
 <img width="1184" height="582" alt="journal" src="https://github.com/user-attachments/assets/c78a9d09-6224-4d9a-b099-024b93daa8d7" />
 
 
@@ -122,7 +122,7 @@ Not just a journal. A neural archive:
 ---
 
 ### 📈 GROW — Wheel of Life + Stats + Achievements
-![Wheel of Life]
+[Wheel of Life]
 
 
 Track 8 life areas on a fully customizable radar chart:
@@ -135,7 +135,7 @@ Track 8 life areas on a fully customizable radar chart:
 ---
 
 ### 🧠 AETHER_COACH — AI Life Coach
-![Aether Coach]
+[Aether Coach]
 <img width="1350" height="610" alt="aethercoach" src="https://github.com/user-attachments/assets/004e5a0f-32f1-4d8c-b087-979eee80c4e9" />
 
 
@@ -152,8 +152,8 @@ Not a generic chatbot. A coach that actually knows you:
 
 ---
 
-### ⚙️ CONFIG_OS — Settings + Shop
-![Settings]
+### ⚙️ CONFIG_OS — Settings
+[Settings]
 <img width="1351" height="612" alt="configos" src="https://github.com/user-attachments/assets/f5b35d60-0561-4a25-834d-f4487ddd8189" />
 
 
