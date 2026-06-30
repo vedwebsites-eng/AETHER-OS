@@ -11565,26 +11565,31 @@ function JournalView({
                     <label className="text-[10px] font-mono text-text-m uppercase tracking-[0.25em] font-black border-l-2 border-accent pl-3 mb-4 block">
                       ENERGY_INDEX
                     </label>
-                    <div className="grid grid-cols-5 gap-2">
+                    <div className="grid grid-cols-5 gap-3">
                       {[
-                        { id: 'drained', label: 'DRAINED', emoji: '🪫', color: 'border-red-500/50 bg-red-500/10' },
-                        { id: 'low', label: 'LOW', emoji: '😴', color: 'border-orange-500/50 bg-orange-500/10' },
-                        { id: 'neutral', label: 'OK', emoji: '😐', color: 'border-yellow-500/50 bg-yellow-500/10' },
-                        { id: 'high', label: 'HIGH', emoji: '⚡', color: 'border-green-500/50 bg-green-500/10' },
-                        { id: 'peak', label: 'PEAK', emoji: '🔥', color: 'border-cyan-500/50 bg-cyan-400/10' },
+                        { id: 'drained', label: 'DRAINED', emoji: '🪫', active: 'border-red-500 bg-red-500/20 shadow-[0_0_16px_rgba(239,68,68,0.3)]' },
+                        { id: 'low',     label: 'LOW',     emoji: '😴', active: 'border-orange-500 bg-orange-500/20 shadow-[0_0_16px_rgba(249,115,22,0.3)]' },
+                        { id: 'neutral', label: 'OK',      emoji: '😐', active: 'border-yellow-400 bg-yellow-400/20 shadow-[0_0_16px_rgba(250,204,21,0.3)]' },
+                        { id: 'high',    label: 'HIGH',    emoji: '⚡', active: 'border-green-400 bg-green-400/20 shadow-[0_0_16px_rgba(74,222,128,0.3)]' },
+                        { id: 'peak',    label: 'PEAK',    emoji: '🔥', active: 'border-cyan-400 bg-cyan-400/20 shadow-[0_0_16px_rgba(34,211,238,0.3)]' },
                       ].map(level => (
                         <button
                           key={level.id}
                           onClick={() => setEnergyLevel(level.id as any)}
                           className={cn(
-                            "flex flex-col items-center gap-1 p-2 rounded-xl border-2 transition-all",
-                            energyLevel === level.id 
-                              ? level.color + " scale-110" 
-                              : "border-white/5 hover:border-white/20"
+                            "flex flex-col items-center justify-center gap-2 py-3 px-1 rounded-2xl border-2 transition-all duration-200",
+                            energyLevel === level.id
+                              ? level.active + " scale-105"
+                              : "border-white/8 bg-white/3 hover:border-white/20 hover:bg-white/5"
                           )}
                         >
-                          <span className="text-xl">{level.emoji}</span>
-                          <span className="text-[7px] font-mono text-white/50 uppercase">{level.label}</span>
+                          <span className="text-2xl leading-none">{level.emoji}</span>
+                          <span className={cn(
+                            "text-[9px] font-mono font-black uppercase tracking-wider leading-none",
+                            energyLevel === level.id ? "text-white" : "text-white/30"
+                          )}>
+                            {level.label}
+                          </span>
                         </button>
                       ))}
                     </div>
