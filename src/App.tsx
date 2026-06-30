@@ -5255,8 +5255,8 @@ interface TerminalLog {
 const SystemTerminal = React.memo(function SystemTerminal({ logs = [] }: { logs?: TerminalLog[] }) {
   return (
     <div className="glass p-4 rounded-xl border border-white/5 bg-black/40 font-mono text-xs text-text-m h-48 overflow-y-auto space-y-1 scrollbar-thin">
-      {logs.map((log) => (
-        <div key={log.id} className="flex gap-2">
+      {logs.map((log, index) => (
+        <div key={`${log.id}-${index}`} className="flex gap-2">
           <span className="text-text-s font-bold shrink-0">[{log.time}]</span>
           <span className={cn(
             "break-all",
