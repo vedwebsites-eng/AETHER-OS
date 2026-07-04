@@ -11568,7 +11568,7 @@ function JournalView({
                     <div className="grid grid-cols-5 gap-3">
                       {[
                         { id: 'drained', label: 'DRAINED', emoji: '🪫', active: 'border-red-500 bg-red-500/20 shadow-[0_0_16px_rgba(239,68,68,0.3)]' },
-                        { id: 'low',     label: 'LOW',     emoji: '😴', active: 'border-orange-500 bg-orange-500/20 shadow-[0_0_16px_rgba(249,115,22,0.3)]' },
+                        { id: 'low',     label: 'LOW',     emoji: '😴', active: 'border-orange-400 bg-orange-400/20 shadow-[0_0_16px_rgba(251,146,60,0.3)]' },
                         { id: 'neutral', label: 'OK',      emoji: '😐', active: 'border-yellow-400 bg-yellow-400/20 shadow-[0_0_16px_rgba(250,204,21,0.3)]' },
                         { id: 'high',    label: 'HIGH',    emoji: '⚡', active: 'border-green-400 bg-green-400/20 shadow-[0_0_16px_rgba(74,222,128,0.3)]' },
                         { id: 'peak',    label: 'PEAK',    emoji: '🔥', active: 'border-cyan-400 bg-cyan-400/20 shadow-[0_0_16px_rgba(34,211,238,0.3)]' },
@@ -11577,7 +11577,7 @@ function JournalView({
                           key={level.id}
                           onClick={() => setEnergyLevel(level.id as any)}
                           className={cn(
-                            "flex flex-col items-center justify-center gap-2 py-3 px-1 rounded-2xl border-2 transition-all duration-200",
+                            "flex flex-col items-center justify-center gap-2 py-4 px-1 rounded-2xl border-2 transition-all duration-200",
                             energyLevel === level.id
                               ? level.active + " scale-105"
                               : "border-white/8 bg-white/3 hover:border-white/20 hover:bg-white/5"
