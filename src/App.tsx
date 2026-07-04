@@ -12233,6 +12233,7 @@ function StatsView({
                  ))}
                </div>
              )}
+
           </div>
         </div>
       )}
@@ -13385,6 +13386,11 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isGenerating]);
 
   const fetchCoachMessages = async () => {
     if (!user) return;
@@ -13701,6 +13707,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                   <span className="text-[10px] uppercase font-black tracking-widest opacity-60">SYNAPSE_PROCESSING_REPLY...</span>
                </div>
             )}
+             <div ref={messagesEndRef} />
          </div>
 
          {/* Coach Control Area & Input */}
