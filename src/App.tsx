@@ -13391,7 +13391,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     const q = query(
       collection(db, 'coach_messages'),
       where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc'),
+      orderBy('createdAt', 'asc'),
       limit(50)
     );
     try {
@@ -13400,7 +13400,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         id: doc.id,
         ...doc.data()
       } as any));
-      queriedMessages.reverse();
       setMessages(queriedMessages);
     } catch (err: any) {
       handleFirestoreError(err, OperationType.LIST, 'coach_messages');
@@ -13547,16 +13546,21 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       await fetchCoachMessages();
  
        // Create history representation using existing local messages state
-       const history = messages.slice(-10).map(m => ({
+       const history = messages.slice(-20).map(m => ({
          role: m.sender === 'user' ? 'user' as const : 'model' as const,
-         parts: [{ text: m.text }]
+         parts: [{ text: m.text || '' }]
        }));
        history.push({
          role: 'user',
          parts: [{ text: textToSend }]
        });
  
-       const coachReply = await generateCoachResponse(history, stats, weakestSphere, buildCoachContext());
+       const coachReply = await generateCoachResponse(
+         history,
+         stats,
+         weakestSphere,
+         buildCoachContext()
+       );
        
        // 2. Add coach reply
        const coachMsgData = removeUndefinedFields({
