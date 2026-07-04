@@ -65,7 +65,7 @@ app.post("/api/gemini/analyze-journal", async (req, res) => {
     "${content}"`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -101,7 +101,7 @@ app.post("/api/gemini/suggest-password", async (req, res) => {
     Return only the password as a string.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
     });
 
@@ -127,7 +127,7 @@ app.post("/api/gemini/breakdown-task", async (req, res) => {
     Category: "${category || ''}"`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -170,7 +170,7 @@ app.post("/api/gemini/daily-briefing", async (req, res) => {
     Active Tasks: ${taskTitles}`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         systemInstruction: "You are Aether_OS, a high-level cognitive interface assistant. Keep it brief (under 100 words)."
@@ -209,7 +209,7 @@ app.post("/api/gemini/life-balance", async (req, res) => {
     Provide only the JSON object with the 8 categories and their numeric values (1-10).`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -257,7 +257,7 @@ app.post("/api/gemini/life-insight", async (req, res) => {
     Focus on actionable, non-cliché advice. Keep it under 60 words.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         systemInstruction: "You are Aether_OS, a high-level cognitive interface. Provide tactical, philosophical, and futuristic life improvement plans."
@@ -335,7 +335,7 @@ app.post("/api/gemini/coach-response", async (req, res) => {
     systemIns += `\n\nIncorporate these real-time metrics, logs, habits, and tasks organically into your reasoning and conversation. Directly address their context! Speak as their system-integrated cybernetic mentor. Format your reply using standard markdown. Keep it punchy, deeply insightful, and around 100-150 words.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: chatHistory,
       config: {
         systemInstruction: systemIns
@@ -372,7 +372,7 @@ app.post("/api/gemini/estimate-xp", async (req, res) => {
     Apply the Difficulty Multiplier in your calculation.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
     });
 
@@ -405,7 +405,7 @@ app.post("/api/gemini/generate-timetable", async (req, res) => {
     Block Schema: { "title": string, "type": "task"|"event"|"routine"|"break", "startTime": "${todayStr}THH:mm", "endTime": "${todayStr}THH:mm" }`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
