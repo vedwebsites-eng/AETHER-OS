@@ -215,8 +215,16 @@ service cloud.firestore {
     // CoachMessages
     match /coach_messages/{messageId} {
       allow read: if isOwner(resource.data.userId);
-      allow create: if isVerified() && isValidCoachMessage(incoming()) && isOwner(incoming().userId) && isValidId(messageId);
+      allow create: if isVerified() && isValidCoachMessage(incoming()) && isOwner(incoming().userId);
       allow update: if isVerified() && isOwner(existing().userId) && isValidCoachMessage(incoming()) && isImmutablePassed('coach_messages');
+      allow delete: if isVerified() && isOwner(existing().userId);
+    }
+
+    // CoachProfiles
+    match /coach_profiles/{profileId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isVerified() && isOwner(incoming().userId);
+      allow update: if isVerified() && isOwner(existing().userId);
       allow delete: if isVerified() && isOwner(existing().userId);
     }
   }

@@ -3122,7 +3122,7 @@ export default function App() {
   useEffect(() => {
     const showToast = (msg: string) => {
       setCompleteToast(msg);
-      setTimeout(() => setCompleteToast(null), 5000);
+      setTimeout(() => setCompleteToast(null), 2000);
     };
 
     const interval = setInterval(() => {
@@ -13386,11 +13386,117 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [coachProfile, setCoachProfile] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingData, setOnboardingData] = useState({
+    userName: '',
+    coachName: '',
+    goal: '',
+    tone: '',
+    weakness: '',
+    thirtyDayFix: ''
+  });
+  const [onboardingInput, setOnboardingInput] = useState('');
+  const [onboardingMessages, setOnboardingMessages] = useState<{sender: string, text: string}[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isGenerating]);
+  }, [messages, isGenerating, onboardingMessages]);
+
+  const fetchCoachProfile = async () => {
+    if (!user) return;
+    setProfileLoading(true);
+    try {
+      const profileRef = doc(db, 'coach_profiles', user.uid);
+      const profileSnap = await getDoc(profileRef);
+      if (profileSnap.exists()) {
+        setCoachProfile(profileSnap.data());
+      } else {
+        setCoachProfile(null);
+      }
+    } catch (err) {
+      setCoachProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCoachProfile();
+  }, [user]);
+
+  const ONBOARDING_QUESTIONS = [
+    { key: 'userName', question: "Initializing neural guidance system...\n\nBefore we begin, I need to calibrate to you.\n\nWhat should I call you?" },
+    { key: 'coachName', question: (data: any) => `Good to meet you, ${data.userName}. Now — what will you call me? Give me a name.` },
+    { key: 'goal', question: (data: any) => `${data.coachName} online.\n\nWhat is your biggest goal right now?` },
+    { key: 'tone', question: () => `How do you want me to talk to you?\n\n1. Brutal honesty — no excuses\n2. Calm mentor — steady guidance\n3. Full hype — pure motivation\n\nType 1, 2, or 3.` },
+    { key: 'weakness', question: () => `Understood. What is your biggest weakness right now? Be honest.` },
+    { key: 'thirtyDayFix', question: () => `Last one — what is ONE thing you want to fix in the next 30 days?` },
+  ];
+
+  const handleOnboardingInput = async (input: string) => {
+    if (!input.trim()) return;
+    const currentQ = ONBOARDING_QUESTIONS[onboardingStep];
+    
+    // Save answer
+    const newData = { ...onboardingData, [currentQ.key]: input.trim() };
+    setOnboardingData(newData);
+    
+    // Add user message to onboarding chat
+    setOnboardingMessages(prev => [...prev,
+      { sender: 'user', text: input.trim() }
+    ]);
+    setOnboardingInput('');
+
+    // Move to next step or finish
+    if (onboardingStep < ONBOARDING_QUESTIONS.length - 1) {
+      const nextQ = ONBOARDING_QUESTIONS[onboardingStep + 1];
+      const nextText = typeof nextQ.question === 'function' 
+        ? nextQ.question(newData) 
+        : nextQ.question;
+      
+      setTimeout(() => {
+        setOnboardingMessages(prev => [...prev,
+          { sender: 'coach', text: nextText }
+        ]);
+        setOnboardingStep(prev => prev + 1);
+      }, 600);
+    } else {
+      // Save profile to Firestore
+      setTimeout(async () => {
+        setOnboardingMessages(prev => [...prev,
+          { sender: 'coach', text: `Profile locked in. I'm ${newData.coachName}. Let's get to work, ${newData.userName}.\n\nI know your goal. I know your weakness. I'll be watching your data every session.\n\nWhat do you want to talk about first?` }
+        ]);
+        
+        const profileData = {
+          userId: user.uid,
+          userName: newData.userName,
+          coachName: newData.coachName,
+          goal: newData.goal,
+          tone: newData.tone,
+          weakness: newData.weakness,
+          thirtyDayFix: newData.thirtyDayFix,
+          createdAt: new Date().toISOString(),
+        };
+        
+        await setDoc(doc(db, 'coach_profiles', user.uid), profileData);
+        setCoachProfile(profileData);
+      }, 800);
+    }
+  };
+
+  // Initialize onboarding chat with first message
+  useEffect(() => {
+    if (!profileLoading && !coachProfile && onboardingMessages.length === 0) {
+      const firstQ = ONBOARDING_QUESTIONS[0];
+      const firstText = typeof firstQ.question === 'function' 
+        ? firstQ.question({}) 
+        : firstQ.question;
+      setOnboardingMessages([{ sender: 'coach', text: firstText }]);
+    }
+  }, [profileLoading, coachProfile]);
 
   const fetchCoachMessages = async () => {
     if (!user) return;
@@ -13548,37 +13654,43 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         text: textToSend,
         createdAt: new Date().toISOString()
       });
+      
+      // Build history from current messages FIRST (before fetch)
+      const historySnapshot = [...messages];
+
+      // Then save user message
       await addDoc(collection(db, 'coach_messages'), userMsgData);
+      
+      // Build history from snapshot + new message
+      const history = historySnapshot.slice(-20).map(m => ({
+        role: m.sender === 'user' ? 'user' as const : 'model' as const,
+        parts: [{ text: m.text || '' }]
+      }));
+      history.push({
+        role: 'user',
+        parts: [{ text: textToSend }]
+      });
+
+      const coachReply = await generateCoachResponse(
+        history,
+        stats,
+        weakestSphere,
+        buildCoachContext(),
+        coachProfile
+      );
+      
+      // 2. Add coach reply
+      const coachMsgData = removeUndefinedFields({
+        userId: user.uid,
+        sender: 'coach',
+        text: coachReply || "NEURAL_SYNAPSE_TIMEOUT. Please retry.",
+        createdAt: new Date().toISOString()
+      });
+      await addDoc(collection(db, 'coach_messages'), coachMsgData);
       await fetchCoachMessages();
- 
-       // Create history representation using existing local messages state
-       const history = messages.slice(-20).map(m => ({
-         role: m.sender === 'user' ? 'user' as const : 'model' as const,
-         parts: [{ text: m.text || '' }]
-       }));
-       history.push({
-         role: 'user',
-         parts: [{ text: textToSend }]
-       });
- 
-       const coachReply = await generateCoachResponse(
-         history,
-         stats,
-         weakestSphere,
-         buildCoachContext()
-       );
-       
-       // 2. Add coach reply
-       const coachMsgData = removeUndefinedFields({
-         userId: user.uid,
-         sender: 'coach',
-         text: coachReply || "NEURAL_SYNAPSE_TIMEOUT. Please retry.",
-         createdAt: new Date().toISOString()
-       });
-       await addDoc(collection(db, 'coach_messages'), coachMsgData);
-       await fetchCoachMessages();
- 
-     } catch (err: any) {
+
+    } catch (err: any) {
+      // ... same error handling as before
        const errMsg = err?.message || String(err);
        let coachErrorText = "Error establishing connection to Aether Mind. Please check your config parameters.";
        
@@ -13623,39 +13735,30 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
        setMessages([]);
      } catch (e) {
        handleFirestoreError(e, OperationType.DELETE, 'coach_messages');
-     }
-   };
+      }
+    };
 
-  if (!user) {
     return (
-       <div className="flex items-center justify-center min-h-[400px]">
-          <span className="font-mono text-xs uppercase text-text-s">Initializing Neural Feed...</span>
-       </div>
-    );
-  }
-
-  return (
-    <div className="max-w-[1600px] mx-auto min-h-[85vh] flex flex-col justify-center items-center py-8 px-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-[1600px] mx-auto min-h-[85vh] flex p-4 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* Visual Title Header */}
-      <div className="w-full max-w-2xl text-center mb-8 space-y-2">
-         <div className="inline-flex items-center gap-2 px-3.5 py-1 bg-cyan/15 border border-cyan/30 rounded-full text-cyan text-[10px] font-mono uppercase tracking-[0.2em] font-black">
-            <Sparkles size={11} className="animate-pulse" />
-            Neural_Guidance_Active
-         </div>
-         <h2 className="text-4xl sm:text-5xl font-serif font-black text-white uppercase italic tracking-widest text-glow-white">Aether_Coach</h2>
-         <p className="text-text-m font-mono text-xs max-w-md mx-auto uppercase opacity-50">Your localized AI cognitive advisor powered by Gemini.</p>
+      {/* Sidebar: History/Sessions */}
+      <div className="hidden md:flex w-64 flex-col bg-white/5 border border-white/10 rounded-2xl p-4 gap-4">
+        <h3 className="text-xs font-mono font-black uppercase text-white/50 tracking-widest">Neural_Logs</h3>
+        <div className="flex-1 overflow-y-auto no-scrollbar">
+          {/* List of sessions or history logs could go here */}
+          <div className="text-[10px] font-mono text-white/20 uppercase tracking-widest">Current_Session_Active</div>
+        </div>
       </div>
 
-      {/* Main Coach Window Pop-up Style Box */}
-      <div className="w-full max-w-2xl flex flex-col glass rounded-[2.5rem] border border-white/10 overflow-hidden h-[65vh] max-h-[600px] relative bg-gradient-to-b from-indigo-950/20 via-background-nested to-transparent shadow-[0_0_50px_rgba(34,211,238,0.1)]">
+      {/* Main Chat Window */}
+      <div className="flex-1 flex flex-col glass rounded-[2.5rem] border border-white/10 overflow-hidden h-[85vh] relative bg-gradient-to-b from-indigo-950/20 via-background-nested to-transparent shadow-[0_0_50px_rgba(34,211,238,0.1)]">
          {/* Coach Header */}
          <div className="p-6 bg-white/5 border-b border-white/5 flex items-center justify-between">
             <div className="flex items-center gap-3">
                <div className="w-2.5 h-2.5 rounded-full bg-cyan animate-pulse" />
                <div>
-                  <h3 className="text-xs font-mono font-black uppercase text-white tracking-widest">AETHER_INTEGRATED_COACH</h3>
-                  <p className="text-[8px] font-mono text-cyan uppercase tracking-tighter">COGNITIVE_GUIDANCE_ONLINE</p>
+                  <h3 className="text-xs font-mono font-black uppercase text-white tracking-widest">{coachProfile?.coachName?.toUpperCase() || 'AETHER_COACH'}</h3>
+                  <p className="text-[8px] font-mono text-cyan uppercase tracking-tighter">{coachProfile ? `CALIBRATED_TO_${coachProfile.userName?.toUpperCase()}` : 'INITIALIZING_PROFILE...'}</p>
                </div>
             </div>
             <div className="flex items-center gap-2">
@@ -13674,14 +13777,43 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
          </div>
 
          {/* Coach Messages area */}
-         <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
-            {(messages.length > 0 ? messages : [
+         {profileLoading ? (
+           <div className="flex-1 flex items-center justify-center">
+             <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest animate-pulse">
+               LOADING_NEURAL_PROFILE...
+             </p>
+           </div>
+         ) : !coachProfile ? (
+           // ONBOARDING CHAT
+           <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
+             {onboardingMessages.map((m, idx) => (
+               <div
+                 key={idx}
+                 className={cn(
+                   "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
+                   m.sender === 'user'
+                     ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none"
+                     : "bg-white/5 border border-white/10 text-text-m mr-auto rounded-tl-none border-l-2 border-l-cyan"
+                 )}
+               >
+                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
+                   {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
+                 </span>
+                 <p className="whitespace-pre-wrap">{m.text}</p>
+               </div>
+             ))}
+             <div ref={messagesEndRef} />
+           </div>
+         ) : (
+           // NORMAL CHAT
+           <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
+             {(messages.length > 0 ? messages : [
                { 
                   sender: 'coach', 
-                  text: "Aether OS Neural Guidance calibrated. I am analyzing your daily logs, streaks, and life metrics. Ask me to synthesize balance, find weak areas, or write a guidance plan.",
+                  text: `Aether OS Neural Guidance calibrated. I am ${coachProfile.coachName}. I am analyzing your daily logs, streaks, and life metrics. Ask me to synthesize balance, find weak areas, or write a guidance plan.`,
                   createdAt: new Date().toISOString()
                }
-            ]).map((m, idx) => (
+             ]).map((m, idx) => (
                <div 
                  key={m.id || `fallback-msg-${idx}`} 
                  className={cn(
@@ -13691,68 +13823,78 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                      : "bg-white/5 border border-white/10 text-text-m mr-auto rounded-tl-none border-l-2 border-l-cyan"
                  )}
                >
-                  <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
-                     {m.sender === 'user' ? 'USER_NODE' : 'OS_COACH_DAEMON'}
-                  </span>
-                  <p className="whitespace-pre-wrap">{m.text}</p>
+                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
+                   {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
+                 </span>
+                 <p className="whitespace-pre-wrap">{m.text}</p>
                </div>
-            ))}
-            {isGenerating && (
-               <div className="bg-white/5 border border-white/10 text-cyan max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed mr-auto rounded-tl-none flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.2s]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.4s]" />
-                  <span className="text-[10px] uppercase font-black tracking-widest opacity-60">SYNAPSE_PROCESSING_REPLY...</span>
+             ))}
+             {isGenerating && (
+                <div className="bg-white/5 border border-white/10 text-cyan max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed mr-auto rounded-tl-none flex items-center gap-2">
+                   <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce" />
+                   <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.2s]" />
+                   <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.4s]" />
+                   <span className="text-[10px] uppercase font-black tracking-widest opacity-60">SYNAPSE_PROCESSING_REPLY...</span>
+                </div>
+             )}
+              <div ref={messagesEndRef} />
+           </div>
+         )}
+
+         {/* INPUT AREA */}
+         {!profileLoading && (
+           <div className="p-6 border-t border-white/5 space-y-4 bg-white/5">
+             {coachProfile && (
+               <div className="flex flex-wrap gap-2">
+                 {[
+                   { id: 'synth', label: "BALANCE_SCAN", prompt: "Analyze my current life sync parameters and streak. Synthesize where my balance scores are healthy and which specific categories are suffering. Keep it actionable." },
+                   { id: 'weak', label: 'WEAK_ROUTINES', prompt: `Based on my weakest category which is ${weakestSphere}, help me identify potential bottlenecks in my routines and suggest 3 high-impact habits to introduce today.` },
+                   { id: 'obstacles', label: 'TOMORROW', prompt: "Synthesize today's metrics and predict what psychological or scheduling obstacles I might face tomorrow. Give me a strategy to bypass them." }
+                 ].map(p => (
+                   <button
+                     key={p.id}
+                     disabled={isGenerating}
+                     onClick={() => handleSendMessage(p.prompt)}
+                     className="px-3 py-1.5 glass hover:bg-cyan/15 hover:border-cyan/30 text-white border border-white/5 text-[9px] font-mono rounded-lg transition-all font-black uppercase tracking-wider"
+                   >
+                     ➕ {p.label}
+                   </button>
+                 ))}
                </div>
-            )}
-             <div ref={messagesEndRef} />
-         </div>
-
-         {/* Coach Control Area & Input */}
-         <div className="p-6 border-t border-white/5 space-y-4 bg-white/5">
-            
-            {/* Quick Prompts */}
-            <div className="flex flex-wrap gap-2">
-               {[
-                 { id: 'synth', label: "SYNTHESIZE_MY_BALANCE_SCORES", prompt: "Analyze my current life sync parameters and streak. Synthesize where my balance scores are healthy and which specific categories are suffering. Keep it actionable." },
-                 { id: 'weak', label: 'IDENTIFY_WEAK_ROUTINES', prompt: `Based on my weakest category which is ${weakestSphere}, help me identify potential bottlenecks in my routines and suggest 3 high-impact habits to introduce today.` },
-                 { id: 'obstacles', label: 'PREDICT_TOMORROWS_OBSTACLES', prompt: "Synthesize today's metrics and predict what psychological or scheduling obstacles I might face tomorrow. Give me a strategy to bypass them." }
-               ].map(p => (
-                 <button
-                   key={p.id}
-                   disabled={isGenerating}
-                   onClick={() => handleSendMessage(p.prompt)}
-                   className="px-3 py-1.5 glass hover:bg-cyan/15 hover:border-cyan/30 text-white border border-white/5 text-[9px] font-mono rounded-lg transition-all font-black uppercase tracking-wider"
-                 >
-                   ➕ {p.label}
-                 </button>
-               ))}
-            </div>
-
-            <form 
-              onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputText); }}
-              className="flex gap-2"
-            >
-               <input 
-                 value={inputText}
-                 onChange={(e) => setInputText(e.target.value)}
-                 placeholder="PROMPT_AETHER_COACH..."
+             )}
+             <form
+               onSubmit={(e) => {
+                 e.preventDefault();
+                 if (!coachProfile) {
+                   handleOnboardingInput(onboardingInput);
+                   setOnboardingInput('');
+                 } else {
+                   handleSendMessage(inputText);
+                 }
+               }}
+               className="flex gap-2"
+             >
+               <input
+                 value={!coachProfile ? onboardingInput : inputText}
+                 onChange={(e) => !coachProfile ? setOnboardingInput(e.target.value) : setInputText(e.target.value)}
+                 placeholder={!coachProfile ? "TYPE_YOUR_RESPONSE..." : "PROMPT_AETHER_COACH..."}
                  disabled={isGenerating}
                  className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
                />
-               <button 
-                 type="submit" 
-                 disabled={isGenerating || !inputText.trim()}
+               <button
+                 type="submit"
+                 disabled={isGenerating || (!coachProfile ? !onboardingInput.trim() : !inputText.trim())}
                  className="px-6 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40"
                >
-                 SEND
+                 {!coachProfile ? 'REPLY' : 'SEND'}
                </button>
-            </form>
-         </div>
+             </form>
+           </div>
+         )}
       </div>
-
     </div>
   );
+
 }
 
 function GrowView({

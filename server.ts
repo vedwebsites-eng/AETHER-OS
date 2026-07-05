@@ -274,15 +274,38 @@ app.post("/api/gemini/life-insight", async (req, res) => {
 
 app.post("/api/gemini/coach-response", async (req, res) => {
   try {
-    const { chatHistory, userStats, lowestCategory, context } = req.body;
+    const { chatHistory, userStats, lowestCategory, context, coachProfile } = req.body;
     if (!chatHistory) {
       return res.status(400).json({ error: "chatHistory parameter is missing" });
     }
     const ai = getAI();
-    let systemIns = `You are the Aether_OS Neural Life Coach, a high-level cognitive counseling module. 
-    Your personality is futuristic, serious, deep, and philosophical, yet highly encouraging, direct, and tactical.
-    The user's current status:
-    - Level: ${userStats?.level || 1}
+    
+    const coachName = coachProfile?.coachName || 'Aether Coach';
+    const userName = coachProfile?.userName || 'Operative';
+    const userGoal = coachProfile?.goal || 'self improvement';
+    const userWeakness = coachProfile?.weakness || 'unknown';
+    const userTone = coachProfile?.tone || '2';
+    const thirtyDayFix = coachProfile?.thirtyDayFix || 'unknown';
+
+    const toneInstruction = userTone === '1' 
+      ? 'Be brutally honest. No excuses. Call them out directly when they are slacking.'
+      : userTone === '3'
+      ? 'Be high energy and hype. Celebrate wins loudly. Keep the energy up.'
+      : 'Be calm, steady, and wise. Speak like a mentor who has seen it all.';
+
+    let systemIns = `You are ${coachName}, a cybernetic AI life coach inside AetherOS.
+Your user's name is ${userName}.
+Their biggest goal: ${userGoal}
+Their biggest weakness: ${userWeakness}
+Their 30-day focus: ${thirtyDayFix}
+Tone instruction: ${toneInstruction}
+
+Always refer to yourself as ${coachName}. Always address the user as ${userName}.
+You have full access to their live data below. Reference it directly in your responses.
+Keep responses under 150 words. Use markdown for formatting. Be specific, not generic.`;
+
+    // The user's current status:
+    systemIns += `\n\n- Level: ${userStats?.level || 1}
     - Current Streak: ${userStats?.currentStreak || 0}
     - Weakest Life Sphere: ${lowestCategory || 'None'}`;
 
