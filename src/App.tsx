@@ -13579,7 +13579,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
        await fetchCoachMessages();
  
      } catch (err: any) {
-       console.warn("Coach response error logs captured:", err);
        const errMsg = err?.message || String(err);
        let coachErrorText = "Error establishing connection to Aether Mind. Please check your config parameters.";
        
@@ -13597,7 +13596,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
          await addDoc(collection(db, 'coach_messages'), errorMsgData);
          await fetchCoachMessages();
        } catch (innerErr) {
-         console.warn("Failed to persist error message:", innerErr);
        }
      } finally {
        setIsGenerating(false);
