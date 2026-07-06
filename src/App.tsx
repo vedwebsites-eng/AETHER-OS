@@ -29,7 +29,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSam
 import { ResponsiveContainer, BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip, CartesianGrid, Cell, PieChart as RePieChart, Pie } from 'recharts';
 import { cn } from './lib/utils';
 import { EmptyState } from './components/EmptyState';
-import { WeeklyDebriefModal } from './components/WeeklyDebriefModal';
+import { WheelOfLifeVisualization } from './components/WheelOfLife';
 import { OnboardingModal } from './components/OnboardingModal';
 import { toPng } from 'html-to-image';
 
@@ -3077,7 +3077,6 @@ export default function App() {
   };
   const [weeklyReviews, setWeeklyReviews] = useState<WeeklyReview[]>([]);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
-  const [isDebriefModalOpen, setIsDebriefModalOpen] = useState(false);
   const [syncFailed, setSyncFailed] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
   const [dailyWorkSubTab, setDailyWorkSubTab] = useState<'tasks' | 'habits' | 'timetable'>('tasks');
@@ -3238,44 +3237,8 @@ export default function App() {
     }
   };
 
-  const handleSaveDebrief = async (wentWell: string, didntGo: string, focus: string) => {
-    if (!user || !stats) return;
-    try {
-      const today = new Date();
-      const weekKey = getISOWeekString(today);
-      const newReviewRef = doc(collection(db, 'weekly_reviews'));
-      
-      const reviewData = {
-        userId: user.uid,
-        wentWell,
-        didntGo,
-        nextWeekFocus: focus,
-        week: weekKey,
-        createdAt: today.toISOString()
-      };
+  // Trigger Weekly Review Check - Removed
 
-      await setDoc(newReviewRef, reviewData);
-      await fetchWeeklyReviews();
-      await addXP(50, 'DEBRIEF_PROTOCOL_COMPLETED');
-      setCompleteToast('DEBRIEF_SAVED_TRAJECTORY_ALIGNMENT_AWARD_XP');
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  // Trigger Weekly Review Check
-  useEffect(() => {
-    if (user && weeklyReviews.length >= 0) {
-      const today = new Date();
-      if (today.getDay() === 0) {
-        const weekKey = getISOWeekString(today);
-        const alreadyDone = weeklyReviews.some(r => r.week === weekKey);
-        if (!alreadyDone) {
-          setIsDebriefModalOpen(true);
-        }
-      }
-    }
-  }, [user, weeklyReviews]);
 
   // Trigger Onboarding Check
   useEffect(() => {
@@ -5089,16 +5052,7 @@ export default function App() {
             onTriggerMotivation={() => setIsMotivationPortalOpen(true)}
           />
         )}
-        <WeeklyDebriefModal
-          isOpen={isDebriefModalOpen}
-          onClose={() => setIsDebriefModalOpen(false)}
-          onSave={handleSaveDebrief}
-          tasks={tasks}
-          journals={journals}
-          habits={habits}
-          habitLogs={habitLogs}
-          pomodoroSessions={stats?.pomodoroSessions || 0}
-        />
+          {/* Removed WeeklyDebriefModal */}
         <OnboardingModal
           isOpen={isOnboardingOpen}
           onComplete={handleOnboardingComplete}
@@ -6180,14 +6134,6 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             },
             {
               number: '08',
-              title: 'DEBRIEF_PROTOCOL',
-              label: 'Weekly Review',
-              description: 'Every Sunday, AI pre-fills your weekly wins and struggles from your data. Reflect, adjust, improve. +100 XP for completing.',
-              color: '#C8651B',
-              icon: '📊',
-            },
-            {
-              number: '09',
               title: 'NEURAL_EVOLUTION',
               label: 'Stats + Achievements',
               description: '30 achievements across 4 categories. Month-over-month evolution tracking. Level 1 to 100 with unlockable features.',
@@ -7532,36 +7478,14 @@ function LifeSyncOverview({ lifeSync, setActiveTab, categories = LIFE_CATEGORIES
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       onClick={() => setActiveTab('grow')}
-      className="glass p-8 lg:p-12 rounded-[2rem] lg:rounded-[3rem] border border-white/5 bg-gradient-to-br from-indigo-500/10 via-transparent to-accent/5 relative overflow-hidden group shadow-2xl cursor-pointer hover:border-white/20 transition-all"
+      className="glass p-8 lg:p-12 rounded-[2rem] lg:rounded-[3rem] border border-white/5 bg-gradient-to-br from-indigo-500/10 via-transparent to-accent/5 relative overflow-hidden group shadow-2xl cursor-pointer hover:border-white/20 transition-all flex flex-col items-center"
     >
-      <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity" style={{ color: '#6366f1' }}>
-        <Network size={120} className="rotate-12" />
-      </div>
-      <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-        <div>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-            <span className="text-[10px] font-mono text-indigo-400 font-black uppercase tracking-[0.4em]">SYSTEM_LIFE_SYNC_ACTIVE</span>
-          </div>
-          <div className="space-y-1">
-             <p className="text-[10px] font-mono text-text-m uppercase tracking-[0.2em] opacity-60">Current_Alignment</p>
-             <h2 className="text-5xl font-serif font-black text-text-p italic">{balanceScore}<span className="text-lg opacity-40">/10</span></h2>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-3">
-          {categories.map((cat, i) => {
-            const val = values[cat.id] || 0;
-            return (
-               <div key={`overview-cat-${cat.id || i}-${i}`} className="flex flex-col gap-1 items-start min-w-[60px]">
-                  <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
-                     <div className="h-full" style={{ width: `${val * 10}%`, backgroundColor: cat.color }} />
-                  </div>
-                  <span className="text-[8px] font-mono font-bold" style={{ color: cat.color }}>{cat.label}</span>
-               </div>
-            );
-          })}
-        </div>
-      </div>
+       <WheelOfLifeVisualization />
+       
+       <div className="mt-8 text-center space-y-4">
+          <h2 className="text-5xl font-serif font-black text-text-p italic">{balanceScore}<span className="text-lg opacity-40">/10</span></h2>
+          <p className="text-[10px] font-mono text-text-m uppercase tracking-[0.2em] opacity-60">Overall_Balance_Score</p>
+       </div>
     </motion.div>
   );
 }
@@ -7687,7 +7611,7 @@ function Dashboard({
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
            <h1 className="text-4xl font-serif font-black text-text-p uppercase tracking-[0.1em] italic text-glow-white">COMMAND_CENTER</h1>
@@ -7695,10 +7619,10 @@ function Dashboard({
         </div>
       </div>
 
-      <ProfileCard stats={stats} user={user} openShare={openShare} />
-      
       <LifeSyncOverview lifeSync={stats?.lifeSync} setActiveTab={setActiveTab} categories={stats?.lifeSyncCategories || LIFE_CATEGORIES} />
 
+      <ProfileCard stats={stats} user={user} openShare={openShare} />
+      
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Col: Main Stream */}
         <div className="lg:col-span-8 space-y-8">
@@ -13675,8 +13599,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         history,
         stats,
         weakestSphere,
-        buildCoachContext(),
-        coachProfile
+        buildCoachContext()
       );
       
       // 2. Add coach reply
