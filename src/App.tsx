@@ -2022,26 +2022,12 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
   const alreadySavedToday = stats?.lifeSync?.lastSaved === new Date().toISOString().split('T')[0];
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
-          <div className="flex items-center gap-3">
             <h1 className="text-4xl font-serif font-black text-text-p uppercase tracking-[0.1em] italic text-glow-white">LIFE_SYNC</h1>
-            <button
-              onClick={() => openShare?.(
-                'wheel-share-card',
-                `AETHEROS_WHEEL_${new Date().toISOString().split('T')[0]}`,
-                'WHEEL OF LIFE CARD'
-              )}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/10 hover:border-[#7f77dd]/50 hover:bg-[#7f77dd]/10 transition-all group cursor-pointer"
-            >
-              <Share2 size={12} className="text-white/30 group-hover:text-[#7f77dd]" />
-              <span className="text-[9px] font-mono text-white/20 group-hover:text-[#7f77dd] uppercase tracking-widest">
-                SHARE
-              </span>
-            </button>
-          </div>
-          <p className="text-[10px] font-mono text-text-m uppercase tracking-[0.5em] opacity-40">Holistic_State_Alignment // Reality_Interface</p>
+            <p className="text-[10px] font-mono text-text-m uppercase tracking-[0.5em] opacity-40">Holistic_State_Alignment // Reality_Interface</p>
         </div>
         
         {/* Sync Mode Selector */}
@@ -2068,398 +2054,120 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
         </div>
       </div>
 
-      {/* Top Stats Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="glass p-6 rounded-2xl border border-white/5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Activity size={40} className="text-indigo-400" />
-          </div>
-          <p className="text-[10px] font-mono font-black text-text-m uppercase tracking-widest mb-1">BALANCE_SCORE</p>
-          <div className="text-4xl font-serif font-black text-indigo-400 italic">{balanceScore}</div>
-          <div className="mt-2 h-1 w-full bg-white/5 rounded-full overflow-hidden">
-             <motion.div 
-               animate={{ width: `${(balanceScore / 10) * 100}%` }}
-               className="h-full bg-indigo-500"
-             />
-          </div>
-        </div>
+      {/* Hero: Wheel of Life */}
+      <div className="flex flex-col items-center justify-center p-12 glass rounded-[3rem] border border-white/5 bg-gradient-to-br from-indigo-500/5 via-transparent to-accent/5">
+         <div className="scale-150">
+           <RadarChart values={displayedValues} categories={categories} />
+         </div>
+      </div>
 
-        <div className="glass p-6 rounded-2xl border border-white/5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Zap size={40} className={cn("", needsFocus.id === 'GYM' ? "text-red-400" : "text-white/40")} />
-          </div>
-          <p className="text-[10px] font-mono font-black text-text-m uppercase tracking-widest mb-1">NEEDS_FOCUS</p>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: needsFocus.color }} />
-            <div className="text-2xl font-serif font-black uppercase italic" style={{ color: needsFocus.color }}>{needsFocus.label}</div>
-          </div>
+      {/* Overview Stats Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="glass p-8 rounded-2xl border border-white/5 text-center">
+          <p className="text-[10px] font-mono font-black text-text-m uppercase tracking-widest mb-3">BALANCE_SCORE</p>
+          <div className="text-5xl font-serif font-black text-indigo-400 italic">{balanceScore}</div>
         </div>
-
-        <div className="glass p-6 rounded-2xl border border-white/5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Trophy size={40} style={{ color: strongest.color }} />
-          </div>
-          <p className="text-[10px] font-mono font-black text-text-m uppercase tracking-widest mb-1">STRONGEST_NODE</p>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: strongest.color }} />
-            <div className="text-2xl font-serif font-black uppercase italic" style={{ color: strongest.color }}>{strongest.label}</div>
-          </div>
+        <div className="glass p-8 rounded-2xl border border-white/5 text-center">
+          <p className="text-[10px] font-mono font-black text-text-m uppercase tracking-widest mb-3">NEEDS_FOCUS</p>
+          <div className="text-2xl font-serif font-black uppercase italic" style={{ color: needsFocus.color }}>{needsFocus.label}</div>
+        </div>
+        <div className="glass p-8 rounded-2xl border border-white/5 text-center">
+          <p className="text-[10px] font-mono font-black text-text-m uppercase tracking-widest mb-3">STRONGEST_NODE</p>
+          <div className="text-2xl font-serif font-black uppercase italic" style={{ color: strongest.color }}>{strongest.label}</div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-        {/* Left: Radar Chart */}
-        <div className={cn(
-          "glass p-8 lg:p-12 rounded-[2rem] border border-white/5 flex flex-col items-center justify-center min-h-[400px] relative transition-all duration-300",
-          isFullscreen ? "fixed inset-0 z-[1000] bg-background p-20" : ""
-        )}>
-          <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="absolute top-4 right-4 p-2 bg-white/5 rounded-full hover:bg-white/10 z-[1001]"
-          >
-            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-          </button>
-          <RadarChart values={displayedValues} categories={categories} />
-          
-          <div className="mt-8 w-full max-w-md space-y-4 border-t border-white/5 pt-6">
-            <div className="flex items-center justify-between">
-               <p className="text-[10px] font-mono font-black text-text-p uppercase tracking-widest">ALIGNMENT_SNAPSHOT_ARCHIVE ({history.length})</p>
-               {isViewingHistory && (
-                 <button 
-                   onClick={() => setSelectedSnapshot(null)}
-                   className="text-[8px] font-mono text-cyan hover:underline uppercase bg-cyan/5 border border-cyan/20 px-2 py-0.5 rounded cursor-pointer"
-                 >
-                   [RESET_TO_PRESENT]
-                 </button>
-               )}
-            </div>
-            
-            {history.length === 0 ? (
-              <p className="text-[9px] font-mono text-text-m opacity-30 mt-2">NO PORTAL SNAPSHOTS RECORDED YET.</p>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-                {history.map((snapshot, idx) => {
-                  const isSelected = selectedSnapshot?.id === snapshot.id;
-                  return (
-                    <button
-                      key={`snap-${snapshot.id || idx}-${snapshot.date || idx}-${idx}`}
-                      onClick={() => setSelectedSnapshot(isSelected ? null : snapshot)}
-                      className={cn(
-                        "p-2.5 rounded-xl border text-left font-mono transition-all duration-300 flex flex-col justify-between cursor-pointer group hover:scale-[1.02]",
-                        isSelected 
-                          ? "bg-indigo-500/15 border-indigo-500 text-white shadow-[0_0_12px_rgba(99,102,241,0.25)] ring-1 ring-indigo-500/30" 
-                          : "bg-white/2 border-white/5 text-text-m hover:border-white/20 hover:bg-white/5"
-                      )}
-                    >
-                      <span className="text-[8px] font-black uppercase text-indigo-300 tracking-tighter truncate w-full flex items-center justify-between">
-                        {snapshot.date}
-                        {isSelected && <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-ping" />}
-                      </span>
-                      <span className="text-[10px] font-serif font-black text-text-p mt-1 italic">
-                        SCORE: {snapshot.balanceScore}
-                      </span>
-                    </button>
-                  );
-                })}
+      {/* Categories Sliders */}
+      <div className="glass p-12 rounded-[2rem] border border-white/5 space-y-10">
+        <h3 className="text-lg font-serif font-black text-text-p uppercase tracking-widest italic">LIFE_CATEGORIES</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-10">
+            {categories.map((cat, i) => (
+              <div key={`slider-cat-${cat.id || i}-${i}`} className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
+                    <span className="text-sm font-mono font-black uppercase tracking-widest text-text-p">{cat.label}</span>
+                  </div>
+                  <span className="text-xl font-mono font-black" style={{ color: cat.color }}>{displayedValues[cat.id] ?? 10}</span>
+                </div>
+                <input 
+                  type="range"
+                  min="1"
+                  max="10"
+                  step="0.5"
+                  value={displayedValues[cat.id] ?? 10}
+                  onChange={(e) => handleSliderChange(cat.id, parseFloat(e.target.value))}
+                  disabled={syncMode === 'ai' || isViewingHistory}
+                  className={cn(
+                    "w-full h-3 bg-white/5 rounded-full appearance-none accent-indigo-500 transition-all",
+                    (syncMode === 'manual' && !isViewingHistory) ? "cursor-pointer" : "cursor-not-allowed opacity-30"
+                  )}
+                  style={{
+                    accentColor: cat.color
+                  }}
+                />
               </div>
-            )}
-            
-            {/* Visual metric representation */}
-            <div className="space-y-1.5">
-              <p className="text-[8px] font-mono text-text-m uppercase tracking-[0.2em] opacity-40">CHRONOLOGICAL_STABILITY_INDEX</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {[...Array(Math.max(7, history.length))].map((_, i) => {
-                  const saved = i < history.length;
-                  return (
-                    <div 
-                      key={`history-indicator-${i}`}
-                      title={saved ? `Snapshot ${i+1}: ${history[i].date} (Score: ${history[i].balanceScore})` : "Uncharted node"}
-                      className={cn(
-                        "w-3 h-3 rounded-sm border transition-all cursor-pointer",
-                        saved 
-                          ? "bg-indigo-500 border-indigo-400 shadow-[0_0_6px_rgba(99,102,241,0.4)]" 
-                          : "border-white/10 bg-white/5"
-                      )}
-                      onClick={() => saved && setSelectedSnapshot(history[i])}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+            ))}
         </div>
+      </div>
 
-        {/* Right: Sliders */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between mb-8">
-            <h3 className="text-xs font-mono font-black uppercase tracking-[0.3em] text-text-m">
-              {isConfigOpen ? "SPHERE_DESIGNER" : "RATE EACH AREA (1–10)"}
-            </h3>
-            <div className="flex items-center gap-3">
-              <button 
-                onClick={() => setIsConfigOpen(!isConfigOpen)}
-                className="text-[10px] font-mono text-cyan bg-cyan/5 border border-cyan/20 hover:bg-cyan/10 px-3 py-1.5 rounded-xl transition-all font-black flex items-center gap-1.5 cursor-pointer active:scale-95"
-              >
-                <Settings size={12} className={isConfigOpen ? "animate-spin" : ""} />
-                {isConfigOpen ? "CLOSE_DESIGNER" : "CUSTOMIZE_SPHERES"}
-              </button>
-              <span className="text-[10px] font-mono text-success bg-success/5 border border-success/20 px-2 py-1 rounded">+75 XP REWARD</span>
-            </div>
-          </div>
-
-          <div className="space-y-6 glass p-8 rounded-2xl border border-white/5 relative overflow-hidden">
-            {isConfigOpen ? (
-              <div className="space-y-6 animate-in fade-in duration-300">
-                <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
-                  <p className="text-[9px] font-mono font-black uppercase tracking-wider text-text-p mb-1">ADD_NEW_ALIGNMENT_SPHERE</p>
-                  <div className="flex flex-col gap-3">
-                    <input 
-                      type="text"
-                      value={newCatLabel}
-                      onChange={(e) => setNewCatLabel(e.target.value.toUpperCase())}
-                      placeholder="ENTER NAME (E.G. GYM, DIET, LOVE)"
-                      className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 font-mono outline-none focus:border-indigo-500 w-full"
-                    />
-                    
-                    <div className="space-y-1">
-                      <p className="text-[8px] font-mono text-text-m uppercase opacity-50">Select_Sphere_Color</p>
-                      <div className="flex flex-wrap gap-1.5 bg-black/40 p-2 rounded-lg border border-white/10">
-                        {PRESET_COLORS.map(c => (
-                          <button
-                            key={`new-color-${c}`}
-                            type="button"
-                            onClick={() => setNewCatColor(c)}
-                            className={cn(
-                              "w-5 h-5 rounded-full border transition-transform cursor-pointer",
-                              newCatColor === c ? "scale-125 border-white ring-2 ring-indigo-500/50" : "border-transparent hover:scale-110"
-                            )}
-                            style={{ backgroundColor: c }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        const trimmed = newCatLabel.trim().toUpperCase();
-                        if (!trimmed) return;
-                        const safeId = trimmed.replace(/[^A-Z0-9_]/g, '_');
-                        if (editingCategories.some((c: any) => c.id === safeId)) {
-                          alert(`A sphere named ${trimmed} already exists!`);
-                          return;
-                        }
-                        const newCat = { id: safeId, label: trimmed, color: newCatColor };
-                        const updated = [...editingCategories, newCat];
-                        setEditingCategories(updated);
-                        setNewCatLabel('');
-                        saveCategories(updated);
-                      }}
-                      className="w-full py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white font-mono text-[9px] font-black rounded-lg uppercase transition-all tracking-widest cursor-pointer active:scale-95"
-                    >
-                      + ADD_ALIGNMENT_SPHERE
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 no-scrollbar">
-                  <p className="text-[9px] font-mono font-black uppercase tracking-wider text-text-p">ACTIVE_SPHERES</p>
-                  {editingCategories.map((cat: any, index: number) => (
-                    <div key={`editing-cat-${cat.id || index}-${index}`} className="p-3 bg-white/5 rounded-xl border border-white/5 space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2.5 flex-1">
-                          <button
-                            type="button"
-                            onClick={() => setActiveColorUserId(activeColorUserId === cat.id ? null : cat.id)}
-                            className="w-4 h-4 rounded-full ring-2 ring-white/15 hover:scale-115 transition-transform shrink-0 cursor-pointer"
-                            style={{ backgroundColor: cat.color }}
-                            title="Click to edit color"
-                          />
-                          <input 
-                            type="text"
-                            value={cat.label}
-                            onChange={(e) => {
-                              const updated = [...editingCategories];
-                              updated[index] = { ...cat, label: e.target.value.toUpperCase() };
-                              setEditingCategories(updated);
-                            }}
-                            onBlur={() => {
-                              saveCategories(editingCategories);
-                            }}
-                            className="bg-transparent border-b border-transparent hover:border-white/10 focus:border-indigo-500 text-white font-mono text-xs uppercase outline-none px-1 py-0.5 w-full font-black"
-                          />
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <button 
-                            type="button"
-                            id={`sphere-delete-btn-${cat.id.toLowerCase()}`}
-                            disabled={editingCategories.length <= 3}
-                            onClick={() => {
-                              if (editingCategories.length <= 3) return;
-                              const updated = editingCategories.filter((c: any) => c.id !== cat.id);
-                              setEditingCategories(updated);
-                              // Also remove the deleted category's value from local state
-                              const newValues = { ...values };
-                              delete newValues[cat.id];
-                              setValues(newValues);
-                              saveCategories(updated, newValues);
-                            }}
-                            className="text-red-400/80 hover:text-red-400 bg-red-500/5 hover:bg-red-500/15 border border-red-500/10 hover:border-red-500/30 p-2 rounded-xl transition-all disabled:opacity-20 disabled:pointer-events-none cursor-pointer active:scale-90 flex items-center justify-center shrink-0"
-                            title="Delete this sphere"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-
-                      {activeColorUserId === cat.id && (
-                        <div className="flex flex-wrap gap-1.5 p-2 bg-black/50 rounded-lg border border-white/5 animate-in fade-in duration-200">
-                          {PRESET_COLORS.map(c => (
-                            <button
-                              key={`color-${cat.id || index}-${index}-${c}`}
-                              type="button"
-                              onClick={() => {
-                                const updated = [...editingCategories];
-                                updated[index] = { ...cat, color: c };
-                                setEditingCategories(updated);
-                                saveCategories(updated);
-                                setActiveColorUserId(null);
-                              }}
-                              className={cn(
-                                "w-4.5 h-4.5 rounded-full border transition-all cursor-pointer",
-                                cat.color === c ? "border-white scale-125 ring-2 ring-indigo-500/50" : "border-white/10 hover:scale-110"
-                              )}
-                              style={{ backgroundColor: c }}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="pt-2 flex gap-3">
-                  <button
-                    onClick={() => {
-                      if (confirm("Reset layout to standard default spheres?")) {
-                        setEditingCategories(LIFE_CATEGORIES);
-                        saveCategories(LIFE_CATEGORIES);
-                      }
-                    }}
-                    className="flex-1 py-2.5 border border-white/10 text-white/50 hover:text-white hover:bg-white/5 text-[8px] font-mono font-black uppercase rounded-lg tracking-widest transition-all cursor-pointer"
-                  >
-                    RESTORE_DEFAULT_SPHERES
-                  </button>
-                  <button
-                    onClick={() => setIsConfigOpen(false)}
-                    className="flex-1 py-2.5 bg-white/15 hover:bg-white/20 text-white text-[8px] font-mono font-black uppercase rounded-lg tracking-widest transition-all cursor-pointer"
-                  >
-                    CLOSE_EDITING
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                {syncMode === 'ai' && (
-                  <div className="absolute inset-0 z-10 bg-background/40 backdrop-blur-[2px] flex items-center justify-center p-6 text-center">
-                    <div className="max-w-[200px] space-y-4">
-                       <Brain size={32} className="mx-auto text-indigo-400 mb-2 animate-pulse" />
-                       <p className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">AI_SYNC_PROTOCOL_ACTIVE</p>
-                       <p className="text-[8px] font-mono lowercase tracking-[0.2em] text-text-m opacity-60">system analyzing tasks, logs, and behavior patterns to calculate balance nodes.</p>
-                       <button 
-                        onClick={handleAiSync}
-                        disabled={isSyncingAI}
-                        className="w-full py-2 bg-indigo-500 text-white rounded-lg text-[9px] font-mono font-black uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                       >
-                         {isSyncingAI ? "RECALIBRATING..." : <><Activity size={10} /> RE-SYNC NOW</>}
-                       </button>
-                    </div>
-                  </div>
-                )}
-                {isViewingHistory && (
-                  <div className="bg-indigo-500/10 border border-indigo-500/20 p-4 rounded-xl mb-6 space-y-3 animate-in fade-in duration-300">
-                    <p className="text-[9px] font-mono font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-ping" />
-                      HISTORICAL_VIEW_MODE
-                    </p>
-                    <p className="text-[11px] font-mono text-text-p leading-relaxed">
-                      LOCKED SYSTEM VALUE MEMORY LOG REPORTED ON <span className="text-white font-bold underline">{selectedSnapshot?.date}</span> WITH INDEX ALIGNMENT SCORE OF <span className="text-white font-bold">{selectedSnapshot?.balanceScore}</span>.
-                    </p>
-                    <button 
-                      onClick={() => setSelectedSnapshot(null)}
-                      className="w-full py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 font-mono text-[8px] font-black uppercase rounded-lg tracking-widest transition-all cursor-pointer"
-                    >
-                      [- DISCONNECT_ARCHIVE_LOG -]
-                    </button>
-                  </div>
-                )}
-                {categories.map((cat, i) => (
-                  <div key={`slider-cat-${cat.id || i}-${i}`} className="space-y-3 animate-in fade-in duration-200">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: cat.color }} />
-                        <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">{cat.label}</span>
-                      </div>
-                      <span className="text-xs font-mono font-black" style={{ color: cat.color }}>{displayedValues[cat.id] ?? 10}</span>
-                    </div>
-                    <input 
-                      type="range"
-                      min="1"
-                      max="10"
-                      step="0.5"
-                      value={displayedValues[cat.id] ?? 10}
-                      onChange={(e) => handleSliderChange(cat.id, parseFloat(e.target.value))}
-                      disabled={syncMode === 'ai' || isViewingHistory}
-                      className={cn(
-                        "w-full h-1.5 bg-white/5 rounded-full appearance-none accent-indigo-500 transition-all",
-                        (syncMode === 'manual' && !isViewingHistory) ? "cursor-pointer" : "cursor-not-allowed opacity-30"
-                      )}
-                      style={{
-                        accentColor: cat.color
-                      }}
-                    />
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
-            <button 
-              onClick={saveSnapshot}
-              disabled={isSaving || alreadySavedToday || isViewingHistory}
-              className={cn(
-                "w-full py-4 rounded-xl border font-mono text-xs font-black uppercase tracking-widest transition-all",
-                (alreadySavedToday || isViewingHistory)
-                  ? "border-white/5 text-text-m opacity-50 cursor-not-allowed" 
-                  : "border-white/20 text-text-p hover:bg-white/5 hover:border-white/40 active:scale-95"
-              )}
-            >
-              {isSaving ? "SYNCING..." : isViewingHistory ? "HISTORICAL_VIEW_MODE" : alreadySavedToday ? "LOGGED_FOR_TODAY" : "SAVE_TODAY_SNAPSHOT"}
-            </button>
-            <button
-              onClick={() => openShare?.(
-                'wheel-share-card',
-                `AETHEROS_WHEEL_${new Date().toISOString().split('T')[0]}`,
-                'WHEEL OF LIFE CARD'
-              )}
-              className="flex items-center justify-center gap-2 px-4 py-4 rounded-xl border border-white/10 hover:border-[#7f77dd]/50 hover:bg-[#7f77dd]/10 transition-all group cursor-pointer active:scale-95"
-            >
-              <Share2 size={14} className="text-white/30 group-hover:text-[#7f77dd]" />
-              <span className="text-[10px] font-mono text-white/30 group-hover:text-[#7f77dd] uppercase tracking-widest font-black">
-                SHARE_BALANCE
-              </span>
-            </button>
-            <button 
-              onClick={getAiPlan}
-              className="w-full py-4 rounded-xl border border-indigo-500/30 text-indigo-400 font-mono text-xs font-black uppercase tracking-widest hover:bg-indigo-500/10 transition-all flex items-center justify-center gap-2 active:scale-95"
-            >
-              {isAiLoading ? "ANALYZING..." : (
-                <>GET AI IMPROVEMENT PLAN <Maximize2 size={12} /></>
-              )}
-            </button>
-          </div>
+      {/* AI Insight Section */}
+      <div className="glass p-12 rounded-[2rem] border border-indigo-500/20 bg-indigo-500/5 space-y-6">
+        <div className="flex items-center gap-3">
+            <Brain size={24} className="text-indigo-400" />
+            <h3 className="text-lg font-serif font-black text-indigo-400 uppercase tracking-widest italic">NEURAL_MOTIVATION_INSIGHT</h3>
         </div>
+        {aiInsight ? (
+            <p className="text-xl font-serif italic text-text-p leading-relaxed">"{aiInsight}"</p>
+        ) : (
+            <p className="text-text-m font-mono">No analysis available. Click "Get AI Plan" below to recalibrate your neural focus.</p>
+        )}
+      </div>
+
+      {/* Action Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <button 
+          onClick={saveSnapshot}
+          disabled={isSaving || alreadySavedToday || isViewingHistory}
+          className={cn(
+            "w-full py-5 rounded-2xl border font-mono text-xs font-black uppercase tracking-widest transition-all",
+            (alreadySavedToday || isViewingHistory)
+              ? "border-white/5 text-text-m opacity-50 cursor-not-allowed" 
+              : "border-white/20 text-text-p hover:bg-white/5 hover:border-white/40 active:scale-95"
+          )}
+        >
+          {isSaving ? "SYNCING..." : isViewingHistory ? "HISTORICAL_VIEW_MODE" : alreadySavedToday ? "LOGGED_FOR_TODAY" : "SAVE_TODAY_SNAPSHOT"}
+        </button>
+        <button
+          onClick={() => openShare?.(
+            'wheel-share-card',
+            `AETHEROS_WHEEL_${new Date().toISOString().split('T')[0]}`,
+            'WHEEL OF LIFE CARD'
+          )}
+          className="flex items-center justify-center gap-2 px-4 py-5 rounded-2xl border border-white/10 hover:border-[#7f77dd]/50 hover:bg-[#7f77dd]/10 transition-all group cursor-pointer active:scale-95"
+        >
+          <Share2 size={16} className="text-white/30 group-hover:text-[#7f77dd]" />
+          <span className="text-[10px] font-mono text-white/30 group-hover:text-[#7f77dd] uppercase tracking-widest font-black">
+            SHARE_BALANCE
+          </span>
+        </button>
+        <button 
+          onClick={getAiPlan}
+          className="w-full py-5 rounded-2xl border border-indigo-500/30 text-indigo-400 font-mono text-xs font-black uppercase tracking-widest hover:bg-indigo-500/10 transition-all flex items-center justify-center gap-2 active:scale-95"
+        >
+          {isAiLoading ? "ANALYZING..." : (
+            <>GET AI IMPROVEMENT PLAN <Maximize2 size={12} /></>
+          )}
+        </button>
+        <button 
+          onClick={() => setIsConfigOpen(!isConfigOpen)}
+          className="flex items-center justify-center gap-2 px-4 py-5 rounded-2xl border border-white/10 hover:border-cyan/50 hover:bg-cyan/10 transition-all group cursor-pointer active:scale-95"
+        >
+          <Settings size={16} className={cn("text-white/30 group-hover:text-cyan", isConfigOpen ? "animate-spin" : "")} />
+          <span className="text-[10px] font-mono text-white/30 group-hover:text-cyan uppercase tracking-widest font-black">
+            CUSTOMIZE_SPHERES
+          </span>
+        </button>
       </div>
 
       <AnimatePresence>
