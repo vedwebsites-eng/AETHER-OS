@@ -1758,9 +1758,9 @@ const LIFE_CATEGORIES = [
 ];
 
 const RadarChart = React.memo(function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<string, number>; categories?: any[] }) {
-  const size = 300;
+  const size = 500;
   const center = size / 2;
-  const radius = (size / 2) * 0.75;
+  const radius = (size / 2) * 0.6;
   const levels = 5;
 
   const points = useMemo(() => {
@@ -2056,7 +2056,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
 
       {/* Hero: Wheel of Life */}
       <div className="flex flex-col items-center justify-center p-12 glass rounded-[3rem] border border-white/5 bg-gradient-to-br from-indigo-500/5 via-transparent to-accent/5">
-         <div className="scale-150">
+         <div className="w-[870.781px] h-[686.973px]">
            <RadarChart values={displayedValues} categories={categories} />
          </div>
       </div>
