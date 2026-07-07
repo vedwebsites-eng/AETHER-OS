@@ -1758,9 +1758,9 @@ const LIFE_CATEGORIES = [
 ];
 
 const RadarChart = React.memo(function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<string, number>; categories?: any[] }) {
-  const size = 300;
+  const size = 520;
   const center = size / 2;
-  const radius = (size / 2) * 0.75;
+  const radius = (size / 2) * 0.72;
   const levels = 5;
 
   const points = useMemo(() => {
@@ -2022,7 +2022,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
   const alreadySavedToday = stats?.lifeSync?.lastSaved === new Date().toISOString().split('T')[0];
 
   return (
-    <div className="space-y-16 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12 w-full">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="space-y-1">
@@ -2055,8 +2055,8 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
       </div>
 
       {/* Hero: Wheel of Life */}
-      <div className="flex flex-col items-center justify-center p-12 glass rounded-[3rem] border border-white/5 bg-gradient-to-br from-indigo-500/5 via-transparent to-accent/5">
-         <div className="scale-150">
+      <div className="flex flex-col items-center justify-center py-20 px-8 glass rounded-[3rem] border border-white/5 bg-gradient-to-br from-indigo-500/5 via-transparent to-accent/5">
+         <div className="w-full flex items-center justify-center" style={{ maxWidth: '700px', margin: '0 auto' }}>
            <RadarChart values={displayedValues} categories={categories} />
          </div>
       </div>
@@ -2080,7 +2080,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
       {/* Categories Sliders */}
       <div className="glass p-12 rounded-[2rem] border border-white/5 space-y-10">
         <h3 className="text-lg font-serif font-black text-text-p uppercase tracking-widest italic">LIFE_CATEGORIES</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-10">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start w-full">
             {categories.map((cat, i) => (
               <div key={`slider-cat-${cat.id || i}-${i}`} className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -13536,42 +13536,37 @@ function GrowView({
   journals,
   addToTerminal,
   timeBlocks,
-  weeklyReviews,
   openShare,
   setSharingAchievement,
   handlePurchasePerk,
   lifeSyncCategories
 }: any) {
   return (
-    <div className="max-w-[1600px] mx-auto min-h-[85vh] grid grid-cols-1 xl:grid-cols-12 gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-[1400px] mx-auto space-y-16 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* Left side: LifeSync diagnostics & radar */}
-      <div className="xl:col-span-6 w-full">
-         <LifeSyncView 
-           stats={stats} 
-           user={user} 
-           onAddXP={onAddXP} 
-           tasks={tasks} 
-           journals={journals} 
-           addToTerminal={addToTerminal} 
-           openShare={openShare}
-           lifeSyncCategories={lifeSyncCategories}
-         />
-      </div>
+      {/* TOP: Full-width Wheel of Life */}
+      <LifeSyncView
+        stats={stats}
+        user={user}
+        onAddXP={onAddXP}
+        tasks={tasks}
+        journals={journals}
+        addToTerminal={addToTerminal}
+        openShare={openShare}
+        lifeSyncCategories={lifeSyncCategories}
+      />
 
-      {/* Right side: Neural evolution statistics logs and perks shop */}
-      <div className="xl:col-span-6 w-full">
-         <StatsView 
-           stats={stats} 
-           user={user} 
-           tasks={tasks} 
-           journals={journals} 
-           timeBlocks={timeBlocks} 
-           weeklyReviews={weeklyReviews} 
-           openShare={openShare}
-           setSharingAchievement={setSharingAchievement}
-         />
-      </div>
+      {/* BOTTOM: Stats + Achievements */}
+      <StatsView
+        stats={stats}
+        user={user}
+        tasks={tasks}
+        journals={journals}
+        timeBlocks={timeBlocks}
+        weeklyReviews={[]}
+        openShare={openShare}
+        setSharingAchievement={setSharingAchievement}
+      />
 
     </div>
   );
