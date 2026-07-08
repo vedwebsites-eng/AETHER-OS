@@ -1758,9 +1758,9 @@ const LIFE_CATEGORIES = [
 ];
 
 const RadarChart = React.memo(function RadarChart({ values, categories = LIFE_CATEGORIES }: { values: Record<string, number>; categories?: any[] }) {
-  const size = 500;
+  const size = 800;
   const center = size / 2;
-  const radius = (size / 2) * 0.6;
+  const radius = (size / 2) * 0.75;
   const levels = 5;
 
   const points = useMemo(() => {
@@ -1781,7 +1781,7 @@ const RadarChart = React.memo(function RadarChart({ values, categories = LIFE_CA
 
   return (
     <div className="w-full aspect-square relative flex items-center justify-center p-2">
-      <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full max-w-[400px] overflow-visible">
+      <svg viewBox={`0 0 ${size} ${size}`} className="w-full h-full overflow-visible">
         {/* Grid lines (Octagon rings) */}
         {[...Array(levels)].map((_, i) => {
           const r = ((i + 1) / levels) * radius;
@@ -2056,7 +2056,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
 
       {/* Hero: Wheel of Life */}
       <div className="flex flex-col items-center justify-center p-12 glass rounded-[3rem] border border-white/5 bg-gradient-to-br from-indigo-500/5 via-transparent to-accent/5">
-         <div className="w-[870.781px] h-[686.973px]">
+         <div className="w-full h-full">
            <RadarChart values={displayedValues} categories={categories} />
          </div>
       </div>
@@ -2199,6 +2199,53 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
                    ACKNOWLEDGE_PROTOCOL
                  </button>
                </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isConfigOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <div className="glass max-w-lg w-full p-8 rounded-3xl border border-white/10 space-y-6">
+              <h3 className="text-xl font-serif font-black text-text-p uppercase tracking-widest italic">CONFIGURE_CATEGORIES</h3>
+              
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {editingCategories.map((cat, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
+                      <span className="text-sm font-mono text-text-p">{cat.label}</span>
+                    </div>
+                    <button onClick={() => setEditingCategories(prev => prev.filter((_, i) => i !== idx))} className="text-text-m hover:text-red-400">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <input type="text" value={newCatLabel} onChange={(e) => setNewCatLabel(e.target.value)} placeholder="NEW_CATEGORY" className="flex-1 bg-white/5 border border-white/10 rounded-lg p-3 text-sm font-mono text-text-p" />
+                <input type="color" value={newCatColor} onChange={(e) => setNewCatColor(e.target.value)} className="w-12 h-12 bg-transparent rounded-lg cursor-pointer" />
+                <button onClick={() => {
+                  if (newCatLabel) {
+                    setEditingCategories(prev => [...prev, { id: newCatLabel.toUpperCase().replace(/\s+/g, '_'), label: newCatLabel, color: newCatColor }]);
+                    setNewCatLabel('');
+                  }
+                }} className="px-4 bg-indigo-500 text-white rounded-lg font-mono text-xs font-black">ADD</button>
+              </div>
+
+              <button onClick={() => {
+                saveCategories(editingCategories);
+                setIsConfigOpen(false);
+              }} className="w-full py-4 bg-white/10 text-white rounded-xl font-mono text-xs font-black uppercase tracking-widest hover:bg-white/20 transition-all">
+                SAVE_AND_CLOSE
+              </button>
             </div>
           </motion.div>
         )}
