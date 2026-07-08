@@ -403,9 +403,13 @@ If the user asks you to create a task or start a habit, call the appropriate fun
       functionCalls: response.functionCalls || []
     });
   } catch (err: any) {
-    handleGeminiError(err, res, "Error generating coach response", {
-      text: "### Aether_OS Cybernetic Mentor // OFFLINE FALLBACK\n\nYour Gemini API key has been reported as leaked or is invalid. To resume full cognitive coaching and real-time guidance, please rotate/replace your API key via the **Settings > Secrets** panel in AI Studio.\n\nIn the meantime, stay disciplined, follow your daily protocols, and maintain your streaks.",
-      functionCalls: []
+    console.error("[Coach Response Error]", err?.message || err);
+    const errMsg = err?.message || String(err);
+    const isKeyIssue = errMsg.includes("leaked") || errMsg.includes("Key blocked") || errMsg.includes("403") || errMsg.includes("PERMISSION_DENIED") || errMsg.includes("API key not valid") || errMsg.includes("required");
+    return res.status(isKeyIssue ? 401 : 500).json({
+      error: isKeyIssue
+        ? "GEMINI_API_KEY is missing, invalid, or blocked. Set it in AI Studio's Settings > Secrets panel."
+        : `Gemini request failed: ${errMsg}`
     });
   }
 });

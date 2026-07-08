@@ -13097,7 +13097,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     thirtyDayFix: ''
   });
   const [onboardingInput, setOnboardingInput] = useState('');
-  const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingMessages, setOnboardingMessages] = useState<{sender: string, text: string}[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -13164,33 +13163,26 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         setOnboardingStep(prev => prev + 1);
       }, 600);
     } else {
-      if (onboardingSaving) return;
-      setOnboardingSaving(true);
-
-      const profileData = {
-        userId: user.uid,
-        userName: newData.userName,
-        coachName: newData.coachName,
-        goal: newData.goal,
-        tone: newData.tone,
-        weakness: newData.weakness,
-        thirtyDayFix: newData.thirtyDayFix,
-        createdAt: new Date().toISOString(),
-      };
-
-      try {
-        await setDoc(doc(db, 'coach_profiles', user.uid), profileData);
+      // Save profile to Firestore
+      setTimeout(async () => {
         setOnboardingMessages(prev => [...prev,
           { sender: 'coach', text: `Profile locked in. I'm ${newData.coachName}. Let's get to work, ${newData.userName}.\n\nI know your goal. I know your weakness. I'll be watching your data every session.\n\nWhat do you want to talk about first?` }
         ]);
+        
+        const profileData = {
+          userId: user.uid,
+          userName: newData.userName,
+          coachName: newData.coachName,
+          goal: newData.goal,
+          tone: newData.tone,
+          weakness: newData.weakness,
+          thirtyDayFix: newData.thirtyDayFix,
+          createdAt: new Date().toISOString(),
+        };
+        
+        await setDoc(doc(db, 'coach_profiles', user.uid), profileData);
         setCoachProfile(profileData);
-      } catch (err: any) {
-        console.error('Failed to save coach profile:', err);
-        setOnboardingMessages(prev => [...prev,
-          { sender: 'coach', text: `CALIBRATION_ERROR: Couldn't save your profile (${err?.message || 'unknown error'}). Check Firestore rules/connection and try answering the last question again.` }
-        ]);
-        setOnboardingSaving(false);
-      }
+      }, 800);
     }
   };
 
