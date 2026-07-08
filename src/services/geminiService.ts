@@ -88,6 +88,5 @@ export const generateCoachResponse = async (chatHistory: any[], userStats: any, 
     const errData = await response.json().catch(() => ({}));
     throw new Error(errData.error || `HTTP error! status: ${response.status}`);
   }
-  const data = await response.json();
-  return data.text;
+  return await response.json(); // { text, functionCalls }
 };

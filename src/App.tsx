@@ -3,7 +3,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFirestoreError, OperationType, removeUndefinedFields } from './lib/firebase';
 import { onAuthStateChanged, User, signOut, updateProfile } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit, getDocs, deleteField } from 'firebase/firestore';
 import { analyzeJournalEntry, breakdownBossTask, generateDailyBriefing, generateLifeInsight, analyzeLifeBalance, generateCoachResponse, suggestPassword } from './services/geminiService';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -31,6 +31,7 @@ import { cn } from './lib/utils';
 import { EmptyState } from './components/EmptyState';
 import { WheelOfLifeVisualization } from './components/WheelOfLife';
 import { OnboardingModal } from './components/OnboardingModal';
+import { DashboardLanding } from './components/DashboardLanding';
 import { toPng } from 'html-to-image';
 
 // --- ShareCard Utilities and Components ---
@@ -1901,6 +1902,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
 
   // Dynamic sphere management states
   const [isConfigOpen, setIsConfigOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [editingCategories, setEditingCategories] = useState<any[]>(categories);
   const [newCatLabel, setNewCatLabel] = useState('');
   const [newCatColor, setNewCatColor] = useState('#3b82f6');
@@ -2060,6 +2062,12 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
            <RadarChart values={displayedValues} categories={categories} />
          </div>
       </div>
+      <button 
+        onClick={() => setIsHistoryOpen(true)}
+        className="w-full py-4 bg-white/5 hover:bg-white/10 text-text-m font-mono text-xs font-black uppercase tracking-widest border border-white/5 rounded-xl transition-all"
+      >
+        VIEW_HISTORY
+      </button>
 
       {/* Overview Stats Bar */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -2204,6 +2212,34 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {isHistoryOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <div className="glass max-w-2xl w-full p-8 rounded-3xl border border-white/10 space-y-6">
+              <h3 className="text-xl font-serif font-black text-text-p uppercase tracking-widest italic">HISTORY</h3>
+              <div className="max-h-[400px] overflow-y-auto space-y-4">
+                {history.map((snapshot, idx) => (
+                  <div key={snapshot.id || idx} className="p-4 bg-white/5 rounded-lg border border-white/5 flex justify-between items-center">
+                    <span className="font-mono text-text-m">{snapshot.date}</span>
+                    <button onClick={() => {
+                        setSelectedSnapshot(snapshot);
+                        setIsHistoryOpen(false);
+                    }} className="text-indigo-400 hover:text-indigo-300 font-mono text-xs">VIEW</button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => setIsHistoryOpen(false)} className="w-full py-4 bg-white/10 text-white rounded-xl font-mono text-xs font-black uppercase tracking-widest hover:bg-white/20 transition-all">
+                CLOSE
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <AnimatePresence>
         {isConfigOpen && (
           <motion.div
@@ -4539,7 +4575,7 @@ export default function App() {
       {/* Sidebar / Nav for Tablet & Desktop */}
       <nav className="fixed left-0 top-0 bottom-0 glass border-r border-border-subtle z-50 hidden md:flex flex-col items-center justify-start gap-4 py-8 px-2 md:w-16 lg:w-56 transition-all duration-300 select-none">
         {/* Brand System */}
-        <div className="flex items-center gap-2 mb-4 hidden lg:flex">
+        <div className="flex items-center gap-2 mb-4 hidden lg:flex cursor-pointer hover:opacity-80 transition-opacity" onClick={() => handleTabChange('dashboard')}>
           <Cpu className="text-accent animate-pulse" size={16} />
           <span className="text-xs font-mono font-black tracking-widest text-text-p uppercase">AETHER_OS</span>
         </div>
@@ -13061,6 +13097,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     thirtyDayFix: ''
   });
   const [onboardingInput, setOnboardingInput] = useState('');
+  const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingMessages, setOnboardingMessages] = useState<{sender: string, text: string}[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -13127,26 +13164,33 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         setOnboardingStep(prev => prev + 1);
       }, 600);
     } else {
-      // Save profile to Firestore
-      setTimeout(async () => {
+      if (onboardingSaving) return;
+      setOnboardingSaving(true);
+
+      const profileData = {
+        userId: user.uid,
+        userName: newData.userName,
+        coachName: newData.coachName,
+        goal: newData.goal,
+        tone: newData.tone,
+        weakness: newData.weakness,
+        thirtyDayFix: newData.thirtyDayFix,
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        await setDoc(doc(db, 'coach_profiles', user.uid), profileData);
         setOnboardingMessages(prev => [...prev,
           { sender: 'coach', text: `Profile locked in. I'm ${newData.coachName}. Let's get to work, ${newData.userName}.\n\nI know your goal. I know your weakness. I'll be watching your data every session.\n\nWhat do you want to talk about first?` }
         ]);
-        
-        const profileData = {
-          userId: user.uid,
-          userName: newData.userName,
-          coachName: newData.coachName,
-          goal: newData.goal,
-          tone: newData.tone,
-          weakness: newData.weakness,
-          thirtyDayFix: newData.thirtyDayFix,
-          createdAt: new Date().toISOString(),
-        };
-        
-        await setDoc(doc(db, 'coach_profiles', user.uid), profileData);
         setCoachProfile(profileData);
-      }, 800);
+      } catch (err: any) {
+        console.error('Failed to save coach profile:', err);
+        setOnboardingMessages(prev => [...prev,
+          { sender: 'coach', text: `CALIBRATION_ERROR: Couldn't save your profile (${err?.message || 'unknown error'}). Check Firestore rules/connection and try answering the last question again.` }
+        ]);
+        setOnboardingSaving(false);
+      }
     }
   };
 
@@ -13198,6 +13242,15 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     });
     return lowestCategory.toUpperCase();
   }, [stats]);
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 5) return 'Late Night';
+    if (hour < 12) return 'Morning';
+    if (hour < 17) return 'Afternoon';
+    if (hour < 21) return 'Evening';
+    return 'Night';
+  }, []);
 
   const buildCoachContext = () => {
     const todayStr = new Date().toISOString().split('T')[0];
@@ -13303,6 +13356,39 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     };
   };
 
+  const createTaskFromCoach = async (args: any) => {
+    if (!user) return;
+    await addDoc(collection(db, 'tasks'), {
+      userId: user.uid,
+      title: args.title,
+      priority: args.priority || 'medium',
+      status: 'pending',
+      category: args.category || 'personal',
+      estimate: args.estimate || 30,
+      isChallenging: false,
+      isBoss: false,
+      isSpeedRun: false,
+      difficulty: 'medium',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      isExpired: false
+    });
+  };
+
+  const createHabitFromCoach = async (args: any) => {
+    if (!user) return;
+    await addDoc(collection(db, 'habits'), {
+      userId: user.uid,
+      name: args.name,
+      category: args.category || 'personal',
+      frequency: args.frequency || 'daily',
+      targetStreak: args.targetStreak || 30,
+      color: '#22d3ee',
+      createdAt: new Date().toISOString(),
+      isArchived: false
+    });
+  };
+
   const handleSendMessage = async (textToSend: string) => {
     if (!textToSend.trim() || isGenerating || !user) return;
 
@@ -13334,7 +13420,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         parts: [{ text: textToSend }]
       });
 
-      const coachReply = await generateCoachResponse(
+      const result = await generateCoachResponse(
         history,
         stats,
         weakestSphere,
@@ -13345,7 +13431,8 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       const coachMsgData = removeUndefinedFields({
         userId: user.uid,
         sender: 'coach',
-        text: coachReply || "NEURAL_SYNAPSE_TIMEOUT. Please retry.",
+        text: result.text || "NEURAL_SYNAPSE_TIMEOUT. Please retry.",
+        pendingActions: result.functionCalls && result.functionCalls.length > 0 ? result.functionCalls : undefined,
         createdAt: new Date().toISOString()
       });
       await addDoc(collection(db, 'coach_messages'), coachMsgData);
@@ -13504,7 +13591,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
          )}
 
          {/* INPUT AREA */}
-         {!profileLoading && (
+         {!profileLoading && (!coachProfile || messages.length > 0) && (
            <div className="p-6 border-t border-white/5 space-y-4 bg-white/5">
              {coachProfile && (
                <div className="flex flex-wrap gap-2">

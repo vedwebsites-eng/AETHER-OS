@@ -302,7 +302,8 @@ Tone instruction: ${toneInstruction}
 
 Always refer to yourself as ${coachName}. Always address the user as ${userName}.
 You have full access to their live data below. Reference it directly in your responses.
-Keep responses under 150 words. Use markdown for formatting. Be specific, not generic.`;
+Keep responses under 150 words. Use markdown for formatting. Be specific, not generic.
+If the user asks you to create a task or start a habit, call the appropriate function instead of just describing it in text.`;
 
     // The user's current status:
     systemIns += `\n\n- Level: ${userStats?.level || 1}
@@ -361,14 +362,50 @@ Keep responses under 150 words. Use markdown for formatting. Be specific, not ge
       model: "gemini-2.0-flash",
       contents: chatHistory,
       config: {
-        systemInstruction: systemIns
+        systemInstruction: systemIns,
+        tools: [{
+          functionDeclarations: [
+            {
+              name: "create_task",
+              description: "Create a new task/protocol for the user when they ask you to add, remind, or set up a task.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  category: { type: Type.STRING, enum: ["health", "learning", "creative", "work", "personal", "routine"] },
+                  priority: { type: Type.STRING, enum: ["low", "medium", "high", "critical"] },
+                  estimate: { type: Type.NUMBER, description: "Estimated minutes to complete" }
+                },
+                required: ["title", "category", "priority", "estimate"]
+              }
+            },
+            {
+              name: "create_habit",
+              description: "Create a new recurring habit for the user when they ask you to start tracking or build a habit.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  name: { type: Type.STRING },
+                  category: { type: Type.STRING, enum: ["health", "learning", "creative", "work", "personal", "routine"] },
+                  frequency: { type: Type.STRING, description: "e.g. 'daily' or 'weekdays'" },
+                  targetStreak: { type: Type.NUMBER, description: "Target streak length in days, default 30" }
+                },
+                required: ["name", "category", "frequency"]
+              }
+            }
+          ]
+        }]
       }
     });
 
-    res.json({ text: response.text });
+    res.json({
+      text: response.text || "",
+      functionCalls: response.functionCalls || []
+    });
   } catch (err: any) {
     handleGeminiError(err, res, "Error generating coach response", {
-      text: "### Aether_OS Cybernetic Mentor // OFFLINE FALLBACK\n\nYour Gemini API key has been reported as leaked or is invalid. To resume full cognitive coaching and real-time guidance, please rotate/replace your API key via the **Settings > Secrets** panel in AI Studio.\n\nIn the meantime, stay disciplined, follow your daily protocols, and maintain your streaks."
+      text: "### Aether_OS Cybernetic Mentor // OFFLINE FALLBACK\n\nYour Gemini API key has been reported as leaked or is invalid. To resume full cognitive coaching and real-time guidance, please rotate/replace your API key via the **Settings > Secrets** panel in AI Studio.\n\nIn the meantime, stay disciplined, follow your daily protocols, and maintain your streaks.",
+      functionCalls: []
     });
   }
 });
