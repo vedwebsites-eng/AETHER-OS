@@ -223,9 +223,9 @@ service cloud.firestore {
     // CoachProfiles
     match /coach_profiles/{profileId} {
       allow read: if isOwner(resource.data.userId);
-      allow create: if isVerified() && isOwner(incoming().userId);
-      allow update: if isVerified() && isOwner(existing().userId);
-      allow delete: if isVerified() && isOwner(existing().userId);
+      allow create: if isOwner(incoming().userId);
+      allow update: if isOwner(existing().userId);
+      allow delete: if isOwner(existing().userId);
     }
   }
 }
