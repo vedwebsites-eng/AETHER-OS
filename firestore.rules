@@ -227,5 +227,13 @@ service cloud.firestore {
       allow update: if isOwner(existing().userId);
       allow delete: if isOwner(existing().userId);
     }
+
+    // NotepadData
+    match /notepad_data/{docId} {
+      allow read: if isOwner(docId);
+      allow create: if isOwner(docId) && incoming().userId == docId;
+      allow update: if isOwner(docId) && incoming().userId == docId;
+      allow delete: if isOwner(docId);
+    }
   }
 }

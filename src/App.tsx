@@ -1257,7 +1257,7 @@ const HabitHeatmapShareCard = ({
                     const isToday = dayData?.date === date;
 
                     return (
-                      <div key={dayIdx} style={{
+                      <div key={`${weekIdx}-${dayIdx}`} style={{
                         width: `${squareSize}px`,
                         height: `${squareSize}px`,
                         borderRadius: '3px',
@@ -1531,6 +1531,12 @@ const safeDate = (dateStr: string | undefined | null): Date => {
 
 // --- Types ---
 type AppTab = 'dashboard' | 'dailyWork' | 'reflect' | 'grow' | 'aetherCoach' | 'configOs';
+
+interface NotepadLine {
+  id: string;
+  text: string;
+  createdAt: string;
+}
 
 interface Habit {
   id: string;
@@ -2694,6 +2700,7 @@ export default function App() {
   const [authChoice, setAuthChoice] = useState(false);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [notepadLines, setNotepadLines] = useState<NotepadLine[]>([]);
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
   const [habits, setHabits] = useState<Habit[]>([]);
@@ -3082,6 +3089,56 @@ export default function App() {
       fetchBriefing();
     }
   }, [user, stats, tasks]);
+
+  // Notepad Sync
+  useEffect(() => {
+    if (!user) return;
+    const notepadRef = doc(db, 'notepad_data', user.uid);
+    const unsub = onSnapshot(notepadRef, (snap) => {
+      setNotepadLines(snap.exists() ? (snap.data().lines || []) : []);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'notepad_data'));
+    return () => unsub();
+  }, [user]);
+
+  const notepadSaveTimeout = useRef<any>(null);
+  const saveNotepadLines = (newLines: NotepadLine[]) => {
+    setNotepadLines(newLines); // instant local update
+    if (notepadSaveTimeout.current) clearTimeout(notepadSaveTimeout.current);
+    notepadSaveTimeout.current = setTimeout(async () => {
+      if (!user) return;
+      try {
+        await setDoc(doc(db, 'notepad_data', user.uid), { lines: newLines, userId: user.uid });
+      } catch (e) {
+        handleFirestoreError(e, OperationType.UPDATE, 'notepad_data');
+      }
+    }, 600);
+  };
+
+  const convertNotepadLineToTask = async (line: NotepadLine) => {
+    if (!user || !line.text.trim()) return;
+    try {
+      await addDoc(collection(db, 'tasks'), {
+        userId: user.uid,
+        title: line.text.trim(),
+        priority: 'medium',
+        status: 'pending',
+        category: 'personal',
+        estimate: 30,
+        difficulty: 'medium',
+        isChallenging: false,
+        isBoss: false,
+        isSpeedRun: false,
+        createdAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        isExpired: false
+      });
+      saveNotepadLines(notepadLines.filter(l => l.id !== line.id));
+      setCompleteToast('LINE_CONVERTED_TO_TASK');
+      setTimeout(() => setCompleteToast(null), 2000);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'tasks');
+    }
+  };
 
   const handleTabChange = (tab: AppTab) => {
     setIsNodeRecalibrating(true);
@@ -4012,6 +4069,12 @@ export default function App() {
         colors: ['#FF4500', '#00D9FF', '#FFFFFF']
       });
 
+      // Tick all subtasks
+      if (task.subTasks && task.subTasks.length > 0) {
+        const completedSubTasks = task.subTasks.map(st => ({ ...st, completed: true }));
+        await updateDoc(doc(db, 'tasks', task.id), { subTasks: completedSubTasks });
+      }
+
       const now = new Date();
       let adherenceStatus: 'ontime' | 'late' | 'partial' | 'missed' | undefined;
       let schedulingBonus = 0;
@@ -4770,6 +4833,9 @@ export default function App() {
                     openShare={openShare}
                     setSharingAchievement={setSharingAchievement}
                     lifeSyncCategories={stats?.lifeSyncCategories || settings?.lifeSyncCategories || LIFE_CATEGORIES}
+                    notepadLines={notepadLines}
+                    saveNotepadLines={saveNotepadLines}
+                    convertNotepadLineToTask={convertNotepadLineToTask}
                   />
                 </ErrorBoundary>
               )}
@@ -7765,6 +7831,7 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
   const [isBreakingDownId, setIsBreakingDownId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [newSubTaskTitles, setNewSubTaskTitles] = useState<Record<string, string>>({});
 
   const clearAllTasks = async () => {
     try {
@@ -7806,6 +7873,31 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
     const newSubTasks = task.subTasks.map(st => 
       st.id === subTaskId ? { ...st, completed: !st.completed } : st
     );
+    // Check if all subtasks are now completed
+    const allCompleted = newSubTasks.length > 0 && newSubTasks.every(st => st.completed);
+    
+    const updateData: any = { subTasks: newSubTasks };
+    if (allCompleted && task.status !== 'completed') {
+      updateData.status = 'completed';
+    }
+    
+    await updateDoc(doc(db, 'tasks', task.id), updateData);
+  };
+
+  const deleteSubTask = async (task: Task, subTaskId: string) => {
+    if (!task.subTasks) return;
+    const newSubTasks = task.subTasks.filter(st => st.id !== subTaskId);
+    await updateDoc(doc(db, 'tasks', task.id), { subTasks: newSubTasks });
+  };
+
+  const addSubTask = async (task: Task, title: string) => {
+    if (!title.trim()) return;
+    const newSubTasks = [...(task.subTasks || []), {
+      id: `st-${Date.now()}`,
+      title: title.trim(),
+      completed: false,
+      duration: 0
+    }];
     await updateDoc(doc(db, 'tasks', task.id), { subTasks: newSubTasks });
   };
 
@@ -8212,9 +8304,8 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
                 </div>
 
                 {/* Sub-tasks list */}
-                {task.subTasks && task.subTasks.length > 0 && (
-                  <div className="mt-4 pl-4 border-l-2 border-white/5 space-y-2">
-                    {task.subTasks.map((st, sidx) => (
+                <div className="mt-4 pl-4 border-l-2 border-white/5 space-y-2">
+                  {(task.subTasks || []).map((st, sidx) => (
                       <div key={`${task.id}-sub-${st.id || 'sub'}-${sidx}`} className="flex items-center gap-3">
                         <button 
                           onClick={() => toggleSubTask(task, st.id)}
@@ -8225,10 +8316,39 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
                         <span className={cn("text-[10px] font-mono", st.completed ? "line-through text-text-m opacity-40" : "text-text-p")}>
                           {st.title} <span className="opacity-40 ml-1">[{st.duration}M]</span>
                         </span>
+                        <button
+                          onClick={() => deleteSubTask(task, st.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-text-m hover:text-red-500 transition-all ml-auto"
+                        >
+                          <Trash2 size={12} />
+                        </button>
                       </div>
                     ))}
-                  </div>
-                )}
+                    <div className="flex items-center gap-2 mt-2">
+                      <input
+                        type="text"
+                        placeholder="Add sub-task..."
+                        value={newSubTaskTitles[task.id] || ''}
+                        onChange={(e) => setNewSubTaskTitles(prev => ({ ...prev, [task.id]: e.target.value }))}
+                        className="flex-1 bg-black/20 border border-white/10 p-1 text-[10px] font-mono rounded outline-none text-white/80 placeholder-white/20"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            addSubTask(task, newSubTaskTitles[task.id]);
+                            setNewSubTaskTitles(prev => ({ ...prev, [task.id]: '' }));
+                          }
+                        }}
+                      />
+                      <button 
+                        onClick={() => {
+                          addSubTask(task, newSubTaskTitles[task.id]);
+                          setNewSubTaskTitles(prev => ({ ...prev, [task.id]: '' }));
+                        }}
+                        className="text-cyan text-[10px] font-mono px-2 py-1 bg-cyan/10 rounded"
+                      >
+                        ADD
+                      </button>
+                    </div>
+                </div>
               </div>
             </div>
               <div className="flex items-center gap-4 relative z-10">
@@ -11741,6 +11861,71 @@ function WeeklyReviewItem({ review }: { review: WeeklyReview }) {
   );
 }
 
+function NotepadView({ lines, onUpdateLines, onConvertToTask }: {
+  lines: NotepadLine[];
+  onUpdateLines: (lines: NotepadLine[]) => void;
+  onConvertToTask: (line: NotepadLine) => void;
+}) {
+  const displayLines = useMemo(() => 
+    lines.length > 0 ? lines : [{ id: crypto.randomUUID(), text: '', createdAt: new Date().toISOString() }], 
+    [lines]
+  );
+
+  const updateLineText = (id: string, text: string) => {
+    onUpdateLines(displayLines.map(l => l.id === id ? { ...l, text } : l));
+  };
+
+  const addLineAfter = (id: string) => {
+    const idx = displayLines.findIndex(l => l.id === id);
+    const newLine = { id: crypto.randomUUID(), text: '', createdAt: new Date().toISOString() };
+    const next = [...displayLines];
+    next.splice(idx + 1, 0, newLine);
+    onUpdateLines(next);
+  };
+
+  const deleteLine = (id: string) => {
+    if (displayLines.length === 1) {
+      onUpdateLines([{ id: crypto.randomUUID(), text: '', createdAt: new Date().toISOString() }]);
+      return;
+    }
+    onUpdateLines(displayLines.filter(l => l.id !== id));
+  };
+
+  return (
+    <div className="glass p-8 md:p-12 rounded-[2rem] border border-white/5 space-y-6">
+      <div className="flex items-center gap-3">
+        <FileText size={16} className="text-cyan" />
+        <h3 className="text-xs font-mono uppercase tracking-widest text-white/40">NOTEPAD</h3>
+      </div>
+      <div className="space-y-1">
+        {displayLines.map((line) => (
+          <div key={line.id} className="group flex items-center gap-2">
+            <input
+              value={line.text}
+              onChange={(e) => updateLineText(line.id, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); addLineAfter(line.id); }
+                if (e.key === 'Backspace' && line.text === '') { e.preventDefault(); deleteLine(line.id); }
+              }}
+              placeholder="Type a thought, a to-do, anything..."
+              className="flex-1 bg-transparent border-none outline-none text-sm text-white/80 placeholder-white/20 py-1.5 font-mono"
+            />
+            {line.text.trim() && (
+              <button
+                onClick={() => onConvertToTask(line)}
+                title="Convert to task"
+                className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-2 py-1 rounded-full bg-cyan/10 hover:bg-cyan/20 text-cyan text-[9px] font-mono uppercase tracking-wider"
+              >
+                <CheckCircle2 size={11} /> Task
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StatsView({ 
   stats, 
   user, 
@@ -13649,7 +13834,10 @@ function GrowView({
   openShare,
   setSharingAchievement,
   handlePurchasePerk,
-  lifeSyncCategories
+  lifeSyncCategories,
+  notepadLines,
+  saveNotepadLines,
+  convertNotepadLineToTask
 }: any) {
   return (
     <div className="max-w-[1400px] mx-auto space-y-16 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -13676,6 +13864,13 @@ function GrowView({
         weeklyReviews={[]}
         openShare={openShare}
         setSharingAchievement={setSharingAchievement}
+      />
+
+      {/* NOTEPAD */}
+      <NotepadView
+        lines={notepadLines}
+        onUpdateLines={saveNotepadLines}
+        onConvertToTask={convertNotepadLineToTask}
       />
 
     </div>
