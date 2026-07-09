@@ -144,7 +144,8 @@ service cloud.firestore {
     // UserSettings: Identified by userId
     match /user_settings/{userId} {
       allow read: if isOwner(userId);
-      allow write: if isOwner(userId) && isVerified() && isValidUserSettings(incoming());
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
       allow delete: if false;
     }
 
@@ -229,6 +230,9 @@ service cloud.firestore {
     }
 
     // NotepadData
+    match /notepad_data {
+      allow read: if isSignedIn();
+    }
     match /notepad_data/{docId} {
       allow read: if isOwner(docId);
       allow create: if isOwner(docId) && incoming().userId == docId;

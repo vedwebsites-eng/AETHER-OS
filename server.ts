@@ -278,8 +278,12 @@ app.post("/api/gemini/coach-response", async (req, res) => {
     if (!chatHistory) {
       return res.status(400).json({ error: "chatHistory parameter is missing" });
     }
-    const ai = getAI();
-    
+
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+      return res.status(401).json({ error: "OPENROUTER_API_KEY is missing. Add it in AI Studio's Settings > Secrets panel." });
+    }
+
     const coachName = coachProfile?.coachName || 'Aether Coach';
     const userName = coachProfile?.userName || 'Operative';
     const userGoal = coachProfile?.goal || 'self improvement';
@@ -287,7 +291,7 @@ app.post("/api/gemini/coach-response", async (req, res) => {
     const userTone = coachProfile?.tone || '2';
     const thirtyDayFix = coachProfile?.thirtyDayFix || 'unknown';
 
-    const toneInstruction = userTone === '1' 
+    const toneInstruction = userTone === '1'
       ? 'Be brutally honest. No excuses. Call them out directly when they are slacking.'
       : userTone === '3'
       ? 'Be high energy and hype. Celebrate wins loudly. Keep the energy up.'
@@ -303,27 +307,22 @@ Tone instruction: ${toneInstruction}
 Always refer to yourself as ${coachName}. Always address the user as ${userName}.
 You have full access to their live data below. Reference it directly in your responses.
 Keep responses under 150 words. Use markdown for formatting. Be specific, not generic.
-If the user asks you to create a task or start a habit, call the appropriate function instead of just describing it in text.`;
+If the user asks you to create a task or start a habit, call the appropriate tool instead of just describing it in text.`;
 
-    // The user's current status:
     systemIns += `\n\n- Level: ${userStats?.level || 1}
     - Current Streak: ${userStats?.currentStreak || 0}
     - Weakest Life Sphere: ${lowestCategory || 'None'}`;
 
     if (context) {
       const { lifeSyncCurrent, pendingTasks, completedTodayCount, activeHabits, recentJournals } = context;
-
       systemIns += `\n\n=== REAL-TIME TODAY CONTEXT ===`;
-      
       if (lifeSyncCurrent && Object.keys(lifeSyncCurrent).length > 0) {
         systemIns += `\n- Life Balance breakdown (scores 1-10):`;
         Object.entries(lifeSyncCurrent).forEach(([cat, val]) => {
           systemIns += `\n  * ${cat.toUpperCase()}: ${val}`;
         });
       }
-
       systemIns += `\n- Protocols completed today: ${completedTodayCount || 0}`;
-
       if (pendingTasks && pendingTasks.length > 0) {
         systemIns += `\n- Top pending protocols/tasks inside active queue:`;
         pendingTasks.forEach((t: any) => {
@@ -332,7 +331,6 @@ If the user asks you to create a task or start a habit, call the appropriate fun
       } else {
         systemIns += `\n- Top pending protocols/tasks inside active queue: None currently pending.`;
       }
-
       if (activeHabits && activeHabits.length > 0) {
         systemIns += `\n- Habits Streak & Checklist:`;
         activeHabits.forEach((h: any) => {
@@ -340,17 +338,12 @@ If the user asks you to create a task or start a habit, call the appropriate fun
           systemIns += `\n  * ${h.name || 'Untitled'} (${h.category || 'Routine'}) -> Streak: ${h.streak || 0}/${h.targetStreak || 30} days [Status Today: ${status}]`;
         });
       }
-
       if (recentJournals && recentJournals.length > 0) {
         systemIns += `\n- Recent Journal Logs & Sentiments:`;
         recentJournals.forEach((j: any) => {
           let journalStr = `\n  * ${j.daysAgo === 0 ? "Today" : `${j.daysAgo} day(s) ago`} -> mood: ${(j.mood || 'neutral').toUpperCase()}`;
-          if (j.keyTheme) {
-            journalStr += `, theme: "${j.keyTheme}"`;
-          }
-          if (j.alignmentScore !== undefined) {
-            journalStr += `, alignment score: ${j.alignmentScore}/100`;
-          }
+          if (j.keyTheme) journalStr += `, theme: "${j.keyTheme}"`;
+          if (j.alignmentScore !== undefined) journalStr += `, alignment score: ${j.alignmentScore}/100`;
           systemIns += journalStr;
         });
       }
@@ -358,59 +351,82 @@ If the user asks you to create a task or start a habit, call the appropriate fun
 
     systemIns += `\n\nIncorporate these real-time metrics, logs, habits, and tasks organically into your reasoning and conversation. Directly address their context! Speak as their system-integrated cybernetic mentor. Format your reply using standard markdown. Keep it punchy, deeply insightful, and around 100-150 words.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: chatHistory,
-      config: {
-        systemInstruction: systemIns,
-        tools: [{
-          functionDeclarations: [
-            {
+    const openRouterMessages = chatHistory.map((h: any) => ({
+      role: h.role === 'model' ? 'assistant' : 'user',
+      content: h.parts?.[0]?.text || h.text || ''
+    }));
+
+    const orResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://aetheros.app",
+        "X-Title": "AetherOS Coach"
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-oss-120b:free",
+        messages: [{ role: "system", content: systemIns }, ...openRouterMessages],
+        tools: [
+          {
+            type: "function",
+            function: {
               name: "create_task",
               description: "Create a new task/protocol for the user when they ask you to add, remind, or set up a task.",
               parameters: {
-                type: Type.OBJECT,
+                type: "object",
                 properties: {
-                  title: { type: Type.STRING },
-                  category: { type: Type.STRING, enum: ["health", "learning", "creative", "work", "personal", "routine"] },
-                  priority: { type: Type.STRING, enum: ["low", "medium", "high", "critical"] },
-                  estimate: { type: Type.NUMBER, description: "Estimated minutes to complete" }
+                  title: { type: "string" },
+                  category: { type: "string", enum: ["health", "learning", "creative", "work", "personal", "routine"] },
+                  priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
+                  estimate: { type: "number", description: "Estimated minutes to complete" }
                 },
                 required: ["title", "category", "priority", "estimate"]
               }
-            },
-            {
+            }
+          },
+          {
+            type: "function",
+            function: {
               name: "create_habit",
               description: "Create a new recurring habit for the user when they ask you to start tracking or build a habit.",
               parameters: {
-                type: Type.OBJECT,
+                type: "object",
                 properties: {
-                  name: { type: Type.STRING },
-                  category: { type: Type.STRING, enum: ["health", "learning", "creative", "work", "personal", "routine"] },
-                  frequency: { type: Type.STRING, description: "e.g. 'daily' or 'weekdays'" },
-                  targetStreak: { type: Type.NUMBER, description: "Target streak length in days, default 30" }
+                  name: { type: "string" },
+                  category: { type: "string", enum: ["health", "learning", "creative", "work", "personal", "routine"] },
+                  frequency: { type: "string", description: "e.g. 'daily' or 'weekdays'" },
+                  targetStreak: { type: "number", description: "Target streak length in days, default 30" }
                 },
                 required: ["name", "category", "frequency"]
               }
             }
-          ]
-        }]
-      }
+          }
+        ]
+      })
     });
 
-    res.json({
-      text: response.text || "",
-      functionCalls: response.functionCalls || []
-    });
+    if (!orResponse.ok) {
+      const errText = await orResponse.text();
+      console.error("[OpenRouter Error]", orResponse.status, errText);
+      return res.status(orResponse.status === 429 ? 429 : 500).json({
+        error: orResponse.status === 429
+          ? "Free model rate limit hit. Wait a bit and try again."
+          : `OpenRouter request failed: ${errText}`
+      });
+    }
+
+    const data = await orResponse.json();
+    const message = data.choices?.[0]?.message;
+    const toolCalls = (message?.tool_calls || []).map((tc: any) => ({
+      name: tc.function?.name,
+      args: JSON.parse(tc.function?.arguments || '{}')
+    }));
+
+    res.json({ text: message?.content || "", toolCalls });
   } catch (err: any) {
     console.error("[Coach Response Error]", err?.message || err);
-    const errMsg = err?.message || String(err);
-    const isKeyIssue = errMsg.includes("leaked") || errMsg.includes("Key blocked") || errMsg.includes("403") || errMsg.includes("PERMISSION_DENIED") || errMsg.includes("API key not valid") || errMsg.includes("required");
-    return res.status(isKeyIssue ? 401 : 500).json({
-      error: isKeyIssue
-        ? "GEMINI_API_KEY is missing, invalid, or blocked. Set it in AI Studio's Settings > Secrets panel."
-        : `Gemini request failed: ${errMsg}`
-    });
+    res.status(500).json({ error: `Coach response failed: ${err?.message || String(err)}` });
   }
 });
 

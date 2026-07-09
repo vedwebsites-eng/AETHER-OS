@@ -13273,6 +13273,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   const [coachProfile, setCoachProfile] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [onboardingData, setOnboardingData] = useState({
     userName: '',
     coachName: '',
@@ -13348,26 +13349,33 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         setOnboardingStep(prev => prev + 1);
       }, 600);
     } else {
-      // Save profile to Firestore
-      setTimeout(async () => {
+      if (onboardingSaving) return;
+      setOnboardingSaving(true);
+
+      const profileData = {
+        userId: user.uid,
+        userName: newData.userName,
+        coachName: newData.coachName,
+        goal: newData.goal,
+        tone: newData.tone,
+        weakness: newData.weakness,
+        thirtyDayFix: newData.thirtyDayFix,
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        await setDoc(doc(db, 'coach_profiles', user.uid), profileData);
         setOnboardingMessages(prev => [...prev,
           { sender: 'coach', text: `Profile locked in. I'm ${newData.coachName}. Let's get to work, ${newData.userName}.\n\nI know your goal. I know your weakness. I'll be watching your data every session.\n\nWhat do you want to talk about first?` }
         ]);
-        
-        const profileData = {
-          userId: user.uid,
-          userName: newData.userName,
-          coachName: newData.coachName,
-          goal: newData.goal,
-          tone: newData.tone,
-          weakness: newData.weakness,
-          thirtyDayFix: newData.thirtyDayFix,
-          createdAt: new Date().toISOString(),
-        };
-        
-        await setDoc(doc(db, 'coach_profiles', user.uid), profileData);
         setCoachProfile(profileData);
-      }, 800);
+      } catch (err: any) {
+        console.error('Failed to save coach profile:', err);
+        setOnboardingMessages(prev => [...prev,
+          { sender: 'coach', text: `CALIBRATION_ERROR: Couldn't save your profile (${err?.message || 'unknown error'}). Try answering the last question again.` }
+        ]);
+        setOnboardingSaving(false);
+      }
     }
   };
 
@@ -13601,7 +13609,8 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         history,
         stats,
         weakestSphere,
-        buildCoachContext()
+        buildCoachContext(),
+        coachProfile
       );
       
       // 2. Add coach reply
@@ -13609,19 +13618,18 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         userId: user.uid,
         sender: 'coach',
         text: result.text || "NEURAL_SYNAPSE_TIMEOUT. Please retry.",
-        pendingActions: result.functionCalls && result.functionCalls.length > 0 ? result.functionCalls : undefined,
+        pendingActions: result.toolCalls && result.toolCalls.length > 0 ? result.toolCalls : undefined,
         createdAt: new Date().toISOString()
       });
       await addDoc(collection(db, 'coach_messages'), coachMsgData);
       await fetchCoachMessages();
 
     } catch (err: any) {
-      // ... same error handling as before
        const errMsg = err?.message || String(err);
        let coachErrorText = "Error establishing connection to Aether Mind. Please check your config parameters.";
        
-       if (errMsg.includes("leaked") || errMsg.includes("Key blocked") || errMsg.includes("403") || errMsg.includes("PERMISSION_DENIED")) {
-         coachErrorText = "AETHER_OS_ERROR: Gemini API Key Verification Failed. Your configured GEMINI_API_KEY has been disabled or reported as leaked. Please update or replace your API key via the 'Settings > Secrets' menu on AI Studio to restore full neural analysis systems.";
+       if (errMsg.includes("401") || errMsg.includes("403") || errMsg.includes("429")) {
+         coachErrorText = `AETHER_OS_ERROR: ${errMsg}. Please update or check your OPENROUTER_API_KEY in the 'Settings > Secrets' menu.`;
        }
  
        try {

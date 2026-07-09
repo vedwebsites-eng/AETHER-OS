@@ -78,15 +78,15 @@ export const generateLifeInsight = async (lowestCategory: string, values: Record
   return data.text;
 };
 
-export const generateCoachResponse = async (chatHistory: any[], userStats: any, lowestCategory: string, context?: any) => {
+export const generateCoachResponse = async (chatHistory: any[], userStats: any, lowestCategory: string, context?: any, coachProfile?: any) => {
   const response = await fetch("/api/gemini/coach-response", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chatHistory, userStats, lowestCategory, context })
+    body: JSON.stringify({ chatHistory, userStats, lowestCategory, context, coachProfile })
   });
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
     throw new Error(errData.error || `HTTP error! status: ${response.status}`);
   }
-  return await response.json(); // { text, functionCalls }
+  return await response.json(); // { text, toolCalls }
 };
