@@ -1,5 +1,5 @@
 import { doc, getDoc, onSnapshot, Timestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase'; // Corrected path
+import { db } from '../lib/firebase';
 
 export interface ClockSettings {
   lastResetAt: Timestamp;
@@ -44,15 +44,23 @@ class ChronosCore {
     this.listeners.forEach(l => l());
   }
 
-  public isResetNeeded(): boolean {
-    if (!this.settings) return false;
+  public getNextResetTime(): Date {
+    if (!this.settings) return new Date(Date.now() + 24 * 60 * 60 * 1000);
     
-    const now = new Date();
     const lastReset = this.settings.lastResetAt.toDate();
+    const nextReset = new Date(lastReset);
+    nextReset.setDate(nextReset.getDate() + 1);
     
-    // Logic to check if a new day has started based on resetTime
-    // This is a placeholder for actual reset logic
-    return now.getDate() !== lastReset.getDate();
+    return nextReset;
+  }
+
+  public getTimeUntilReset(): number {
+    const nextReset = this.getNextResetTime();
+    return Math.max(0, nextReset.getTime() - Date.now());
+  }
+
+  public isResetNeeded(): boolean {
+    return this.getTimeUntilReset() <= 0;
   }
 }
 
