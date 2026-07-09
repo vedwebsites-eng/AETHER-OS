@@ -1,3 +1,4 @@
+import ReactMarkdown from 'react-markdown';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -13628,8 +13629,10 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
        const errMsg = err?.message || String(err);
        let coachErrorText = "Error establishing connection to Aether Mind. Please check your config parameters.";
        
-       if (errMsg.includes("401") || errMsg.includes("403") || errMsg.includes("429")) {
+       if (errMsg.includes("401") || errMsg.includes("403")) {
          coachErrorText = `AETHER_OS_ERROR: ${errMsg}. Please update or check your OPENROUTER_API_KEY in the 'Settings > Secrets' menu.`;
+       } else if (errMsg.includes("rate limit") || errMsg.includes("rate-limited")) {
+         coachErrorText = "AETHER_OS_ERROR: Free model is currently congested upstream. Wait a minute and try again.";
        }
  
        try {

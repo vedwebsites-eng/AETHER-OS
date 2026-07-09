@@ -349,14 +349,21 @@ If the user asks you to create a task or start a habit, call the appropriate too
       }
     }
 
-    systemIns += `\n\nIncorporate these real-time metrics, logs, habits, and tasks organically into your reasoning and conversation. Directly address their context! Speak as their system-integrated cybernetic mentor. Format your reply using standard markdown. Keep it punchy, deeply insightful, and around 100-150 words.`;
+    systemIns += `\n\nIncorporate these real-time metrics, logs, habits, and tasks organically into your reasoning and conversation. Directly address their context! Speak as their system-integrated cybernetic mentor. 
+
+You are in a live chat interface, not writing a document. Follow these formatting rules strictly:
+- Never use markdown tables. Never use headers (#, ##). Never use horizontal rules (---).
+- Use short paragraphs (2-4 sentences). Use **bold** sparingly, only for 1-3 truly key words per message.
+- If you need to list things, use a simple bullet list with "-", max 4 items, one line each — no nested structure.
+- Total reply length: 60-120 words unless the user explicitly asks for a detailed breakdown or plan.
+- Write like you're texting someone you're coaching, not filing a report.`;
 
     const openRouterMessages = chatHistory.map((h: any) => ({
       role: h.role === 'model' ? 'assistant' : 'user',
       content: h.parts?.[0]?.text || h.text || ''
     }));
 
-    const orResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const callOpenRouter = (model: string) => fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -365,7 +372,7 @@ If the user asks you to create a task or start a habit, call the appropriate too
         "X-Title": "AetherOS Coach"
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-120b:free",
+        model,
         messages: [{ role: "system", content: systemIns }, ...openRouterMessages],
         tools: [
           {
@@ -406,12 +413,20 @@ If the user asks you to create a task or start a habit, call the appropriate too
       })
     });
 
+    let orResponse = await callOpenRouter("openai/gpt-oss-120b:free");
+
+    // If the primary free model is congested, fall back to the auto-router once
+    if (orResponse.status === 429) {
+      console.warn("[OpenRouter] gpt-oss-120b:free congested, falling back to openrouter/free");
+      orResponse = await callOpenRouter("openrouter/free");
+    }
+
     if (!orResponse.ok) {
       const errText = await orResponse.text();
       console.error("[OpenRouter Error]", orResponse.status, errText);
       return res.status(orResponse.status === 429 ? 429 : 500).json({
         error: orResponse.status === 429
-          ? "Free model rate limit hit. Wait a bit and try again."
+          ? "Both the primary and fallback free models are currently rate-limited upstream. Wait a minute and try again."
           : `OpenRouter request failed: ${errText}`
       });
     }
