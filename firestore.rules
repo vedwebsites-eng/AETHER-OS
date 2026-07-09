@@ -229,6 +229,11 @@ service cloud.firestore {
       allow delete: if isOwner(existing().userId);
     }
 
+    // System Settings
+    match /system_settings/{docId} {
+      allow read: if isSignedIn();
+    }
+
     // NotepadData
     match /notepad_data {
       allow read: if isSignedIn();
