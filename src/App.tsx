@@ -7460,6 +7460,7 @@ function Dashboard({
     const confirmClear = window.confirm("Are you sure you want to completely clear everything in your history? This will permanently erase your entire neural history log, including all past activity, task completions, and XP records. This action cannot be undone.");
     if (!confirmClear) return;
     try {
+      localStorage.removeItem('NEURAL_HISTORY');
       await updateDoc(doc(db, 'user_stats', user.uid), {
         activityLog: []
       });
