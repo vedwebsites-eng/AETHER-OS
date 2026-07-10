@@ -5,6 +5,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFirestoreError, OperationType, removeUndefinedFields } from './lib/firebase';
 import { onAuthStateChanged, User, signOut, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit, getDocs, deleteField } from 'firebase/firestore';
+import { ChatManager } from './components/ChatManager';
 import { analyzeJournalEntry, breakdownBossTask, generateDailyBriefing, generateLifeInsight, analyzeLifeBalance, generateCoachResponse, suggestPassword } from './services/geminiService';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
@@ -2260,7 +2261,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
               
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {editingCategories.map((cat, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+                  <div key={`category-${idx}`} className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
                     <div className="flex items-center gap-3">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color }} />
                       <span className="text-sm font-mono text-text-p">{cat.label}</span>
@@ -5851,7 +5852,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 const isOpen = activeFaqIndex === idx;
                 return (
                   <motion.div
-                    key={idx}
+                    key={`onboarding-${idx}`}
                     initial={{ opacity: 0, y: 15 }}
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
@@ -13292,6 +13293,15 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isGenerating, onboardingMessages]);
 
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[300px,1fr] gap-6">
+      <ChatManager user={user} />
+      <div className="flex flex-col gap-8">
+        {/* Existing coach view content */}
+      </div>
+    </div>
+  );
+
   const fetchCoachProfile = async () => {
     if (!user) return;
     setProfileLoading(true);
@@ -13726,7 +13736,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
            <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
              {onboardingMessages.map((m, idx) => (
                <div
-                 key={idx}
+                 key={`onboarding-${idx}`}
                  className={cn(
                    "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
                    m.sender === 'user'
