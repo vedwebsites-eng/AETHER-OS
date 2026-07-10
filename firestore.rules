@@ -254,9 +254,9 @@ service cloud.firestore {
     // CoachChats
     match /coach_chats/{chatId} {
       allow read: if isOwner(resource.data.userId);
-      allow create: if isOwner(incoming().userId);
-      allow update: if isOwner(existing().userId);
-      allow delete: if isOwner(existing().userId);
+      allow create: if isOwner(incoming().userId) && isVerified();
+      allow update: if isOwner(existing().userId) && isVerified();
+      allow delete: if isOwner(existing().userId) && isVerified();
     }
 
     // CoachProfiles

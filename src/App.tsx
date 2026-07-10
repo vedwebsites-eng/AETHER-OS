@@ -13346,6 +13346,28 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     }
   };
 
+  const fetchCoachProfile = async () => {
+    if (!user) return;
+    setProfileLoading(true);
+    try {
+      const profileRef = doc(db, 'coach_profiles', user.uid);
+      const profileSnap = await getDoc(profileRef);
+      if (profileSnap.exists()) {
+        setCoachProfile(profileSnap.data());
+      } else {
+        setCoachProfile(null);
+      }
+    } catch (err) {
+      setCoachProfile(null);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCoachProfile();
+  }, [user]);
+
   return (
     <div className="flex h-full animate-in fade-in duration-500">
       {/* CHAT SIDEBAR */}
@@ -13537,10 +13559,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       </div>
     </div>
   );
-
-  useEffect(() => {
-    fetchCoachProfile();
-  }, [user]);
 
   const ONBOARDING_QUESTIONS = [
     { key: 'userName', question: "Initializing neural guidance system...\n\nBefore we begin, I need to calibrate to you.\n\nWhat should I call you?" },
