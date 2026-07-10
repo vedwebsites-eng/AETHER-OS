@@ -13296,6 +13296,10 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isGenerating, onboardingMessages]);
 
+  useEffect(() => {
+    fetchCoachProfile();
+  }, [user]);
+
   const startNewChat = async () => {
     if (!user) return;
     try {
@@ -13426,16 +13430,16 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
             ))}
             <div ref={messagesEndRef} />
           </div>
+        ) : messages.length === 0 ? (
+           // JARVIS-STYLE DASHBOARD LANDING
+           <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-4">
+              <h2 className="text-xl font-black font-mono text-white uppercase tracking-widest">NEURAL_CALIBRATION_COMPLETE</h2>
+              <p className="text-xs font-mono text-white/50 max-w-sm">Aether OS is online. Ask for a balance scan, plan tomorrow, or synthesize your recent habits to begin.</p>
+           </div>
         ) : (
           // NORMAL CHAT
           <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
-            {(messages.length > 0 ? messages : [
-              { 
-                 sender: 'coach', 
-                 text: `Aether OS Neural Guidance calibrated. I am ${coachProfile.coachName}. I am analyzing your daily logs, streaks, and life metrics. Ask me to synthesize balance, find weak areas, or write a guidance plan.`,
-                 createdAt: new Date().toISOString()
-              }
-            ]).map((m, idx) => (
+            {messages.map((m, idx) => (
               <div 
                 key={m.id || `fallback-msg-${idx}`} 
                 className={cn(
