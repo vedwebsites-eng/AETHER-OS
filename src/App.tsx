@@ -13271,6 +13271,8 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
 
 function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [] }: any) {
   const [messages, setMessages] = useState<any[]>([]);
+  const [chatList, setChatList] = useState<any[]>([]);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [coachProfile, setCoachProfile] = useState<any>(null);
@@ -13294,30 +13296,197 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   }, [messages, isGenerating, onboardingMessages]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[300px,1fr] gap-6">
-      <ChatManager user={user} />
-      <div className="flex flex-col gap-8">
-        {/* Existing coach view content */}
+    <div className="flex h-full animate-in fade-in duration-500">
+      {/* CHAT SIDEBAR */}
+      <div className="w-64 border-r border-white/5 flex flex-col shrink-0">
+        <div className="p-4 border-b border-white/5">
+          <button
+            onClick={startNewChat}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan/10 hover:bg-cyan/20 border border-cyan/30 text-cyan text-[10px] font-mono font-black uppercase tracking-wider rounded-xl transition-all"
+          >
+            <Plus size={13} /> New Chat
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-1">
+          {chatList.length === 0 && (
+            <p className="text-[9px] font-mono text-white/20 uppercase text-center py-6">No chats yet</p>
+          )}
+          {chatList.map(chat => (
+            <button
+              key={chat.id}
+              onClick={() => switchChat(chat.id)}
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-mono truncate transition-all ${
+                chat.id === activeChatId ? 'bg-cyan/15 text-cyan border border-cyan/20' : 'text-white/50 hover:bg-white/5 hover:text-white/80'
+              }`}
+            >
+              {chat.title || 'New Chat'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* MAIN CHAT PANE */}
+      <div className="flex-1 flex flex-col min-w-0 glass rounded-r-[2.5rem] border-r border-white/10 overflow-hidden relative bg-gradient-to-b from-indigo-950/20 via-background-nested to-transparent shadow-[0_0_50px_rgba(34,211,238,0.1)]">
+        {/* Coach Header */}
+        <div className="p-6 bg-white/5 border-b border-white/5 flex items-center justify-between">
+           <div className="flex items-center gap-3">
+              <div className="w-2.5 h-2.5 rounded-full bg-cyan animate-pulse" />
+              <div>
+                 <h3 className="text-xs font-mono font-black uppercase text-white tracking-widest">{coachProfile?.coachName?.toUpperCase() || 'AETHER_COACH'}</h3>
+                 <p className="text-[8px] font-mono text-cyan uppercase tracking-tighter">{coachProfile ? `CALIBRATED_TO_${coachProfile.userName?.toUpperCase()}` : 'INITIALIZING_PROFILE...'}</p>
+              </div>
+           </div>
+           <div className="flex items-center gap-2">
+              {messages.length > 0 && (
+                 <button
+                    type="button"
+                    onClick={handleClearConversation}
+                    title="Clear Conversation"
+                    className="p-1.5 border border-danger/20 hover:border-danger hover:bg-danger/15 text-danger rounded-md transition-all flex items-center justify-center"
+                 >
+                    <Trash2 size={12} />
+                 </button>
+              )}
+              <span className="px-2.5 py-1 bg-cyan/10 border border-cyan/20 rounded-md text-cyan text-[8px] font-mono font-black uppercase">GEMINI_LENS</span>
+           </div>
+        </div>
+
+        {/* Coach Messages area */}
+        {profileLoading ? (
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest animate-pulse">
+              LOADING_NEURAL_PROFILE...
+            </p>
+          </div>
+        ) : !coachProfile ? (
+          // ONBOARDING CHAT
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
+            {onboardingMessages.map((m, idx) => (
+              <div
+                key={`onboarding-${idx}`}
+                className={cn(
+                  "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
+                  m.sender === 'user'
+                    ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none"
+                    : "bg-white/5 border border-white/10 text-text-m mr-auto rounded-tl-none border-l-2 border-l-cyan"
+                )}
+              >
+                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
+                  {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
+                </span>
+                <p className="whitespace-pre-wrap">{m.text}</p>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+        ) : (
+          // NORMAL CHAT
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
+            {(messages.length > 0 ? messages : [
+              { 
+                 sender: 'coach', 
+                 text: `Aether OS Neural Guidance calibrated. I am ${coachProfile.coachName}. I am analyzing your daily logs, streaks, and life metrics. Ask me to synthesize balance, find weak areas, or write a guidance plan.`,
+                 createdAt: new Date().toISOString()
+              }
+            ]).map((m, idx) => (
+              <div 
+                key={m.id || `fallback-msg-${idx}`} 
+                className={cn(
+                  "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
+                  m.sender === 'user' 
+                    ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none" 
+                    : "bg-white/5 border border-white/10 text-text-m mr-auto rounded-tl-none border-l-2 border-l-cyan"
+                )}
+              >
+                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
+                  {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
+                </span>
+                <p className="whitespace-pre-wrap">{m.text}</p>
+              </div>
+            ))}
+            {isGenerating && (
+               <div className="bg-white/5 border border-white/10 text-cyan max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed mr-auto rounded-tl-none flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.2s]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.4s]" />
+                  <span className="text-[10px] uppercase font-black tracking-widest opacity-60">SYNAPSE_PROCESSING_REPLY...</span>
+               </div>
+            )}
+             <div ref={messagesEndRef} />
+          </div>
+        )}
+
+        {/* INPUT AREA */}
+        {!profileLoading && (!coachProfile || messages.length > 0) && (
+          <div className="p-6 border-t border-white/5 space-y-4 bg-white/5">
+            {coachProfile && (
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: 'synth', label: "BALANCE_SCAN", prompt: "Analyze my current life sync parameters and streak. Synthesize where my balance scores are healthy and which specific categories are suffering. Keep it actionable." },
+                  { id: 'weak', label: 'WEAK_ROUTINES', prompt: `Based on my weakest category which is ${weakestSphere}, help me identify potential bottlenecks in my routines and suggest 3 high-impact habits to introduce today.` },
+                  { id: 'obstacles', label: 'TOMORROW', prompt: "Synthesize today's metrics and predict what psychological or scheduling obstacles I might face tomorrow. Give me a strategy to bypass them." }
+                ].map(p => (
+                  <button
+                    key={p.id}
+                    disabled={isGenerating}
+                    onClick={() => handleSendMessage(p.prompt)}
+                    className="px-3 py-1.5 glass hover:bg-cyan/15 hover:border-cyan/30 text-white border border-white/5 text-[9px] font-mono rounded-lg transition-all font-black uppercase tracking-wider"
+                  >
+                    ➕ {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!coachProfile) {
+                  handleOnboardingInput(onboardingInput);
+                  setOnboardingInput('');
+                } else {
+                  handleSendMessage(inputText);
+                }
+              }}
+              className="flex gap-2"
+            >
+              <input
+                value={!coachProfile ? onboardingInput : inputText}
+                onChange={(e) => !coachProfile ? setOnboardingInput(e.target.value) : setInputText(e.target.value)}
+                placeholder={!coachProfile ? "TYPE_YOUR_RESPONSE..." : "PROMPT_AETHER_COACH..."}
+                disabled={isGenerating}
+                className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={isGenerating || (!coachProfile ? !onboardingInput.trim() : !inputText.trim())}
+                className="px-6 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40"
+              >
+                {!coachProfile ? 'REPLY' : 'SEND'}
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );
 
-  const fetchCoachProfile = async () => {
+  const startNewChat = async () => {
     if (!user) return;
-    setProfileLoading(true);
     try {
-      const profileRef = doc(db, 'coach_profiles', user.uid);
-      const profileSnap = await getDoc(profileRef);
-      if (profileSnap.exists()) {
-        setCoachProfile(profileSnap.data());
-      } else {
-        setCoachProfile(null);
-      }
-    } catch (err) {
-      setCoachProfile(null);
-    } finally {
-      setProfileLoading(false);
+      const newChatRef = await addDoc(collection(db, 'coach_chats'), {
+        userId: user.uid,
+        title: 'New Chat',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      setActiveChatId(newChatRef.id);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'coach_chats');
     }
+  };
+
+  const switchChat = (chatId: string) => {
+    setActiveChatId(chatId);
   };
 
   useEffect(() => {
@@ -13402,29 +13571,33 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     }
   }, [profileLoading, coachProfile]);
 
-  const fetchCoachMessages = async () => {
+  // Listener for chat list
+  useEffect(() => {
     if (!user) return;
+    const q = query(collection(db, 'coach_chats'), where('userId', '==', user.uid), orderBy('updatedAt', 'desc'));
+    const unsub = onSnapshot(q, (snap) => {
+      const chats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setChatList(chats);
+      // Auto-select most recent chat if none active yet
+      setActiveChatId(prev => prev || (chats[0]?.id ?? null));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'coach_chats'));
+    return () => unsub();
+  }, [user]);
+
+  // Listener for messages scoped to activeChatId
+  useEffect(() => {
+    if (!user || !activeChatId) { setMessages([]); return; }
     const q = query(
       collection(db, 'coach_messages'),
       where('userId', '==', user.uid),
-      orderBy('createdAt', 'asc'),
-      limit(50)
+      where('chatId', '==', activeChatId),
+      orderBy('createdAt', 'asc')
     );
-    try {
-      const snap = await getDocs(q);
-      const queriedMessages = (snap.docs || []).map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as any));
-      setMessages(queriedMessages);
-    } catch (err: any) {
-      handleFirestoreError(err, OperationType.LIST, 'coach_messages');
-    }
-  };
-
-  useEffect(() => {
-    fetchCoachMessages();
-  }, [user]);
+    const unsub = onSnapshot(q, (snap) => {
+      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'coach_messages'));
+    return () => unsub();
+  }, [user, activeChatId]);
 
   const weakestSphere = useMemo(() => {
     const values = stats?.lifeSync?.current || {};
@@ -13593,9 +13766,21 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     setIsGenerating(true);
 
     try {
+      let currentChatId = activeChatId;
+      if (!currentChatId) {
+        const newChatRef = await addDoc(collection(db, 'coach_chats'), {
+          userId: user.uid,
+          title: textToSend.slice(0, 40),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        currentChatId = newChatRef.id;
+        setActiveChatId(currentChatId);
+      }
       // 1. Add user message
       const userMsgData = removeUndefinedFields({
         userId: user.uid,
+        chatId: currentChatId,
         sender: 'user',
         text: textToSend,
         createdAt: new Date().toISOString()
@@ -13628,13 +13813,21 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       // 2. Add coach reply
       const coachMsgData = removeUndefinedFields({
         userId: user.uid,
+        chatId: currentChatId,
         sender: 'coach',
         text: result.text || "NEURAL_SYNAPSE_TIMEOUT. Please retry.",
         pendingActions: result.toolCalls && result.toolCalls.length > 0 ? result.toolCalls : undefined,
         createdAt: new Date().toISOString()
       });
       await addDoc(collection(db, 'coach_messages'), coachMsgData);
-      await fetchCoachMessages();
+      
+      // Update chat
+      const chatRef = doc(db, 'coach_chats', currentChatId);
+      const chatSnap = chatList.find(c => c.id === currentChatId);
+      await updateDoc(chatRef, {
+        updatedAt: new Date().toISOString(),
+        ...(!chatSnap || chatSnap.title === 'New Chat' ? { title: textToSend.slice(0, 40) } : {})
+      });
 
     } catch (err: any) {
        const errMsg = err?.message || String(err);
@@ -13649,12 +13842,12 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
        try {
          const errorMsgData = removeUndefinedFields({
            userId: user.uid,
+           chatId: activeChatId,
            sender: 'coach',
            text: coachErrorText,
            createdAt: new Date().toISOString()
          });
          await addDoc(collection(db, 'coach_messages'), errorMsgData);
-         await fetchCoachMessages();
        } catch (innerErr) {
        }
      } finally {
