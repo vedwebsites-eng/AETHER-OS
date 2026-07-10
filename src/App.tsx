@@ -4,7 +4,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFirestoreError, OperationType, removeUndefinedFields } from './lib/firebase';
 import { onAuthStateChanged, User, signOut, updateProfile } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit, getDocs, deleteField } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit, getDocs, deleteField, limitToLast } from 'firebase/firestore';
 import { ChatManager } from './components/ChatManager';
 import { analyzeJournalEntry, breakdownBossTask, generateDailyBriefing, generateLifeInsight, analyzeLifeBalance, generateCoachResponse, suggestPassword } from './services/geminiService';
 import { motion, AnimatePresence } from 'motion/react';
@@ -13640,7 +13640,8 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       collection(db, 'coach_messages'),
       where('userId', '==', user.uid),
       where('chatId', '==', activeChatId),
-      orderBy('createdAt', 'asc')
+      orderBy('createdAt', 'asc'),
+      limitToLast(50)
     );
     const unsub = onSnapshot(q, (snap) => {
       setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -13810,6 +13811,12 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
 
   const handleSendMessage = async (textToSend: string) => {
     if (!textToSend.trim() || isGenerating || !user) return;
+
+    if (messages.length >= 150) {
+      setCompleteToast('CHAT_MAX_LIMIT_REACHED');
+      setTimeout(() => setCompleteToast(null), 3000);
+      return;
+    }
 
     setInputText('');
     setIsGenerating(true);
