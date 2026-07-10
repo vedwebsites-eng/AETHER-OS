@@ -13275,6 +13275,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [completeToast, setCompleteToast] = useState<string | null>(null);
   const [coachProfile, setCoachProfile] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -13294,6 +13295,52 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isGenerating, onboardingMessages]);
+
+  const startNewChat = async () => {
+    if (!user) return;
+    try {
+      const newChatRef = await addDoc(collection(db, 'coach_chats'), {
+        userId: user.uid,
+        title: 'New Chat',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      setActiveChatId(newChatRef.id);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.CREATE, 'coach_chats');
+    }
+  };
+
+  const switchChat = (chatId: string) => {
+    setActiveChatId(chatId);
+  };
+
+  const regenerateResponse = async (coachMsg: any) => {
+    if (!user || isGenerating) return;
+    setIsGenerating(true);
+    try {
+      const msgIndex = messages.findIndex(m => m.id === coachMsg.id);
+      const priorUserMsg = [...messages.slice(0, msgIndex)].reverse().find(m => m.sender === 'user');
+      if (!priorUserMsg) return;
+
+      const history = messages.slice(0, msgIndex).slice(-20).map(m => ({
+        role: m.sender === 'user' ? 'user' as const : 'model' as const,
+        parts: [{ text: m.text || '' }]
+      }));
+
+      const result = await generateCoachResponse(history, stats, weakestSphere, buildCoachContext(), coachProfile);
+      await updateDoc(doc(db, 'coach_messages', coachMsg.id), {
+        text: result?.text || coachMsg.text,
+        pendingActions: result?.toolCalls || []
+      });
+    } catch (e) {
+      console.error('Regenerate failed:', e);
+      setCompleteToast('REGENERATE_FAILED');
+      setTimeout(() => setCompleteToast(null), 2000);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <div className="flex h-full animate-in fade-in duration-500">
@@ -13392,7 +13439,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
               <div 
                 key={m.id || `fallback-msg-${idx}`} 
                 className={cn(
-                  "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
+                  "group flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
                   m.sender === 'user' 
                     ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none" 
                     : "bg-white/5 border border-white/10 text-text-m mr-auto rounded-tl-none border-l-2 border-l-cyan"
@@ -13402,6 +13449,23 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                   {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
                 </span>
                 <p className="whitespace-pre-wrap">{m.text}</p>
+                {m.sender === 'coach' && (
+                  <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(m.text); setCompleteToast('COPIED_TO_CLIPBOARD'); setTimeout(() => setCompleteToast(null), 1500); }}
+                      className="flex items-center gap-1 text-[8px] font-mono uppercase text-white/30 hover:text-cyan transition-colors"
+                    >
+                      <Copy size={10} /> Copy
+                    </button>
+                    <button
+                      onClick={() => regenerateResponse(m)}
+                      disabled={isGenerating}
+                      className="flex items-center gap-1 text-[8px] font-mono uppercase text-white/30 hover:text-cyan transition-colors disabled:opacity-30"
+                    >
+                      <RefreshCw size={10} /> Regenerate
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
             {isGenerating && (
@@ -13469,25 +13533,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       </div>
     </div>
   );
-
-  const startNewChat = async () => {
-    if (!user) return;
-    try {
-      const newChatRef = await addDoc(collection(db, 'coach_chats'), {
-        userId: user.uid,
-        title: 'New Chat',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      setActiveChatId(newChatRef.id);
-    } catch (e) {
-      handleFirestoreError(e, OperationType.CREATE, 'coach_chats');
-    }
-  };
-
-  const switchChat = (chatId: string) => {
-    setActiveChatId(chatId);
-  };
 
   useEffect(() => {
     fetchCoachProfile();
