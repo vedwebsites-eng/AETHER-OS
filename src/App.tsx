@@ -12927,7 +12927,7 @@ function DailyWorkView({
                       <CheckCircle2 size={16} className={activeTab === 'tasks' ? "text-accent" : "text-text-m"} />
                       <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">ACTIVE_TASKS</span>
                    </div>
-                   <span className="text-[9px] font-mono bg-white/5 px-2 py-0.5 rounded text-text-m border border-white/5">{pendingTasks.length} PENDING</span>
+
                 </div>
 
                 <form onSubmit={handleQuickTaskAdd} className="flex gap-3 p-1">
