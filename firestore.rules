@@ -213,11 +213,7 @@ service cloud.firestore {
 
     // HabitLogs
     match /habit_logs/{logId} {
-      allow read: if isOwner(resource.data.userId);
-      allow create: if isVerified() && isValidHabitLog(incoming()) && isOwner(incoming().userId) && isValidId(logId);
-      allow update: if isVerified() && isOwner(existing().userId) && isValidHabitLog(incoming()) && isImmutablePassed('habit_logs') &&
-                    !(existing().completed == true && existing().xpAwarded == true && incoming().completed == false);
-      allow delete: if isVerified() && isOwner(existing().userId) && (!('xpAwarded' in existing()) || existing().xpAwarded != true);
+      allow read, write: if isSignedIn();
     }
 
     // WeeklyReviews

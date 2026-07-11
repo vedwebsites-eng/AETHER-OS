@@ -2232,7 +2232,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
               <h3 className="text-xl font-serif font-black text-text-p uppercase tracking-widest italic">HISTORY</h3>
               <div className="max-h-[400px] overflow-y-auto space-y-4">
                 {history.map((snapshot, idx) => (
-                  <div key={snapshot.id || idx} className="p-4 bg-white/5 rounded-lg border border-white/5 flex justify-between items-center">
+                  <div key={snapshot.id || `${snapshot.date}-${idx}`} className="p-4 bg-white/5 rounded-lg border border-white/5 flex justify-between items-center">
                     <span className="font-mono text-text-m">{snapshot.date}</span>
                     <button onClick={() => {
                         setSelectedSnapshot(snapshot);
@@ -4278,6 +4278,9 @@ export default function App() {
       if (existingLog && existingLog.completed) {
         // UNCOMPLETING — mark as not done, but NEVER give XP back or re-award
         await updateDoc(doc(db, 'habit_logs', existingLog.id), {
+          userId: existingLog.userId,
+          habitId: existingLog.habitId,
+          date: existingLog.date,
           completed: false,
           uncompletedAt: new Date().toISOString()
         });
@@ -4304,6 +4307,9 @@ export default function App() {
           if (alreadyEarnedXP) {
             addToTerminal('HABIT_XP_ALREADY_AWARDED: XP already given for this habit today.', 'warn');
             await updateDoc(doc(db, 'habit_logs', existingLog.id), {
+              userId: existingLog.userId,
+              habitId: existingLog.habitId,
+              date: existingLog.date,
               completed: true,
               uncompletedAt: null
             });
@@ -8088,83 +8094,6 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
             </label>
           </div>
 
-          {/* ADD A HABIT CHECKLIST */}
-          <div className="col-span-2 md:col-span-2 border-t md:border-t-0 md:border-l border-white/10 pt-4 md:pt-0 md:pl-4 space-y-2">
-            <label className="text-[10px] font-bold text-cyan uppercase tracking-widest font-mono flex items-center gap-1.5 pl-1 font-black">
-              <Cpu size={12} className="text-cyan animate-pulse" />
-              ADD_HABIT_TO_TASKS
-            </label>
-            <div className="space-y-1.5 max-h-[140px] overflow-y-auto no-scrollbar bg-black/30 p-3 rounded-lg border border-white/5 text-[11px] font-mono">
-              {activeHabits.map((h: any, i: number) => {
-                const todayStr = format(new Date(), 'yyyy-MM-dd');
-                const alreadyHasTask = tasks.some(t => 
-                  t.userId === user.uid && 
-                  t.createdAt.startsWith(todayStr) && 
-                  (t.title.trim().toLowerCase() === h.name.trim().toLowerCase() || t.habitId === h.id)
-                );
-                
-                return (
-                  <label key={`task-habit-sel-${h.id || 'habit'}-${i}`} className="flex items-center gap-3 cursor-pointer group p-1.5 rounded hover:bg-white/5 transition-all text-text-m hover:text-white">
-                    <input 
-                      type="checkbox"
-                      checked={alreadyHasTask}
-                      onChange={async (e) => {
-                        const isChecked = e.target.checked;
-                        if (isChecked) {
-                          try {
-                            const newTask = {
-                              userId: user.uid,
-                              title: h.name,
-                              priority: 'medium' as const,
-                              status: 'pending' as const,
-                              category: h.category || 'routine',
-                              estimate: 30,
-                              isChallenging: false,
-                              isBoss: false,
-                              habitId: h.id,
-                              createdAt: new Date().toISOString(),
-                              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                              isExpired: false
-                            };
-                            await addDoc(collection(db, 'tasks'), newTask);
-                            setCompleteToast(`Activated Habit as Task today: ${h.name}`);
-                            setTimeout(() => setCompleteToast(null), 3000);
-                          } catch (err) {
-                            console.error("Error creating habit task", err);
-                          }
-                        } else {
-                          try {
-                            const todayStr = format(new Date(), 'yyyy-MM-dd');
-                            const pendingLinkedTask = tasks.find(t => 
-                              t.userId === user.uid &&
-                              t.createdAt.startsWith(todayStr) && 
-                              (t.title.trim().toLowerCase() === h.name.trim().toLowerCase() || t.habitId === h.id) &&
-                              t.status === 'pending'
-                            );
-                            if (pendingLinkedTask) {
-                              await deleteDoc(doc(db, 'tasks', pendingLinkedTask.id));
-                              setCompleteToast(`De-activated Habit Task: ${h.name}`);
-                              setTimeout(() => setCompleteToast(null), 3000);
-                            }
-                          } catch (err) {
-                            console.error("Error deleting habit task", err);
-                          }
-                        }
-                      }}
-                      className="w-4 h-4 rounded border-white/20 bg-black/40 text-cyan focus:ring-0 cursor-pointer"
-                    />
-                    <span className="truncate flex-1">{h.name.toUpperCase()}</span>
-                    {alreadyHasTask && (
-                      <span className="text-[8px] font-black font-mono bg-cyan/20 border border-cyan/40 text-cyan px-2 py-0.5 rounded tracking-widest uppercase">active</span>
-                    )}
-                  </label>
-                );
-              })}
-              {activeHabits.length === 0 && (
-                <p className="text-[9px] font-mono text-text-m opacity-40 uppercase italic text-center py-4">No active habits. Create them in Habits view first!</p>
-              )}
-            </div>
-          </div>
         </div>
 
         <button className="md:hidden w-full bg-accent px-10 py-4 text-white font-black hover:bg-white hover:text-black transition-all rounded border border-white/10 flex items-center justify-center gap-3 uppercase tracking-[0.2em]">
@@ -12983,7 +12912,7 @@ function DailyWorkView({
                    <h3 className="text-sm font-mono font-black uppercase text-text-p tracking-wider">DAILY_WORK_CTRL</h3>
                    <p className="text-[9px] font-mono text-text-m opacity-50 uppercase tracking-tight">Active tasks / routines / timeline</p>
                 </div>
-                <div className="flex gap-1 bg-white/5 p-1 rounded-xl border border-white/5">
+                <div className="flex gap-1 bg-white/5 p-1.5 rounded-xl border border-white/5">
                    <button onClick={() => setActiveTab('tasks')} className={cn("px-3 py-1.5 rounded-lg text-[9px] font-mono font-black uppercase tracking-wider transition-all", activeTab === 'tasks' ? "bg-accent text-white" : "text-text-m hover:text-white")}>T</button>
                    <button onClick={() => setActiveTab('habits')} className={cn("px-3 py-1.5 rounded-lg text-[9px] font-mono font-black uppercase tracking-wider transition-all", activeTab === 'habits' ? "bg-accent text-white" : "text-text-m hover:text-white")}>H</button>
                    <button onClick={() => setActiveTab('timetable')} className={cn("px-3 py-1.5 rounded-lg text-[9px] font-mono font-black uppercase tracking-wider transition-all", activeTab === 'timetable' ? "bg-accent text-white" : "text-text-m hover:text-white")}>G</button>
@@ -12992,7 +12921,7 @@ function DailyWorkView({
 
              {/* Dynamic Sub-sections inside left sidebar */}
              {/* 1. TASKS SECTION */}
-             <div className={cn("space-y-4 border-b border-white/5 pb-6 last:border-0", activeTab === 'tasks' ? "ring-1 ring-accent/30 p-4 rounded-2xl bg-accent/5" : "opacity-80")}>
+             <div className={cn("space-y-4 border-b border-white/5 pb-6 last:border-0", activeTab === 'tasks' ? "ring-1 ring-accent/30 p-6 rounded-2xl bg-accent/5" : "p-4 opacity-80")}>
                 <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveTab('tasks')}>
                    <div className="flex items-center gap-2">
                       <CheckCircle2 size={16} className={activeTab === 'tasks' ? "text-accent" : "text-text-m"} />
@@ -13001,12 +12930,12 @@ function DailyWorkView({
                    <span className="text-[9px] font-mono bg-white/5 px-2 py-0.5 rounded text-text-m border border-white/5">{pendingTasks.length} PENDING</span>
                 </div>
 
-                <form onSubmit={handleQuickTaskAdd} className="flex gap-2">
+                <form onSubmit={handleQuickTaskAdd} className="flex gap-3 p-1">
                    <input 
                      value={quickTaskTitle}
                      onChange={(e) => setQuickTaskTitle(e.target.value)}
                      placeholder="FAST_TASK_ADD..."
-                     className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-accent/50 transition-all"
+                     className="flex-1 w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-accent/50 transition-all"
                    />
                    <button type="submit" className="p-2 bg-accent text-white rounded-xl hover:scale-105 active:scale-95 transition-all"><Plus size={16} /></button>
                 </form>
@@ -13111,7 +13040,7 @@ function DailyWorkView({
              </div>
 
              {/* 2. HABITS SECTION */}
-             <div className={cn("space-y-4 border-b border-white/5 pb-6 last:border-0", activeTab === 'habits' ? "ring-1 ring-cyan/30 p-4 rounded-2xl bg-cyan/5" : "opacity-80")}>
+             <div className={cn("space-y-4 border-b border-white/5 pb-6 last:border-0", activeTab === 'habits' ? "ring-1 ring-cyan/30 p-6 rounded-2xl bg-cyan/5" : "p-4 opacity-80")}>
                 <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveTab('habits')}>
                    <div className="flex items-center gap-2">
                       <Cpu size={16} className={activeTab === 'habits' ? "text-cyan" : "text-text-m"} />
@@ -13119,12 +13048,12 @@ function DailyWorkView({
                    </div>
                 </div>
 
-                <form onSubmit={handleQuickHabitAdd} className="flex gap-2">
+                <form onSubmit={handleQuickHabitAdd} className="flex gap-3 p-1">
                    <input 
                      value={quickHabitName}
                      onChange={(e) => setQuickHabitName(e.target.value)}
                      placeholder="FAST_HABIT_ADD..."
-                     className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all"
+                     className="flex-1 w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all"
                    />
                    <button type="submit" className="p-2 bg-cyan text-white rounded-xl hover:scale-105 active:scale-95 transition-all"><Plus size={16} /></button>
                 </form>
