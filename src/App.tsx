@@ -4684,7 +4684,14 @@ export default function App() {
                   </span>
                 </div>
                 <h1 className="text-xl lg:text-3xl font-serif font-black uppercase tracking-widest text-text-p flex items-center gap-2 truncate">
-                  {user.displayName || 'OPERATOR'} <span className="text-cyan text-glow-cyan ml-1 text-[10px] lg:text-sm font-mono tracking-tighter shrink-0">LVL_{stats?.level || 1}</span>
+                  {user.displayName || 'OPERATOR'} 
+                  <span className="text-cyan text-glow-cyan ml-1 text-[10px] lg:text-sm font-mono tracking-tighter shrink-0">LVL_{stats?.level || 1}</span>
+                  {stats && new Date(stats.lastActiveDate).toDateString() !== new Date().toDateString() && (
+                    <div className="flex items-center gap-1 text-warning animate-pulse ml-2 px-2 py-0.5 rounded-full border border-warning/20 bg-warning/10">
+                      <Flame size={10} />
+                      <span className="text-[8px] uppercase font-black tracking-widest">STREAK_AT_RISK</span>
+                    </div>
+                  )}
                 </h1>
                 {stats && (() => {
                   const { progress, totalForLevel } = getLevelFromXP(stats.experience);
@@ -13641,11 +13648,12 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   // Listener for chat list
   useEffect(() => {
     if (!user) return;
-    const q = query(collection(db, 'coach_chats'), where('userId', '==', user.uid), orderBy('updatedAt', 'desc'));
+    const q = query(collection(db, 'coach_chats'), where('userId', '==', user.uid));
     const unsub = onSnapshot(q, (snap) => {
-      const chats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const chats = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
       setChatList(chats);
-      // Auto-select most recent chat if none active yet
       setActiveChatId(prev => prev || (chats[0]?.id ?? null));
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'coach_chats'));
     return () => unsub();
@@ -13942,173 +13950,16 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
        const snapshot = await getDocs(q);
        if (snapshot.empty) return;
  
-       const batch = writeBatch(db);
-       snapshot.docs.forEach((doc) => {
-         batch.delete(doc.ref);
-       });
-       await batch.commit();
-       setMessages([]);
-     } catch (e) {
-       handleFirestoreError(e, OperationType.DELETE, 'coach_messages');
+        const batch = writeBatch(db);
+        snapshot.docs.forEach((doc) => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+        setMessages([]);
+      } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, 'coach_messages');
       }
     };
-
-    return (
-    <div className="max-w-[1600px] mx-auto min-h-[85vh] flex p-4 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
-      {/* Sidebar: History/Sessions */}
-      <div className="hidden md:flex w-64 flex-col bg-white/5 border border-white/10 rounded-2xl p-4 gap-4">
-        <h3 className="text-xs font-mono font-black uppercase text-white/50 tracking-widest">Neural_Logs</h3>
-        <div className="flex-1 overflow-y-auto no-scrollbar">
-          {/* List of sessions or history logs could go here */}
-          <div className="text-[10px] font-mono text-white/20 uppercase tracking-widest">Current_Session_Active</div>
-        </div>
-      </div>
-
-      {/* Main Chat Window */}
-      <div className="flex-1 flex flex-col glass rounded-[2.5rem] border border-white/10 overflow-hidden h-[85vh] relative bg-gradient-to-b from-indigo-950/20 via-background-nested to-transparent shadow-[0_0_50px_rgba(34,211,238,0.1)]">
-         {/* Coach Header */}
-         <div className="p-6 bg-white/5 border-b border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-               <div className="w-2.5 h-2.5 rounded-full bg-cyan animate-pulse" />
-               <div>
-                  <h3 className="text-xs font-mono font-black uppercase text-white tracking-widest">{coachProfile?.coachName?.toUpperCase() || 'AETHER_COACH'}</h3>
-                  <p className="text-[8px] font-mono text-cyan uppercase tracking-tighter">{coachProfile ? `CALIBRATED_TO_${coachProfile.userName?.toUpperCase()}` : 'INITIALIZING_PROFILE...'}</p>
-               </div>
-            </div>
-            <div className="flex items-center gap-2">
-               {messages.length > 0 && (
-                  <button
-                     type="button"
-                     onClick={handleClearConversation}
-                     title="Clear Conversation"
-                     className="p-1.5 border border-danger/20 hover:border-danger hover:bg-danger/15 text-danger rounded-md transition-all flex items-center justify-center"
-                  >
-                     <Trash2 size={12} />
-                  </button>
-               )}
-               <span className="px-2.5 py-1 bg-cyan/10 border border-cyan/20 rounded-md text-cyan text-[8px] font-mono font-black uppercase">GEMINI_LENS</span>
-            </div>
-         </div>
-
-         {/* Coach Messages area */}
-         {profileLoading ? (
-           <div className="flex-1 flex items-center justify-center">
-             <p className="text-[10px] font-mono text-white/30 uppercase tracking-widest animate-pulse">
-               LOADING_NEURAL_PROFILE...
-             </p>
-           </div>
-         ) : !coachProfile ? (
-           // ONBOARDING CHAT
-           <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
-             {onboardingMessages.map((m, idx) => (
-               <div
-                 key={`onboarding-${idx}`}
-                 className={cn(
-                   "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
-                   m.sender === 'user'
-                     ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none"
-                     : "bg-white/5 border border-white/10 text-text-m mr-auto rounded-tl-none border-l-2 border-l-cyan"
-                 )}
-               >
-                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
-                   {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
-                 </span>
-                 <p className="whitespace-pre-wrap">{m.text}</p>
-               </div>
-             ))}
-             <div ref={messagesEndRef} />
-           </div>
-         ) : (
-           // NORMAL CHAT
-           <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
-             {(messages.length > 0 ? messages : [
-               { 
-                  sender: 'coach', 
-                  text: `Aether OS Neural Guidance calibrated. I am ${coachProfile.coachName}. I am analyzing your daily logs, streaks, and life metrics. Ask me to synthesize balance, find weak areas, or write a guidance plan.`,
-                  createdAt: new Date().toISOString()
-               }
-             ]).map((m, idx) => (
-               <div 
-                 key={m.id || `fallback-msg-${idx}`} 
-                 className={cn(
-                   "flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
-                   m.sender === 'user' 
-                     ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none" 
-                     : "bg-white/5 border border-white/10 text-text-m mr-auto rounded-tl-none border-l-2 border-l-cyan"
-                 )}
-               >
-                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
-                   {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
-                 </span>
-                 <p className="whitespace-pre-wrap">{m.text}</p>
-               </div>
-             ))}
-             {isGenerating && (
-                <div className="bg-white/5 border border-white/10 text-cyan max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed mr-auto rounded-tl-none flex items-center gap-2">
-                   <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce" />
-                   <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.2s]" />
-                   <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.4s]" />
-                   <span className="text-[10px] uppercase font-black tracking-widest opacity-60">SYNAPSE_PROCESSING_REPLY...</span>
-                </div>
-             )}
-              <div ref={messagesEndRef} />
-           </div>
-         )}
-
-         {/* INPUT AREA */}
-         {!profileLoading && (!coachProfile || messages.length > 0) && (
-           <div className="p-6 border-t border-white/5 space-y-4 bg-white/5">
-             {coachProfile && (
-               <div className="flex flex-wrap gap-2">
-                 {[
-                   { id: 'synth', label: "BALANCE_SCAN", prompt: "Analyze my current life sync parameters and streak. Synthesize where my balance scores are healthy and which specific categories are suffering. Keep it actionable." },
-                   { id: 'weak', label: 'WEAK_ROUTINES', prompt: `Based on my weakest category which is ${weakestSphere}, help me identify potential bottlenecks in my routines and suggest 3 high-impact habits to introduce today.` },
-                   { id: 'obstacles', label: 'TOMORROW', prompt: "Synthesize today's metrics and predict what psychological or scheduling obstacles I might face tomorrow. Give me a strategy to bypass them." }
-                 ].map(p => (
-                   <button
-                     key={p.id}
-                     disabled={isGenerating}
-                     onClick={() => handleSendMessage(p.prompt)}
-                     className="px-3 py-1.5 glass hover:bg-cyan/15 hover:border-cyan/30 text-white border border-white/5 text-[9px] font-mono rounded-lg transition-all font-black uppercase tracking-wider"
-                   >
-                     ➕ {p.label}
-                   </button>
-                 ))}
-               </div>
-             )}
-             <form
-               onSubmit={(e) => {
-                 e.preventDefault();
-                 if (!coachProfile) {
-                   handleOnboardingInput(onboardingInput);
-                   setOnboardingInput('');
-                 } else {
-                   handleSendMessage(inputText);
-                 }
-               }}
-               className="flex gap-2"
-             >
-               <input
-                 value={!coachProfile ? onboardingInput : inputText}
-                 onChange={(e) => !coachProfile ? setOnboardingInput(e.target.value) : setInputText(e.target.value)}
-                 placeholder={!coachProfile ? "TYPE_YOUR_RESPONSE..." : "PROMPT_AETHER_COACH..."}
-                 disabled={isGenerating}
-                 className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
-               />
-               <button
-                 type="submit"
-                 disabled={isGenerating || (!coachProfile ? !onboardingInput.trim() : !inputText.trim())}
-                 className="px-6 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40"
-               >
-                 {!coachProfile ? 'REPLY' : 'SEND'}
-               </button>
-             </form>
-           </div>
-         )}
-      </div>
-    </div>
-  );
 
 }
 
