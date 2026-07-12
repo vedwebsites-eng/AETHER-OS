@@ -214,8 +214,21 @@ export interface FirestoreErrorInfo {
   }
 }
 
+export let notifyError: (msg: string) => void = () => {};
+export function setErrorNotifier(fn: (msg: string) => void) {
+  notifyError = fn;
+}
+
+function getFriendlyErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  if (raw.includes('permission-denied') || raw.includes('insufficient permissions')) return "ACCESS_DENIED: Firestore rules blocked that action.";
+  if (raw.includes('unavailable') || raw.includes('network')) return "CONNECTION_LOST: Couldn't reach the server. Check your internet.";
+  if (raw.includes('not-found')) return "NOT_FOUND: That item no longer exists.";
+  return "SYNC_ERROR: Something went wrong saving that. Please try again.";
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
+  const errInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
       userId: auth.currentUser?.uid,
@@ -230,9 +243,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     },
     operationType,
     path
-  }
+  };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  notifyError(getFriendlyErrorMessage(error));
 }
 
 /**
