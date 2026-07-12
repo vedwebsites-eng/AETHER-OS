@@ -250,9 +250,9 @@ service cloud.firestore {
     // CoachChats
     match /coach_chats/{chatId} {
       allow read: if isOwner(resource.data.userId);
-      allow create: if isOwner(incoming().userId) && isVerified();
-      allow update: if isOwner(existing().userId) && isVerified();
-      allow delete: if isOwner(existing().userId) && isVerified();
+      allow create: if isOwner(incoming().userId);
+      allow update: if isOwner(existing().userId);
+      allow delete: if isOwner(existing().userId);
     }
 
     // CoachProfiles
@@ -269,9 +269,6 @@ service cloud.firestore {
     }
 
     // NotepadData
-    match /notepad_data {
-      allow read: if isSignedIn();
-    }
     match /notepad_data/{docId} {
       allow read: if isOwner(docId);
       allow create: if isOwner(docId) && incoming().userId == docId;
