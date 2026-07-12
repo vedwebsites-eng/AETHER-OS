@@ -1,3 +1,0 @@
-      <div className="flex justify-between items-center cursor-pointer" onClick={() => setIsCollapsed(!isCollapsed)}>
-                <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveTab('tasks')}>
-                <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveTab('habits')}>
