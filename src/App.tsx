@@ -2,7 +2,7 @@ import ReactMarkdown from 'react-markdown';
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFirestoreError, OperationType, removeUndefinedFields } from './lib/firebase';
+import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFirestoreError, OperationType, removeUndefinedFields, setErrorNotifier } from './lib/firebase';
 import { onAuthStateChanged, User, signOut, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit, getDocs, deleteField, limitToLast } from 'firebase/firestore';
 import { ChatManager } from './components/ChatManager';
@@ -2885,6 +2885,7 @@ export default function App() {
   const [levelUpLevel, setLevelUpLevel] = useState<number | null>(null);
   const [celebratingAchievement, setCelebratingAchievement] = useState<Achievement | null>(null);
   const [completeToast, setCompleteToast] = useState<string | null>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
   const [isMotivationPortalOpen, setIsMotivationPortalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [terminalLogs, setTerminalLogs] = useState<{ id: string; msg: string; type: 'info' | 'warn' | 'error' | 'success'; time: string }[]>([]);
@@ -3251,6 +3252,13 @@ export default function App() {
       setLoading(false);
     });
     return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    setErrorNotifier((msg: string) => {
+      setErrorToast(msg);
+      setTimeout(() => setErrorToast(null), 6000);
+    });
   }, []);
 
   useEffect(() => {
@@ -4946,6 +4954,16 @@ export default function App() {
             className="fixed bottom-32 left-1/2 -translate-x-1/2 glass px-8 py-4 rounded-full border border-cyan/30 text-cyan font-mono font-black tracking-widest text-xs uppercase z-[250] shadow-[0_0_30px_rgba(0,217,255,0.2)]"
           >
             {completeToast}
+          </motion.div>
+        )}
+        {errorToast && (
+          <motion.div 
+            initial={{ y: 50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 50, opacity: 0 }}
+            className="fixed bottom-32 left-1/2 -translate-x-1/2 glass px-8 py-4 rounded-full border border-danger/40 text-danger font-mono font-black tracking-widest text-xs uppercase z-[250] shadow-[0_0_30px_rgba(239,68,68,0.25)]"
+          >
+            ⚠ {errorToast}
           </motion.div>
         )}
         {focusTask && (
