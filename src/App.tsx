@@ -7915,7 +7915,11 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
       updateData.status = 'completed';
     }
     
-    await updateDoc(doc(db, 'tasks', task.id), updateData);
+    try {
+      await updateDoc(doc(db, 'tasks', task.id), updateData);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `tasks/${task.id}/subTasks`);
+    }
   };
 
   const deleteSubTask = async (task: Task, subTaskId: string) => {
@@ -8939,16 +8943,19 @@ function FocusProtocol({ stats, user, onAddXP, setCompleteToast, addToTerminal }
       if (elapsedSeconds < requiredSeconds) {
         addToTerminal?.('SESSION_INVALID: Minimum required active focus time for XP not met.', 'warn');
       } else {
-        await updateDoc(doc(db, 'user_stats', user.uid), {
-          pomodoroSessions: newTotalSessions,
-          pomodoroToday: newTodaySessions
-        });
-
-        onAddXP(13, 'POMODORO_SESSION_COMPLETE');
-        if (isLastInCycle) {
-          onAddXP(25, 'FOCUS_CYCLE_MASTER_BONUS');
-          setCompleteToast('FOCUS_CYCLE_PROTOCOL_COMPLETE');
-          setTimeout(() => setCompleteToast(null), 3000);
+        try {
+          await updateDoc(doc(db, 'user_stats', user.uid), {
+            pomodoroSessions: newTotalSessions,
+            pomodoroToday: newTodaySessions
+          });
+          onAddXP(13, 'POMODORO_SESSION_COMPLETE');
+          if (isLastInCycle) {
+            onAddXP(25, 'FOCUS_CYCLE_MASTER_BONUS');
+            setCompleteToast('FOCUS_CYCLE_PROTOCOL_COMPLETE');
+            setTimeout(() => setCompleteToast(null), 3000);
+          }
+        } catch (e) {
+          handleFirestoreError(e, OperationType.UPDATE, `user_stats/${user.uid}/pomodoro`);
         }
       }
 
