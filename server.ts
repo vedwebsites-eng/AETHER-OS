@@ -344,11 +344,13 @@ If the user asks you to create a task or start a habit, call the appropriate too
         });
       }
       if (recentJournals && recentJournals.length > 0) {
-        systemIns += `\n- Recent Journal Logs & Sentiments:`;
+        systemIns += `\n- Recent Journal Entries (with actual excerpts):`;
         recentJournals.forEach((j: any) => {
-          let journalStr = `\n  * ${j.daysAgo === 0 ? "Today" : `${j.daysAgo} day(s) ago`} -> mood: ${(j.mood || 'neutral').toUpperCase()}`;
+          let journalStr = `\n  * ${j.daysAgo === 0 ? "Today" : `${j.daysAgo} day(s) ago`} -> mood: ${(j.mood || 'neutral').toUpperCase()}${j.energyLevel ? `, energy: ${j.energyLevel}` : ''}`;
           if (j.keyTheme) journalStr += `, theme: "${j.keyTheme}"`;
           if (j.alignmentScore !== undefined) journalStr += `, alignment score: ${j.alignmentScore}/100`;
+          if (j.tags?.length) journalStr += `, tags: [${j.tags.join(', ')}]`;
+          if (j.excerpt) journalStr += `\n    excerpt: "${j.excerpt}"`;
           systemIns += journalStr;
         });
       }
@@ -447,6 +449,44 @@ You are in a live chat interface, not writing a document. Follow these formattin
   } catch (err: any) {
     console.error("[Coach Response Error]", err?.message || err);
     res.status(500).json({ error: `Coach response failed: ${err?.message || String(err)}` });
+  }
+});
+
+app.post("/api/gemini/generate-chat-title", async (req, res) => {
+  try {
+    const { userText, coachText } = req.body;
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey || !userText) {
+      return res.status(200).json({ title: (userText || 'New Chat').slice(0, 40) });
+    }
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://aetheros.app",
+        "X-Title": "AetherOS Coach"
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-oss-120b:free",
+        messages: [
+          { role: "system", content: "Generate a concise 3-6 word title summarizing this conversation. No quotes, no punctuation at the end, no preamble — respond with only the title text." },
+          { role: "user", content: `User: ${userText}\nCoach: ${(coachText || '').slice(0, 300)}` }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      return res.status(200).json({ title: userText.slice(0, 40) });
+    }
+
+    const data = await response.json();
+    const rawTitle = data.choices?.[0]?.message?.content?.trim();
+    res.json({ title: rawTitle && rawTitle.length > 0 ? rawTitle.slice(0, 50) : userText.slice(0, 40) });
+  } catch (err: any) {
+    console.error("[Title Generation Error]", err?.message || err);
+    res.status(200).json({ title: (req.body?.userText || 'New Chat').slice(0, 40) });
   }
 });
 

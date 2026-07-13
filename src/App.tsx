@@ -13329,6 +13329,29 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     fetchCoachProfile();
   }, [user]);
 
+  const weakestSphere = useMemo(() => {
+    const values = stats?.lifeSync?.current || {};
+    let lowestCategory = 'health';
+    let lowestVal = 100;
+    Object.entries(values).forEach(([key, val]) => {
+      const num = Number(val);
+      if (num < lowestVal) {
+        lowestVal = num;
+        lowestCategory = key;
+      }
+    });
+    return lowestCategory.toUpperCase();
+  }, [stats]);
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 5) return 'Late Night';
+    if (hour < 12) return 'Morning';
+    if (hour < 17) return 'Afternoon';
+    if (hour < 21) return 'Evening';
+    return 'Night';
+  }, []);
+
   return (
     <div className="flex h-full animate-in fade-in duration-500">
       {/* CHAT SIDEBAR */}
@@ -13381,7 +13404,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                     <Trash2 size={12} />
                  </button>
               )}
-              <span className="px-2.5 py-1 bg-cyan/10 border border-cyan/20 rounded-md text-cyan text-[8px] font-mono font-black uppercase">GEMINI_LENS</span>
+              <span className="px-2.5 py-1 bg-cyan/10 border border-cyan/20 rounded-md text-cyan text-[8px] font-mono font-black uppercase">AETHER LABS</span>
            </div>
         </div>
 
@@ -13414,11 +13437,60 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
             <div ref={messagesEndRef} />
           </div>
         ) : messages.length === 0 ? (
-           // JARVIS-STYLE DASHBOARD LANDING
-           <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-4">
-              <h2 className="text-xl font-black font-mono text-white uppercase tracking-widest">NEURAL_CALIBRATION_COMPLETE</h2>
-              <p className="text-xs font-mono text-white/50 max-w-sm">Aether OS is online. Ask for a balance scan, plan tomorrow, or synthesize your recent habits to begin.</p>
-           </div>
+          <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-10 overflow-y-auto no-scrollbar">
+            <div className="w-full max-w-2xl flex flex-col items-center text-center space-y-10 my-auto">
+              <div className="space-y-3">
+                <div className="flex items-center justify-center gap-2 text-cyan">
+                  <Sparkles size={22} className="animate-pulse" />
+                </div>
+                <h1 className="text-3xl md:text-4xl font-serif font-black uppercase italic tracking-wide text-text-p text-glow-white">
+                  {greeting}, {coachProfile.userName}
+                </h1>
+                <p className="text-[10px] font-mono uppercase tracking-widest text-white/30">
+                  {coachProfile.coachName} is online — what should we work on?
+                </p>
+              </div>
+
+              <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(inputText); }} className="w-full flex gap-2">
+                <input
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder={`PROMPT_${coachProfile.coachName?.toUpperCase() || 'AETHER_COACH'}...`}
+                  disabled={isGenerating}
+                  autoFocus
+                  className="flex-1 bg-black/40 border border-white/10 rounded-xl px-5 py-4 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={isGenerating || !inputText.trim()}
+                  className="px-6 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40"
+                >
+                  SEND
+                </button>
+              </form>
+
+              <div className="w-full flex flex-wrap items-center justify-center gap-2.5">
+                {[
+                  { id: 'journal', icon: Book, label: 'MY_JOURNAL', prompt: "Look at my recent journal entries and tell me what patterns or emotional trends you're noticing." },
+                  { id: 'tasks', icon: CheckCircle2, label: 'MY_TASKS', prompt: "Give me a quick status report on my current tasks — what's pending, what's overdue, and what I should prioritize today." },
+                  { id: 'habits', icon: Flame, label: 'HABIT_STREAKS', prompt: "How are my habit streaks looking right now? Flag anything at risk of breaking." },
+                  { id: 'balance', icon: Target, label: 'LIFE_BALANCE', prompt: `Analyze my current life sync parameters and streak. My weakest category is ${weakestSphere}. Synthesize where my balance is healthy and where it's suffering, and keep it actionable.` },
+                  { id: 'plan', icon: Calendar, label: 'PLAN_TODAY', prompt: "Using my tasks and habits, help me plan out today. What should I focus on first?" },
+                ].map(action => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    disabled={isGenerating}
+                    onClick={() => handleSendMessage(action.prompt)}
+                    className="flex items-center gap-1.5 px-3.5 py-2 glass hover:bg-cyan/15 hover:border-cyan/30 text-white/70 hover:text-white border border-white/10 text-[9px] font-mono rounded-full transition-all font-black uppercase tracking-wider disabled:opacity-40"
+                  >
+                    <action.icon size={11} />
+                    {action.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         ) : (
           // NORMAL CHAT
           <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
@@ -13530,7 +13602,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     { key: 'thirtyDayFix', question: () => `Last one — what is ONE thing you want to fix in the next 30 days?` },
   ];
 
-  const handleOnboardingInput = async (input: string) => {
+  async function handleOnboardingInput(input: string) {
     if (!input.trim()) return;
     const currentQ = ONBOARDING_QUESTIONS[onboardingStep];
     
@@ -13630,29 +13702,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     return () => unsub();
   }, [user, activeChatId]);
 
-  const weakestSphere = useMemo(() => {
-    const values = stats?.lifeSync?.current || {};
-    let lowestCategory = 'health';
-    let lowestVal = 100;
-    Object.entries(values).forEach(([key, val]) => {
-      const num = Number(val);
-      if (num < lowestVal) {
-        lowestVal = num;
-        lowestCategory = key;
-      }
-    });
-    return lowestCategory.toUpperCase();
-  }, [stats]);
-
-  const greeting = useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour < 5) return 'Late Night';
-    if (hour < 12) return 'Morning';
-    if (hour < 17) return 'Afternoon';
-    if (hour < 21) return 'Evening';
-    return 'Night';
-  }, []);
-
   const buildCoachContext = () => {
     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -13726,24 +13775,25 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         };
       });
 
-    // 5. Last 4 journal entries
+    // 5. Last 4 journal entries, now with actual content excerpts
+    const stripHtml = (html: string) => (html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     const sortedJournals = [...(journals || [])]
       .filter((j: any) => j.createdAt)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .slice(0, 4)
       .map((j: any) => {
         const daysAgo = Math.max(0, Math.floor((new Date().getTime() - new Date(j.createdAt).getTime()) / (1000 * 60 * 60 * 24)));
+        const plainText = stripHtml(j.content);
         const item: any = {
           mood: j.mood,
-          daysAgo
+          energyLevel: j.energyLevel,
+          daysAgo,
+          excerpt: plainText.length > 280 ? plainText.slice(0, 280) + '...' : plainText
         };
+        if (j.tags && j.tags.length > 0) item.tags = j.tags;
         if (j.cognitiveSignature) {
-          if (j.cognitiveSignature.keyTheme) {
-            item.keyTheme = j.cognitiveSignature.keyTheme;
-          }
-          if (j.cognitiveSignature.alignmentScore !== undefined) {
-            item.alignmentScore = j.cognitiveSignature.alignmentScore;
-          }
+          if (j.cognitiveSignature.keyTheme) item.keyTheme = j.cognitiveSignature.keyTheme;
+          if (j.cognitiveSignature.alignmentScore !== undefined) item.alignmentScore = j.cognitiveSignature.alignmentScore;
         }
         return item;
       });
@@ -13790,7 +13840,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     });
   };
 
-  const handleSendMessage = async (textToSend: string) => {
+  async function handleSendMessage(textToSend: string) {
     if (!textToSend.trim() || isGenerating || !user) return;
 
     if (messages.length >= 150) {
@@ -13804,10 +13854,12 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
 
     try {
       let currentChatId = activeChatId;
+      let isFirstMessageInChat = false;
       if (!currentChatId) {
+        isFirstMessageInChat = true;
         const newChatRef = await addDoc(collection(db, 'coach_chats'), {
           userId: user.uid,
-          title: textToSend.slice(0, 40),
+          title: 'New Chat',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         });
@@ -13858,13 +13910,25 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       });
       await addDoc(collection(db, 'coach_messages'), coachMsgData);
       
-      // Update chat
+      // Update chat timestamp immediately (fast, don't block on title generation)
       const chatRef = doc(db, 'coach_chats', currentChatId);
-      const chatSnap = chatList.find(c => c.id === currentChatId);
-      await updateDoc(chatRef, {
-        updatedAt: new Date().toISOString(),
-        ...(!chatSnap || chatSnap.title === 'New Chat' ? { title: textToSend.slice(0, 40) } : {})
-      });
+      await updateDoc(chatRef, { updatedAt: new Date().toISOString() });
+
+      // Generate a real AI title in the background on the first exchange only
+      if (isFirstMessageInChat) {
+        fetch("/api/gemini/generate-chat-title", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userText: textToSend, coachText: result.text })
+        })
+          .then(r => r.json())
+          .then(data => {
+            if (data?.title) {
+              updateDoc(chatRef, { title: data.title }).catch(e => handleFirestoreError(e, OperationType.UPDATE, `coach_chats/${currentChatId}`));
+            }
+          })
+          .catch(err => console.warn('[Chat Title] generation failed, keeping default title:', err));
+      }
 
     } catch (err: any) {
        const errMsg = err?.message || String(err);
@@ -13892,7 +13956,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
      }
    };
  
-   const handleClearConversation = async () => {
+   async function handleClearConversation() {
      if (!user) return;
      const confirmClear = window.confirm("Are you sure you want to completely erase your neural log with the Aether Coach? This cannot be undone.");
      if (!confirmClear) return;
