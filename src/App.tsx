@@ -4613,7 +4613,7 @@ export default function App() {
       </div>
 
       {/* Mobile Bottom Navigation Bar (5 icon buttons) */}
-      <nav id="mobile-nav" className="fixed bottom-0 left-0 right-0 h-16 bg-black/90 glass border-t border-border-subtle z-50 flex md:hidden items-center justify-around px-2 py-1 select-none">
+      <nav id="mobile-nav" className="fixed bottom-0 left-0 right-0 h-16 bg-black/90 glass border-t border-border-subtle z-50 flex md:hidden items-center justify-around px-2 py-1 select-none [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-white/20">
         <button 
           onClick={() => handleTabChange('dashboard')} 
           className={cn("flex flex-col items-center justify-center py-1 px-2 text-text-m hover:text-white transition-all active:scale-95 flex-1 min-h-[44px]", activeTab === 'dashboard' ? "text-accent" : "text-text-s")}
@@ -7530,8 +7530,8 @@ function Dashboard({
           <DailyChallengeWidget stats={stats} />
 
           {/* NEURAL FEED */}
-          <section className="space-y-4">
-            <div className="flex items-center justify-between mb-3">
+          <section className="space-y-4 h-[300px] overflow-y-auto [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-white/20">
+            <div className="flex items-center justify-between mb-3 sticky top-0 bg-black/50 backdrop-blur z-10 pb-2">
               <div>
                 <p className="text-[10px] font-mono font-black text-white/80 uppercase tracking-widest">NEURAL_FEED</p>
                 <p className="text-[8px] font-mono text-white/20 uppercase">
@@ -13619,12 +13619,13 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     const q = query(
       collection(db, 'coach_messages'),
       where('userId', '==', user.uid),
-      where('chatId', '==', activeChatId),
-      orderBy('createdAt', 'asc'),
-      limitToLast(50)
+      where('chatId', '==', activeChatId)
     );
     const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const msgs = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      setMessages(msgs);
     }, (err) => handleFirestoreError(err, OperationType.LIST, 'coach_messages'));
     return () => unsub();
   }, [user, activeChatId]);
