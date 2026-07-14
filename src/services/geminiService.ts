@@ -90,3 +90,56 @@ export const generateCoachResponse = async (chatHistory: any[], userStats: any, 
   }
   return await response.json(); // { text, toolCalls }
 };
+
+export const generateCoachResponseStream = async (
+  chatHistory: any[],
+  userStats: any,
+  lowestCategory: string,
+  context: any,
+  coachProfile: any,
+  memorySummary: string | null,
+  onChunk: (partialText: string) => void,
+  signal?: AbortSignal
+): Promise<{ text: string; toolCalls: any[] }> => {
+  const response = await fetch("/api/gemini/coach-response", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chatHistory, userStats, lowestCategory, context, coachProfile, memorySummary }),
+    signal
+  });
+
+  if (!response.ok || !response.body) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.error || `HTTP error! status: ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
+  let toolCalls: any[] = [];
+  let streamError: string | null = null;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const payload = trimmed.slice(5).trim();
+      if (!payload) continue;
+      let json;
+      try { json = JSON.parse(payload); } catch { continue; }
+      if (json.error) { streamError = json.error; continue; }
+      if (json.type === 'text') { fullText += json.content; onChunk(fullText); }
+      if (json.type === 'done') { toolCalls = json.toolCalls || []; }
+    }
+  }
+
+  if (streamError) throw new Error(streamError);
+  return { text: fullText, toolCalls };
+};
