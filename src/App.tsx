@@ -13240,6 +13240,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   const abortControllerRef = useRef<AbortController | null>(null);
   const [completeToast, setCompleteToast] = useState<string | null>(null);
   const [coachProfile, setCoachProfile] = useState<any>(null);
+  const [memorySummary, setMemorySummary] = useState<string>('');
   const [profileLoading, setProfileLoading] = useState(true);
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [onboardingSaving, setOnboardingSaving] = useState(false);
@@ -13258,6 +13259,20 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isGenerating, onboardingMessages]);
+
+  useEffect(() => {
+    if (!user) return;
+    const fetchMemory = async () => {
+      try {
+        const memRef = doc(db, 'coach_memory', user.uid);
+        const memSnap = await getDoc(memRef);
+        if (memSnap.exists()) setMemorySummary(memSnap.data().summary || '');
+      } catch (e) {
+        console.warn('[Memory] fetch failed, continuing without it:', e);
+      }
+    };
+    fetchMemory();
+  }, [user]);
 
   useEffect(() => {
     fetchCoachProfile();
@@ -13923,7 +13938,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         weakestSphere,
         buildCoachContext(),
         coachProfile,
-        null,
+        memorySummary,
         (partialText) => setStreamingText(partialText),
         abortControllerRef.current?.signal
       );
@@ -13941,6 +13956,28 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         createdAt: new Date().toISOString()
       });
       await addDoc(collection(db, 'coach_messages'), coachMsgData);
+
+      // Update long-term memory every 6 messages, in the background, non-blocking
+      if ((messages.length + 2) % 6 === 0) {
+        const recentForMemory = [...messages.slice(-6), { sender: 'user', text: textToSend }, { sender: 'coach', text: coachMsgData.text }];
+        fetch("/api/gemini/update-memory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ existingSummary: memorySummary, recentMessages: recentForMemory })
+        })
+          .then(r => r.json())
+          .then(async (data) => {
+            if (data?.summary) {
+              setMemorySummary(data.summary);
+              try {
+                await setDoc(doc(db, 'coach_memory', user.uid), { userId: user.uid, summary: data.summary, updatedAt: new Date().toISOString() });
+              } catch (e) {
+                handleFirestoreError(e, OperationType.UPDATE, `coach_memory/${user.uid}`);
+              }
+            }
+          })
+          .catch(err => console.warn('[Memory] background update failed:', err));
+      }
       
       // Update chat timestamp immediately (fast, don't block on title generation)
       const chatRef = doc(db, 'coach_chats', currentChatId);
