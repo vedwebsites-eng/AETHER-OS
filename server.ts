@@ -42,6 +42,9 @@ const handleGeminiError = (err: any, res: any, contextMsg: string, fallbackData?
   
   if (err?.status === 429 || err?.message?.includes("429")) {
     console.warn(`[Aether_OS Server] Quota exhausted: ${contextMsg}`);
+    if (fallbackData !== undefined) {
+      return res.status(200).json(fallbackData);
+    }
     return res.status(429).json({ error: "Quota exhausted. Please wait a moment before trying again." });
   }
   
