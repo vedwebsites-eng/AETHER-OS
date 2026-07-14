@@ -263,6 +263,14 @@ service cloud.firestore {
       allow delete: if isOwner(existing().userId);
     }
 
+    // CoachMemory
+    match /coach_memory/{userId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isOwner(incoming().userId);
+      allow update: if isOwner(existing().userId);
+      allow delete: if isOwner(existing().userId);
+    }
+
     // System Settings
     match /system_settings/{docId} {
       allow read: if isSignedIn();

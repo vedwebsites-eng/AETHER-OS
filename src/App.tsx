@@ -6,7 +6,7 @@ import { auth, signInWithGoogle, loginWithEmail, registerWithEmail, db, handleFi
 import { onAuthStateChanged, User, signOut, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, collection, query, where, onSnapshot, orderBy, serverTimestamp, addDoc, deleteDoc, getDocFromServer, writeBatch, limit, getDocs, deleteField, limitToLast } from 'firebase/firestore';
 import { ChatManager } from './components/ChatManager';
-import { analyzeJournalEntry, breakdownBossTask, generateDailyBriefing, generateLifeInsight, analyzeLifeBalance, generateCoachResponse, suggestPassword } from './services/geminiService';
+import { analyzeJournalEntry, breakdownBossTask, generateDailyBriefing, generateLifeInsight, analyzeLifeBalance, generateCoachResponse, generateCoachResponseStream, suggestPassword } from './services/geminiService';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { 
@@ -13236,6 +13236,8 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const abortControllerRef = useRef<AbortController | null>(null);
   const [completeToast, setCompleteToast] = useState<string | null>(null);
   const [coachProfile, setCoachProfile] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -13523,7 +13525,25 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 )}
               </div>
             ))}
-            {isGenerating && (
+            {isGenerating && streamingText && (
+              <div className="flex flex-col items-start group">
+                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHER_COACH</span>
+                <div className="max-w-[85%] glass rounded-2xl px-4 py-3">
+                  <ReactMarkdown
+                    components={{
+                      p: ({children}) => <p className="whitespace-pre-wrap leading-relaxed">{children}</p>,
+                      strong: ({children}) => <strong className="text-cyan font-bold">{children}</strong>,
+                      ul: ({children}) => <ul className="list-disc list-inside space-y-1 my-1.5">{children}</ul>,
+                      li: ({children}) => <li className="leading-snug">{children}</li>,
+                    }}
+                  >
+                    {streamingText}
+                  </ReactMarkdown>
+                  <span className="inline-block w-1.5 h-3 bg-cyan animate-pulse ml-0.5" />
+                </div>
+              </div>
+            )}
+            {isGenerating && !streamingText && (
                <div className="bg-white/5 border border-white/10 text-cyan max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed mr-auto rounded-tl-none flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce" />
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.2s]" />
@@ -13575,13 +13595,23 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 disabled={isGenerating}
                 className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
               />
-              <button
-                type="submit"
-                disabled={isGenerating || (!coachProfile ? !onboardingInput.trim() : !inputText.trim())}
-                className="px-6 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40"
-              >
-                {!coachProfile ? 'REPLY' : 'SEND'}
-              </button>
+              {isGenerating ? (
+                <button
+                  type="button"
+                  onClick={() => { abortControllerRef.current?.abort(); setIsGenerating(false); setStreamingText(''); }}
+                  className="px-6 bg-red-500/20 border border-red-500/40 text-red-400 font-mono text-xs font-black uppercase rounded-xl transition-all"
+                >
+                  STOP
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!coachProfile ? !onboardingInput.trim() : !inputText.trim()}
+                  className="px-6 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-40"
+                >
+                  {!coachProfile ? 'REPLY' : 'SEND'}
+                </button>
+              )}
             </form>
           </div>
         )}
@@ -13887,14 +13917,20 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         parts: [{ text: textToSend }]
       });
 
-      const result = await generateCoachResponse(
+      const result = await generateCoachResponseStream(
         history,
         stats,
         weakestSphere,
         buildCoachContext(),
-        coachProfile
+        coachProfile,
+        null,
+        (partialText) => setStreamingText(partialText),
+        abortControllerRef.current?.signal
       );
-      
+
+      setStreamingText('');
+      abortControllerRef.current = null;
+
       // 2. Add coach reply
       const coachMsgData = removeUndefinedFields({
         userId: user.uid,
@@ -13927,6 +13963,11 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       }
 
     } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        setStreamingText('');
+        setIsGenerating(false);
+        return;
+      }
        const errMsg = err?.message || String(err);
        let coachErrorText = "Error establishing connection to Aether Mind. Please check your config parameters.";
        
