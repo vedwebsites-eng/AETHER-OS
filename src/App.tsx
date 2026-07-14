@@ -13325,10 +13325,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     }
   };
 
-  useEffect(() => {
-    fetchCoachProfile();
-  }, [user]);
-
   const weakestSphere = useMemo(() => {
     const values = stats?.lifeSync?.current || {};
     let lowestCategory = 'health';
@@ -13979,7 +13975,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         handleFirestoreError(e, OperationType.DELETE, 'coach_messages');
       }
     };
-
 }
 
 function GrowView({

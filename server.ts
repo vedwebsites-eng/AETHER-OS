@@ -282,7 +282,7 @@ app.post("/api/gemini/life-insight", async (req, res) => {
 
 app.post("/api/gemini/coach-response", async (req, res) => {
   try {
-    const { chatHistory, userStats, lowestCategory, context, coachProfile } = req.body;
+    const { chatHistory, userStats, lowestCategory, context, coachProfile, memorySummary } = req.body;
     if (!chatHistory) {
       return res.status(400).json({ error: "chatHistory parameter is missing" });
     }
@@ -313,9 +313,17 @@ Their 30-day focus: ${thirtyDayFix}
 Tone instruction: ${toneInstruction}
 
 Always refer to yourself as ${coachName}. Always address the user as ${userName}.
-You have full access to their live data below. Reference it directly in your responses.
-Keep responses under 150 words. Use markdown for formatting. Be specific, not generic.
+You are in a live chat interface, not writing a document. Follow these formatting rules strictly:
+- Never use markdown tables. Never use headers (#, ##). Never use horizontal rules (---).
+- Use short paragraphs (2-4 sentences). Use **bold** sparingly, only for 1-3 truly key words per message.
+- If you need to list things, use a simple bullet list with "-", max 4 items, one line each.
+- Total reply length: 60-120 words unless the user explicitly asks for a detailed breakdown or plan.
+- Write like you're texting someone you're coaching, not filing a report.
 If the user asks you to create a task or start a habit, call the appropriate tool instead of just describing it in text.`;
+
+    if (memorySummary) {
+      systemIns += `\n\n=== LONG-TERM MEMORY (from past conversations) ===\n${memorySummary}`;
+    }
 
     systemIns += `\n\n- Level: ${userStats?.level || 1}
     - Current Streak: ${userStats?.currentStreak || 0}
@@ -333,7 +341,7 @@ If the user asks you to create a task or start a habit, call the appropriate too
       systemIns += `\n- Protocols completed today: ${completedTodayCount || 0}`;
       if (pendingTasks && pendingTasks.length > 0) {
         systemIns += `\n- Top pending protocols/tasks inside active queue:`;
-        pendingTasks.forEach((t: any) => {
+        pendingTasks.forEach((t) => {
           systemIns += `\n  * [${(t.priority || 'medium').toUpperCase()}] ${t.title || 'Untitled'} (${t.category || 'General'}, ${t.estimate || 30} mins)`;
         });
       } else {
@@ -341,14 +349,14 @@ If the user asks you to create a task or start a habit, call the appropriate too
       }
       if (activeHabits && activeHabits.length > 0) {
         systemIns += `\n- Habits Streak & Checklist:`;
-        activeHabits.forEach((h: any) => {
+        activeHabits.forEach((h) => {
           const status = h.doneToday ? "COMPLETED" : "PENDING";
           systemIns += `\n  * ${h.name || 'Untitled'} (${h.category || 'Routine'}) -> Streak: ${h.streak || 0}/${h.targetStreak || 30} days [Status Today: ${status}]`;
         });
       }
       if (recentJournals && recentJournals.length > 0) {
         systemIns += `\n- Recent Journal Entries (with actual excerpts):`;
-        recentJournals.forEach((j: any) => {
+        recentJournals.forEach((j) => {
           let journalStr = `\n  * ${j.daysAgo === 0 ? "Today" : `${j.daysAgo} day(s) ago`} -> mood: ${(j.mood || 'neutral').toUpperCase()}${j.energyLevel ? `, energy: ${j.energyLevel}` : ''}`;
           if (j.keyTheme) journalStr += `, theme: "${j.keyTheme}"`;
           if (j.alignmentScore !== undefined) journalStr += `, alignment score: ${j.alignmentScore}/100`;
@@ -359,21 +367,49 @@ If the user asks you to create a task or start a habit, call the appropriate too
       }
     }
 
-    systemIns += `\n\nIncorporate these real-time metrics, logs, habits, and tasks organically into your reasoning and conversation. Directly address their context! Speak as their system-integrated cybernetic mentor. 
-
-You are in a live chat interface, not writing a document. Follow these formatting rules strictly:
-- Never use markdown tables. Never use headers (#, ##). Never use horizontal rules (---).
-- Use short paragraphs (2-4 sentences). Use **bold** sparingly, only for 1-3 truly key words per message.
-- If you need to list things, use a simple bullet list with "-", max 4 items, one line each — no nested structure.
-- Total reply length: 60-120 words unless the user explicitly asks for a detailed breakdown or plan.
-- Write like you're texting someone you're coaching, not filing a report.`;
-
-    const openRouterMessages = chatHistory.map((h: any) => ({
+    const openRouterMessages = chatHistory.map((h) => ({
       role: h.role === 'model' ? 'assistant' : 'user',
       content: h.parts?.[0]?.text || h.text || ''
     }));
 
-    const callOpenRouter = (model: string) => fetch("https://openrouter.ai/api/v1/chat/completions", {
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "create_task",
+          description: "Create a new task/protocol for the user when they ask you to add, remind, or set up a task.",
+          parameters: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              category: { type: "string", enum: ["health", "learning", "creative", "work", "personal", "routine"] },
+              priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
+              estimate: { type: "number", description: "Estimated minutes to complete" }
+            },
+            required: ["title", "category", "priority", "estimate"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "create_habit",
+          description: "Create a new recurring habit for the user when they ask you to start tracking or build a habit.",
+          parameters: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              category: { type: "string", enum: ["health", "learning", "creative", "work", "personal", "routine"] },
+              frequency: { type: "string", description: "e.g. 'daily' or 'weekdays'" },
+              targetStreak: { type: "number", description: "Target streak length in days, default 30" }
+            },
+            required: ["name", "category", "frequency"]
+          }
+        }
+      }
+    ];
+
+    const callOpenRouterStream = (model) => fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -384,55 +420,19 @@ You are in a live chat interface, not writing a document. Follow these formattin
       body: JSON.stringify({
         model,
         messages: [{ role: "system", content: systemIns }, ...openRouterMessages],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "create_task",
-              description: "Create a new task/protocol for the user when they ask you to add, remind, or set up a task.",
-              parameters: {
-                type: "object",
-                properties: {
-                  title: { type: "string" },
-                  category: { type: "string", enum: ["health", "learning", "creative", "work", "personal", "routine"] },
-                  priority: { type: "string", enum: ["low", "medium", "high", "critical"] },
-                  estimate: { type: "number", description: "Estimated minutes to complete" }
-                },
-                required: ["title", "category", "priority", "estimate"]
-              }
-            }
-          },
-          {
-            type: "function",
-            function: {
-              name: "create_habit",
-              description: "Create a new recurring habit for the user when they ask you to start tracking or build a habit.",
-              parameters: {
-                type: "object",
-                properties: {
-                  name: { type: "string" },
-                  category: { type: "string", enum: ["health", "learning", "creative", "work", "personal", "routine"] },
-                  frequency: { type: "string", description: "e.g. 'daily' or 'weekdays'" },
-                  targetStreak: { type: "number", description: "Target streak length in days, default 30" }
-                },
-                required: ["name", "category", "frequency"]
-              }
-            }
-          }
-        ]
+        tools,
+        stream: true
       })
     });
 
-    let orResponse = await callOpenRouter("openai/gpt-oss-120b:free");
-
-    // If the primary free model is congested, fall back to the auto-router once
+    let orResponse = await callOpenRouterStream("openai/gpt-oss-120b:free");
     if (orResponse.status === 429) {
       console.warn("[OpenRouter] gpt-oss-120b:free congested, falling back to openrouter/free");
-      orResponse = await callOpenRouter("openrouter/free");
+      orResponse = await callOpenRouterStream("openrouter/free");
     }
 
-    if (!orResponse.ok) {
-      const errText = await orResponse.text();
+    if (!orResponse.ok || !orResponse.body) {
+      const errText = await orResponse.text().catch(() => '');
       console.error("[OpenRouter Error]", orResponse.status, errText);
       return res.status(orResponse.status === 429 ? 429 : 500).json({
         error: orResponse.status === 429
@@ -441,20 +441,68 @@ You are in a live chat interface, not writing a document. Follow these formattin
       });
     }
 
-    const data = await orResponse.json();
-    const message = data.choices?.[0]?.message;
-    const toolCalls = (message?.tool_calls || []).map((tc: any) => ({
-      name: tc.function?.name,
-      args: JSON.parse(tc.function?.arguments || '{}')
-    }));
+    // Switch to SSE streaming mode for the client
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    if (res.flushHeaders) res.flushHeaders();
 
-    res.json({ text: message?.content || "", toolCalls });
+    const reader = orResponse.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    const toolCallAccumulator: any = {};
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        let json;
+        try { json = JSON.parse(payload); } catch { continue; }
+        const delta = json.choices?.[0]?.delta;
+        if (!delta) continue;
+
+        if (delta.content) {
+          res.write(`data: ${JSON.stringify({ type: 'text', content: delta.content })}\n\n`);
+        }
+        if (delta.tool_calls) {
+          for (const tc of delta.tool_calls) {
+            const idx = tc.index ?? 0;
+            if (!toolCallAccumulator[idx]) toolCallAccumulator[idx] = { name: '', arguments: '' };
+            if (tc.function?.name) toolCallAccumulator[idx].name += tc.function.name;
+            if (tc.function?.arguments) toolCallAccumulator[idx].arguments += tc.function.arguments;
+          }
+        }
+      }
+    }
+
+    const toolCalls = Object.values(toolCallAccumulator)
+      .filter((tc: any) => tc.name)
+      .map((tc: any) => {
+        let args = {};
+        try { args = JSON.parse(tc.arguments || '{}'); } catch {}
+        return { name: tc.name, args };
+      });
+
+    res.write(`data: ${JSON.stringify({ type: 'done', toolCalls })}\n\n`);
+    res.end();
   } catch (err: any) {
     console.error("[Coach Response Error]", err?.message || err);
-    res.status(500).json({ error: `Coach response failed: ${err?.message || String(err)}` });
+    try {
+      res.write(`data: ${JSON.stringify({ error: `Coach response failed: ${err?.message || String(err)}` })}\n\n`);
+      res.end();
+    } catch {
+      res.status(500).json({ error: `Coach response failed: ${err?.message || String(err)}` });
+    }
   }
 });
-
 app.post("/api/gemini/generate-chat-title", async (req, res) => {
   try {
     const { userText, coachText } = req.body;
