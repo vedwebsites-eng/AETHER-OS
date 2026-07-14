@@ -575,6 +575,54 @@ app.post("/api/gemini/estimate-xp", async (req, res) => {
   }
 });
 
+app.post("/api/gemini/update-memory", async (req, res) => {
+  try {
+    const { existingSummary, recentMessages } = req.body;
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey || !recentMessages || recentMessages.length === 0) {
+      return res.status(200).json({ summary: existingSummary || '' });
+    }
+
+    const conversationText = recentMessages
+      .map((m: any) => `${m.sender === 'user' ? 'User' : 'Coach'}: ${m.text}`)
+      .join('\n');
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://aetheros.app",
+        "X-Title": "AetherOS Coach Memory"
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-oss-120b:free",
+        messages: [
+          {
+            role: "system",
+            content: `You maintain a compact long-term memory summary about a user, for an AI life coach to reference in future conversations. You will be given the EXISTING memory summary (may be empty) and a NEW conversation excerpt. Merge any new durable facts, preferences, goals, or patterns into the existing summary. Keep it under 150 words total. Write plain factual bullet-style sentences, no fluff, no meta-commentary. Only include things worth remembering long-term (recurring goals, stated preferences, ongoing struggles, key life context) — not one-off small talk. Respond with ONLY the updated summary text, nothing else.`
+          },
+          {
+            role: "user",
+            content: `EXISTING SUMMARY:\n${existingSummary || '(none yet)'}\n\nNEW CONVERSATION EXCERPT:\n${conversationText}`
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      return res.status(200).json({ summary: existingSummary || '' });
+    }
+
+    const data = await response.json();
+    const newSummary = data.choices?.[0]?.message?.content?.trim();
+    res.json({ summary: newSummary || existingSummary || '' });
+  } catch (err: any) {
+    console.error("[Memory Update Error]", err?.message || err);
+    res.status(200).json({ summary: req.body?.existingSummary || '' });
+  }
+});
+
 app.post("/api/gemini/generate-timetable", async (req, res) => {
   try {
     const { todayStr, pendingTasks, routine } = req.body;
