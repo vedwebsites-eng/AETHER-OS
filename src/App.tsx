@@ -13254,6 +13254,8 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   });
   const [onboardingInput, setOnboardingInput] = useState('');
   const [onboardingMessages, setOnboardingMessages] = useState<{sender: string, text: string}[]>([]);
+  const [renamingChatId, setRenamingChatId] = useState<string | null>(null);
+  const [renameInput, setRenameInput] = useState('');
   const ONBOARDING_QUESTIONS = [
     { key: 'userName', question: "Initializing neural guidance system...\n\nBefore we begin, I need to calibrate to you.\n\nWhat should I call you?" },
     { key: 'coachName', question: (data: any) => `Good to meet you, ${data.userName}. Now — what will you call me? Give me a name.` },
@@ -13303,6 +13305,97 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
 
   const switchChat = (chatId: string) => {
     setActiveChatId(chatId);
+  };
+
+  const clearEmptyChats = async () => {
+    if (!user) return;
+    const emptyChats = chatList.filter(c => (c.title === 'New Chat' || !c.title));
+    if (emptyChats.length === 0) return;
+    if (!window.confirm(`Delete ${emptyChats.length} empty chat(s)? This cannot be undone.`)) return;
+    try {
+      const batch = writeBatch(db);
+      emptyChats.forEach(c => batch.delete(doc(db, 'coach_chats', c.id)));
+      await batch.commit();
+      if (emptyChats.some(c => c.id === activeChatId)) {
+        setActiveChatId(null);
+        setMessages([]);
+      }
+      setCompleteToast(`CLEARED_${emptyChats.length}_EMPTY_CHATS`);
+      setTimeout(() => setCompleteToast(null), 2500);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, 'coach_chats');
+    }
+  };
+
+  const renameChat = async (chatId: string, newTitle: string) => {
+    if (!newTitle.trim()) { setRenamingChatId(null); return; }
+    try {
+      await updateDoc(doc(db, 'coach_chats', chatId), { title: newTitle.trim(), updatedAt: new Date().toISOString() });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `coach_chats/${chatId}`);
+    }
+    setRenamingChatId(null);
+  };
+
+  const deleteChat = async (chatId: string) => {
+    if (!window.confirm('Delete this chat permanently?')) return;
+    
+    // Optimistic UI update
+    const previousChatList = [...chatList];
+    setChatList(chatList.filter(c => c.id !== chatId));
+    const previousActiveChatId = activeChatId;
+    const previousMessages = messages;
+    
+    if (activeChatId === chatId) {
+      setActiveChatId(null);
+      setMessages([]);
+    }
+
+    try {
+      await deleteDoc(doc(db, 'coach_chats', chatId));
+      const msgsQuery = query(collection(db, 'coach_messages'), where('userId', '==', user.uid), where('chatId', '==', chatId));
+      const snap = await getDocs(msgsQuery);
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `coach_chats/${chatId}`);
+      // Rollback on error
+      setChatList(previousChatList);
+      if (previousActiveChatId === chatId) {
+        setActiveChatId(previousActiveChatId);
+        setMessages(previousMessages);
+      }
+    }
+  };
+
+  const deleteAllChats = async () => {
+    if (!user) return;
+    if (!window.confirm(`Delete ALL ${chatList.length} chats and all messages? This cannot be undone.`)) return;
+    
+    const previousChatList = [...chatList];
+    setChatList([]);
+    setActiveChatId(null);
+    setMessages([]);
+    
+    try {
+      const chatsQuery = query(collection(db, 'coach_chats'), where('userId', '==', user.uid));
+      const chatSnap = await getDocs(chatsQuery);
+      
+      const msgsQuery = query(collection(db, 'coach_messages'), where('userId', '==', user.uid));
+      const msgsSnap = await getDocs(msgsQuery);
+      
+      const allDocs = [...chatSnap.docs, ...msgsSnap.docs];
+      for (let i = 0; i < allDocs.length; i += 500) {
+        const batch = writeBatch(db);
+        const chunk = allDocs.slice(i, i + 500);
+        chunk.forEach(d => batch.delete(d.ref));
+        await batch.commit();
+      }
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, 'coach_chats');
+      setChatList(previousChatList);
+    }
   };
 
   const regenerateResponse = async (coachMsg: any) => {
@@ -13419,28 +13512,82 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     <div className="flex h-full animate-in fade-in duration-500">
       {/* CHAT SIDEBAR */}
       <div className="w-64 border-r border-white/5 flex flex-col shrink-0">
-        <div className="p-4 border-b border-white/5">
+        <div className="p-4 border-b border-white/5 space-y-2">
           <button
             onClick={startNewChat}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan/10 hover:bg-cyan/20 border border-cyan/30 text-cyan text-[10px] font-mono font-black uppercase tracking-wider rounded-xl transition-all"
           >
             <Plus size={13} /> New Chat
           </button>
+          {chatList.filter(c => (c.title === 'New Chat' || !c.title)).length > 1 && (
+            <button
+              onClick={clearEmptyChats}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 text-red-400 text-[9px] font-mono font-black uppercase tracking-wider rounded-xl transition-all"
+            >
+              <Trash2 size={11} /> Clear Empty Chats ({chatList.filter(c => (c.title === 'New Chat' || !c.title)).length})
+            </button>
+          )}
+          {chatList.length > 0 && (
+            <button
+              onClick={deleteAllChats}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/30 text-red-400 text-[9px] font-mono font-black uppercase tracking-wider rounded-xl transition-all"
+            >
+              <Trash2 size={11} /> Delete All Chats
+            </button>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-1">
           {chatList.length === 0 && (
             <p className="text-[9px] font-mono text-white/20 uppercase text-center py-6">No chats yet</p>
           )}
           {chatList.map(chat => (
-            <button
+            <div
               key={chat.id}
-              onClick={() => switchChat(chat.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-mono truncate transition-all animate-in fade-in slide-in-from-left-2 duration-300 ${
-                chat.id === activeChatId ? 'bg-cyan/15 text-cyan border border-cyan/20' : 'text-white/50 hover:bg-white/5 hover:text-white/80'
+              className={`group flex items-center gap-1 px-1 rounded-lg transition-all animate-in fade-in slide-in-from-left-2 duration-300 ${
+                chat.id === activeChatId ? 'bg-cyan/15 border border-cyan/20' : 'hover:bg-white/5 border border-transparent'
               }`}
             >
-              {chat.title || 'New Chat'}
-            </button>
+              {renamingChatId === chat.id ? (
+                <input
+                  autoFocus
+                  value={renameInput}
+                  onChange={(e) => setRenameInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') renameChat(chat.id, renameInput);
+                    if (e.key === 'Escape') setRenamingChatId(null);
+                  }}
+                  onBlur={() => renameChat(chat.id, renameInput)}
+                  className="flex-1 bg-black/40 text-xs font-mono text-white px-2 py-2 rounded outline-none border border-cyan/30"
+                />
+              ) : (
+                <button
+                  onClick={() => switchChat(chat.id)}
+                  className={`flex-1 text-left px-2 py-2.5 text-xs font-mono truncate ${
+                    chat.id === activeChatId ? 'text-cyan' : 'text-white/50'
+                  }`}
+                >
+                  {chat.title || 'New Chat'}
+                </button>
+              )}
+              {renamingChatId !== chat.id && (
+                <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-opacity shrink-0">
+                  <button
+                    onClick={() => { setRenamingChatId(chat.id); setRenameInput(chat.title || 'New Chat'); }}
+                    className="p-1.5 text-white/30 hover:text-cyan"
+                    title="Rename"
+                  >
+                    <Edit3 size={11} />
+                  </button>
+                  <button
+                    onClick={() => deleteChat(chat.id)}
+                    className="p-1.5 text-white/30 hover:text-red-400"
+                    title="Delete"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       </div>
