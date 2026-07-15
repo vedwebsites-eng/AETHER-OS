@@ -13254,6 +13254,14 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   });
   const [onboardingInput, setOnboardingInput] = useState('');
   const [onboardingMessages, setOnboardingMessages] = useState<{sender: string, text: string}[]>([]);
+  const ONBOARDING_QUESTIONS = [
+    { key: 'userName', question: "Initializing neural guidance system...\n\nBefore we begin, I need to calibrate to you.\n\nWhat should I call you?" },
+    { key: 'coachName', question: (data: any) => `Good to meet you, ${data.userName}. Now — what will you call me? Give me a name.` },
+    { key: 'goal', question: (data: any) => `${data.coachName} online.\n\nWhat is your biggest goal right now?` },
+    { key: 'tone', question: () => `How do you want me to talk to you?\n\n1. Brutal honesty — no excuses\n2. Calm mentor — steady guidance\n3. Full hype — pure motivation\n\nType 1, 2, or 3.` },
+    { key: 'weakness', question: () => `Understood. What is your biggest weakness right now? Be honest.` },
+    { key: 'thirtyDayFix', question: () => `Last one — what is ONE thing you want to fix in the next 30 days?` },
+  ];
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -13355,6 +13363,48 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     });
     return lowestCategory.toUpperCase();
   }, [stats]);
+
+  // Initialize onboarding chat with first message
+  useEffect(() => {
+    if (!profileLoading && !coachProfile && onboardingMessages.length === 0) {
+      const firstQ = ONBOARDING_QUESTIONS[0];
+      const firstText = typeof firstQ.question === 'function' 
+        ? firstQ.question({}) 
+        : firstQ.question;
+      setOnboardingMessages([{ sender: 'coach', text: firstText }]);
+    }
+  }, [profileLoading, coachProfile]);
+
+  // Listener for chat list
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'coach_chats'), where('userId', '==', user.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      const chats = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      setChatList(chats);
+      setActiveChatId(prev => prev || (chats[0]?.id ?? null));
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'coach_chats'));
+    return () => unsub();
+  }, [user]);
+
+  // Listener for messages scoped to activeChatId
+  useEffect(() => {
+    if (!user || !activeChatId) { setMessages([]); return; }
+    const q = query(
+      collection(db, 'coach_messages'),
+      where('userId', '==', user.uid),
+      where('chatId', '==', activeChatId)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const msgs = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      setMessages(msgs);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, 'coach_messages'));
+    return () => unsub();
+  }, [user, activeChatId]);
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -13644,15 +13694,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     </div>
   );
 
-  const ONBOARDING_QUESTIONS = [
-    { key: 'userName', question: "Initializing neural guidance system...\n\nBefore we begin, I need to calibrate to you.\n\nWhat should I call you?" },
-    { key: 'coachName', question: (data: any) => `Good to meet you, ${data.userName}. Now — what will you call me? Give me a name.` },
-    { key: 'goal', question: (data: any) => `${data.coachName} online.\n\nWhat is your biggest goal right now?` },
-    { key: 'tone', question: () => `How do you want me to talk to you?\n\n1. Brutal honesty — no excuses\n2. Calm mentor — steady guidance\n3. Full hype — pure motivation\n\nType 1, 2, or 3.` },
-    { key: 'weakness', question: () => `Understood. What is your biggest weakness right now? Be honest.` },
-    { key: 'thirtyDayFix', question: () => `Last one — what is ONE thing you want to fix in the next 30 days?` },
-  ];
-
   async function handleOnboardingInput(input: string) {
     if (!input.trim()) return;
     const currentQ = ONBOARDING_QUESTIONS[onboardingStep];
@@ -13711,49 +13752,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     }
   };
 
-  // Initialize onboarding chat with first message
-  useEffect(() => {
-    if (!profileLoading && !coachProfile && onboardingMessages.length === 0) {
-      const firstQ = ONBOARDING_QUESTIONS[0];
-      const firstText = typeof firstQ.question === 'function' 
-        ? firstQ.question({}) 
-        : firstQ.question;
-      setOnboardingMessages([{ sender: 'coach', text: firstText }]);
-    }
-  }, [profileLoading, coachProfile]);
-
-  // Listener for chat list
-  useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'coach_chats'), where('userId', '==', user.uid));
-    const unsub = onSnapshot(q, (snap) => {
-      const chats = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      setChatList(chats);
-      setActiveChatId(prev => prev || (chats[0]?.id ?? null));
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'coach_chats'));
-    return () => unsub();
-  }, [user]);
-
-  // Listener for messages scoped to activeChatId
-  useEffect(() => {
-    if (!user || !activeChatId) { setMessages([]); return; }
-    const q = query(
-      collection(db, 'coach_messages'),
-      where('userId', '==', user.uid),
-      where('chatId', '==', activeChatId)
-    );
-    const unsub = onSnapshot(q, (snap) => {
-      const msgs = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-      setMessages(msgs);
-    }, (err) => handleFirestoreError(err, OperationType.LIST, 'coach_messages'));
-    return () => unsub();
-  }, [user, activeChatId]);
-
-  const buildCoachContext = () => {
+  function buildCoachContext() {
     const todayStr = new Date().toISOString().split('T')[0];
 
     // 1. Full lifeSync.current balance object
@@ -13858,7 +13857,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     };
   };
 
-  const createTaskFromCoach = async (args: any) => {
+  async function createTaskFromCoach(args: any) {
     if (!user) return;
     await addDoc(collection(db, 'tasks'), {
       userId: user.uid,
@@ -13877,7 +13876,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     });
   };
 
-  const createHabitFromCoach = async (args: any) => {
+  async function createHabitFromCoach(args: any) {
     if (!user) return;
     await addDoc(collection(db, 'habits'), {
       userId: user.uid,
