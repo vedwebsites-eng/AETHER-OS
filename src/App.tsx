@@ -13385,7 +13385,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
             <button
               key={chat.id}
               onClick={() => switchChat(chat.id)}
-              className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-mono truncate transition-all ${
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-xs font-mono truncate transition-all animate-in fade-in slide-in-from-left-2 duration-300 ${
                 chat.id === activeChatId ? 'bg-cyan/15 text-cyan border border-cyan/20' : 'text-white/50 hover:bg-white/5 hover:text-white/80'
               }`}
             >
@@ -13540,6 +13540,16 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 )}
               </div>
             ))}
+            {isGenerating && !streamingText && (
+              <div className="flex flex-col items-start">
+                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHER_COACH</span>
+                <div className="glass rounded-2xl px-4 py-3 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
             {isGenerating && streamingText && (
               <div className="flex flex-col items-start group">
                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHER_COACH</span>
