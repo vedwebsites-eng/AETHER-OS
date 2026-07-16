@@ -141,5 +141,6 @@ export const generateCoachResponseStream = async (
   }
 
   if (streamError) throw new Error(streamError);
+  if (!fullText && toolCalls.length === 0) throw new Error("Empty response from Aether Mind.");
   return { text: fullText, toolCalls };
 };

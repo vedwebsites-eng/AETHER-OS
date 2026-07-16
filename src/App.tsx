@@ -13232,15 +13232,15 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
 
 function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [] }: any) {
   const coachMarkdownComponents = {
-    p: ({children}: any) => <p className="whitespace-pre-wrap leading-relaxed mb-2 last:mb-0">{children}</p>,
-    strong: ({children}: any) => <strong className="text-cyan font-bold">{children}</strong>,
-    ul: ({children}: any) => <ul className="list-disc list-inside space-y-1 my-2">{children}</ul>,
-    ol: ({children}: any) => <ol className="list-decimal list-inside space-y-1 my-2">{children}</ol>,
-    li: ({children}: any) => <li className="leading-snug">{children}</li>,
-    code: ({children}: any) => <code className="bg-black/40 px-1.5 py-0.5 rounded text-[10px] font-mono text-cyan">{children}</code>,
-    h1: ({children}: any) => <h1 className="text-base font-black text-white mt-3 mb-1.5 first:mt-0 uppercase tracking-wide">{children}</h1>,
-    h2: ({children}: any) => <h2 className="text-sm font-bold text-white/95 mt-3 mb-1 first:mt-0">{children}</h2>,
-    h3: ({children}: any) => <h3 className="text-xs font-bold text-white/90 mt-2 mb-1 first:mt-0">{children}</h3>,
+    p: ({children}: any) => <p className="whitespace-pre-wrap leading-loose mb-6 text-lg text-text-p">{children}</p>,
+    strong: ({children}: any) => <strong className="text-cyan font-semibold">{children}</strong>,
+    ul: ({children}: any) => <ul className="list-disc list-outside ml-4 space-y-3 my-4 text-lg text-text-p">{children}</ul>,
+    ol: ({children}: any) => <ol className="list-decimal list-outside ml-4 space-y-3 my-4 text-lg text-text-p">{children}</ol>,
+    li: ({children}: any) => <li className="leading-relaxed pl-2">{children}</li>,
+    code: ({children}: any) => <code className="bg-background-nested px-2 py-0.5 rounded font-mono text-sm text-cyan">{children}</code>,
+    h1: ({children}: any) => <h1 className="text-2xl font-black text-white mt-8 mb-4 tracking-tight">{children}</h1>,
+    h2: ({children}: any) => <h2 className="text-xl font-bold text-white/95 mt-6 mb-3 tracking-tight">{children}</h2>,
+    h3: ({children}: any) => <h3 className="text-lg font-bold text-white/90 mt-4 mb-2 tracking-tight">{children}</h3>,
   };
   const [messages, setMessages] = useState<any[]>([]);
   const [chatList, setChatList] = useState<any[]>([]);
@@ -13421,12 +13421,32 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         role: m.sender === 'user' ? 'user' as const : 'model' as const,
         parts: [{ text: m.text || '' }]
       }));
+      
+      // Update locally immediately (optimistic)
+      const newMessages = [...messages];
+      newMessages[msgIndex] = { ...coachMsg, text: "Regenerating..." };
+      setMessages(newMessages);
 
       const result = await generateCoachResponse(history, stats, weakestSphere, buildCoachContext(), coachProfile);
-      await updateDoc(doc(db, 'coach_messages', coachMsg.id), {
+      
+      const updatedCoachMsg = {
+        ...coachMsg,
         text: result?.text || coachMsg.text,
         pendingActions: result?.toolCalls || []
+      };
+      
+      await updateDoc(doc(db, 'coach_messages', coachMsg.id), {
+        text: updatedCoachMsg.text,
+        pendingActions: updatedCoachMsg.pendingActions
       });
+
+      // Update state
+      const finalMessages = [...messages];
+      finalMessages[msgIndex] = updatedCoachMsg;
+      setMessages(finalMessages);
+      setCompleteToast('REGENERATED');
+      setTimeout(() => setCompleteToast(null), 1500);
+
     } catch (e) {
       console.error('Regenerate failed:', e);
       setCompleteToast('REGENERATE_FAILED');
@@ -13736,7 +13756,17 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 {m.sender === 'coach' && (
                   <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
-                      onClick={() => { navigator.clipboard.writeText(m.text); setCompleteToast('COPIED_TO_CLIPBOARD'); setTimeout(() => setCompleteToast(null), 1500); }}
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(m.text);
+                          setCompleteToast('COPIED_TO_CLIPBOARD');
+                          setTimeout(() => setCompleteToast(null), 1500);
+                        } catch (err) {
+                          console.error('Failed to copy!', err);
+                          setCompleteToast('COPY_FAILED');
+                          setTimeout(() => setCompleteToast(null), 1500);
+                        }
+                      }}
                       className="flex items-center gap-1 text-[8px] font-mono uppercase text-white/30 hover:text-cyan transition-colors"
                     >
                       <Copy size={10} /> Copy
@@ -14115,7 +14145,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         userId: user.uid,
         chatId: currentChatId,
         sender: 'coach',
-        text: result.text || "NEURAL_SYNAPSE_TIMEOUT. Please retry.",
+        text: result.text,
         pendingActions: result.toolCalls && result.toolCalls.length > 0 ? result.toolCalls : undefined,
         createdAt: new Date().toISOString()
       });
@@ -14175,30 +14205,32 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         setIsGenerating(false);
         return;
       }
-       const errMsg = err?.message || String(err);
-       let coachErrorText = "Error establishing connection to Aether Mind. Please check your config parameters.";
-       
-       if (errMsg.includes("401") || errMsg.includes("403")) {
-         coachErrorText = `AETHER_OS_ERROR: ${errMsg}. Please update or check your OPENROUTER_API_KEY in the 'Settings > Secrets' menu.`;
-       } else if (errMsg.includes("rate limit") || errMsg.includes("rate-limited")) {
-         coachErrorText = "AETHER_OS_ERROR: Free model is currently congested upstream. Wait a minute and try again.";
-       }
- 
-       try {
-         const errorMsgData = removeUndefinedFields({
-           userId: user.uid,
-           chatId: activeChatId,
-           sender: 'coach',
-           text: coachErrorText,
-           createdAt: new Date().toISOString()
-         });
-         await addDoc(collection(db, 'coach_messages'), errorMsgData);
-       } catch (innerErr) {
-       }
-     } finally {
-       setIsGenerating(false);
-     }
-   };
+      
+      const errMsg = err?.message || String(err);
+      console.error('[Coach Response Error]', errMsg);
+      
+      // Update UI
+      setCompleteToast(`ERROR: ${errMsg.slice(0, 50)}`);
+      setTimeout(() => setCompleteToast(null), 3000);
+      setIsGenerating(false);
+      
+      // Save error message to chat
+      try {
+        const errorMsgData = removeUndefinedFields({
+          userId: user.uid,
+          chatId: activeChatId,
+          sender: 'coach',
+          text: `Aether_OS Error: ${errMsg}`,
+          createdAt: new Date().toISOString()
+        });
+        await addDoc(collection(db, 'coach_messages'), errorMsgData);
+      } catch (innerErr) {
+        console.error('Failed to save error message to chat', innerErr);
+      }
+    } finally {
+      setIsGenerating(false);
+    }
+  };
  
    async function handleClearConversation() {
      if (!user) return;
