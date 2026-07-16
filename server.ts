@@ -425,9 +425,9 @@ If the user asks you to create a task or start a habit, call the appropriate too
       })
     });
 
-    let orResponse = await callOpenRouterStream("openai/gpt-oss-120b:free");
-    if (orResponse.status === 429) {
-      console.warn("[OpenRouter] gpt-oss-120b:free congested, falling back to openrouter/free");
+    let orResponse = await callOpenRouterStream("meta-llama/llama-3.3-70b-instruct:free");
+    if (orResponse.status === 429 || orResponse.status === 404) {
+      console.warn(`[OpenRouter] llama-3.3-70b returned ${orResponse.status}, falling back to openrouter/free`);
       orResponse = await callOpenRouterStream("openrouter/free");
     }
 
@@ -520,7 +520,7 @@ app.post("/api/gemini/generate-chat-title", async (req, res) => {
         "X-Title": "AetherOS Coach"
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-120b:free",
+        model: "meta-llama/llama-3.3-70b-instruct:free",
         messages: [
           { role: "system", content: "Generate a concise 3-6 word title summarizing this conversation. No quotes, no punctuation at the end, no preamble — respond with only the title text." },
           { role: "user", content: `User: ${userText}\nCoach: ${(coachText || '').slice(0, 300)}` }
@@ -596,7 +596,7 @@ app.post("/api/gemini/update-memory", async (req, res) => {
         "X-Title": "AetherOS Coach Memory"
       },
       body: JSON.stringify({
-        model: "openai/gpt-oss-120b:free",
+        model: "meta-llama/llama-3.3-70b-instruct:free",
         messages: [
           {
             role: "system",
