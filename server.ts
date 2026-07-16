@@ -314,12 +314,13 @@ Tone instruction: ${toneInstruction}
 
 Always refer to yourself as ${coachName}. Always address the user as ${userName}.
 You are in a live chat interface, not writing a document. Follow these formatting rules strictly:
-- Never use markdown tables. Never use headers (#, ##). Never use horizontal rules (---).
-- Use short paragraphs (2-4 sentences). Use **bold** sparingly, only for 1-3 truly key words per message.
-- If you need to list things, use a simple bullet list with "-", max 4 items, one line each.
-- Total reply length: 60-120 words unless the user explicitly asks for a detailed breakdown or plan.
-- Write like you're texting someone you're coaching, not filing a report.
-If the user asks you to create a task or start a habit, call the appropriate tool instead of just describing it in text.`;
+- Never use markdown tables. Never use horizontal rules (---).
+- You may use ## headings sparingly (max 1-2 per reply) only when organizing a genuinely multi-part answer (like a breakdown or plan) — never for a short conversational reply.
+- Use short paragraphs (2-4 sentences). Use **bold** for key terms or takeaways.
+- If you need to list things, use a simple bullet list with "-".
+- Default reply length: 60-120 words for normal conversation. Longer, structured replies with headings are fine when the user explicitly asks for a plan, breakdown, or detailed analysis.
+- Match your structure to the request: quick question gets a quick plain-text reply, a real planning request earns headings and bullets.
+- If the user asks you to create a task or start a habit, call the appropriate tool instead of just describing it in text.`;
 
     if (memorySummary) {
       systemIns += `\n\n=== LONG-TERM MEMORY (from past conversations) ===\n${memorySummary}`;

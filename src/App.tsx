@@ -13231,6 +13231,17 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
 }
 
 function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [] }: any) {
+  const coachMarkdownComponents = {
+    p: ({children}: any) => <p className="whitespace-pre-wrap leading-relaxed mb-2 last:mb-0">{children}</p>,
+    strong: ({children}: any) => <strong className="text-cyan font-bold">{children}</strong>,
+    ul: ({children}: any) => <ul className="list-disc list-inside space-y-1 my-2">{children}</ul>,
+    ol: ({children}: any) => <ol className="list-decimal list-inside space-y-1 my-2">{children}</ol>,
+    li: ({children}: any) => <li className="leading-snug">{children}</li>,
+    code: ({children}: any) => <code className="bg-black/40 px-1.5 py-0.5 rounded text-[10px] font-mono text-cyan">{children}</code>,
+    h1: ({children}: any) => <h1 className="text-base font-black text-white mt-3 mb-1.5 first:mt-0 uppercase tracking-wide">{children}</h1>,
+    h2: ({children}: any) => <h2 className="text-sm font-bold text-white/95 mt-3 mb-1 first:mt-0">{children}</h2>,
+    h3: ({children}: any) => <h3 className="text-xs font-bold text-white/90 mt-2 mb-1 first:mt-0">{children}</h3>,
+  };
   const [messages, setMessages] = useState<any[]>([]);
   const [chatList, setChatList] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
@@ -13717,7 +13728,11 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
                   {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
                 </span>
-                <p className="whitespace-pre-wrap">{m.text}</p>
+                {m.sender === 'user' ? (
+                  <p className="whitespace-pre-wrap">{m.text}</p>
+                ) : (
+                  <ReactMarkdown components={coachMarkdownComponents}>{m.text}</ReactMarkdown>
+                )}
                 {m.sender === 'coach' && (
                   <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
@@ -13751,14 +13766,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
               <div className="flex flex-col items-start group">
                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHER_COACH</span>
                 <div className="max-w-[85%] glass rounded-2xl px-4 py-3">
-                  <ReactMarkdown
-                    components={{
-                      p: ({children}) => <p className="whitespace-pre-wrap leading-relaxed">{children}</p>,
-                      strong: ({children}) => <strong className="text-cyan font-bold">{children}</strong>,
-                      ul: ({children}) => <ul className="list-disc list-inside space-y-1 my-1.5">{children}</ul>,
-                      li: ({children}) => <li className="leading-snug">{children}</li>,
-                    }}
-                  >
+                  <ReactMarkdown components={coachMarkdownComponents}>
                     {streamingText}
                   </ReactMarkdown>
                   <span className="inline-block w-1.5 h-3 bg-cyan animate-pulse ml-0.5" />
@@ -14141,18 +14149,24 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
 
       // Generate a real AI title in the background on the first exchange only
       if (isFirstMessageInChat) {
-        fetch("/api/gemini/generate-chat-title", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userText: textToSend, coachText: result.text })
-        })
-          .then(r => r.json())
-          .then(data => {
-            if (data?.title) {
-              updateDoc(chatRef, { title: data.title }).catch(e => handleFirestoreError(e, OperationType.UPDATE, `coach_chats/${currentChatId}`));
-            }
-          })
-          .catch(err => console.warn('[Chat Title] generation failed, keeping default title:', err));
+        try {
+          const titleRes = await fetch("/api/gemini/generate-chat-title", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userText: textToSend, coachText: result.text })
+          });
+          const titleData = await titleRes.json();
+          const finalTitle = titleData?.title?.trim() || textToSend.slice(0, 40);
+          await updateDoc(chatRef, { title: finalTitle });
+        } catch (titleErr) {
+          console.error('[Chat Title] generation failed completely:', titleErr);
+          // Guaranteed fallback so it never stays stuck on "New Chat"
+          try {
+            await updateDoc(chatRef, { title: textToSend.slice(0, 40) });
+          } catch (fallbackErr) {
+            handleFirestoreError(fallbackErr, OperationType.UPDATE, `coach_chats/${currentChatId}`);
+          }
+        }
       }
 
     } catch (err: any) {
