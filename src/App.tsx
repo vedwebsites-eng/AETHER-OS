@@ -1548,6 +1548,8 @@ interface Habit {
   frequency: string;
   createdAt: string;
   targetStreak: number;
+  currentStreak: number;
+  lastCompletedDate?: string;
   color: string;
   isArchived: boolean;
 }
@@ -13091,7 +13093,7 @@ function DailyWorkView({
                             <span className="text-[11px] font-mono text-text-m hover:text-white truncate">{h.name}</span>
                          </div>
                          <div className="flex items-center gap-3">
-                            <span className="text-[9px] font-mono text-text-s flex items-center gap-1"><Flame size={10} className="text-orange-500 fill-orange-500" /> {getHabitStreak(h.id)}</span>
+                            <span className="text-[9px] font-mono text-text-s flex items-center gap-1"><Flame size={10} className="text-orange-500 fill-orange-500" /> {h.currentStreak || 0}</span>
                             <input 
                               type="checkbox"
                               checked={isHabitCompletedToday(h.id)}
@@ -13999,28 +14001,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       .filter((h: any) => !h.isArchived)
       .slice(0, 8)
       .map((h: any) => {
-        const logs = (habitLogs || [])
-          .filter((l: any) => l.habitId === h.id && l.completed)
-          .map((l: any) => l.date)
-          .sort((a: string, b: string) => b.localeCompare(a));
-        
-        let streak = 0;
-        if (logs.length > 0) {
-          const checkDate = new Date();
-          const today = todayStr;
-          const yesterday = format(subDays(checkDate, 1), 'yyyy-MM-dd');
-          if (logs[0] === today || logs[0] === yesterday) {
-            while (true) {
-              const expected = format(subDays(new Date(logs[0]), streak), 'yyyy-MM-dd');
-              if (logs.find((l: any) => l === expected)) {
-                streak++;
-              } else {
-                break;
-              }
-            }
-          }
-        }
-
         const doneToday = (habitLogs || []).some(
           (l: any) => l.habitId === h.id && l.date === todayStr && l.completed
         );
@@ -14028,7 +14008,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         return {
           name: h.name,
           category: h.category,
-          streak,
+          streak: h.currentStreak || 0,
           targetStreak: h.targetStreak,
           doneToday
         };
