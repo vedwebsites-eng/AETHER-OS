@@ -451,15 +451,16 @@ You are in a live chat interface, not writing a document. Follow these formattin
     const reader = orResponse.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let accumulatedText = '';
     const toolCallAccumulator: any = {};
-
+    
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
-
+    
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed.startsWith('data:')) continue;
@@ -469,8 +470,9 @@ You are in a live chat interface, not writing a document. Follow these formattin
         try { json = JSON.parse(payload); } catch { continue; }
         const delta = json.choices?.[0]?.delta;
         if (!delta) continue;
-
+    
         if (delta.content) {
+          accumulatedText += delta.content;
           res.write(`data: ${JSON.stringify({ type: 'text', content: delta.content })}\n\n`);
         }
         if (delta.tool_calls) {
@@ -483,7 +485,7 @@ You are in a live chat interface, not writing a document. Follow these formattin
         }
       }
     }
-
+    
     const toolCalls = Object.values(toolCallAccumulator)
       .filter((tc: any) => tc.name)
       .map((tc: any) => {
@@ -491,7 +493,42 @@ You are in a live chat interface, not writing a document. Follow these formattin
         try { args = JSON.parse(tc.arguments || '{}'); } catch {}
         return { name: tc.name, args };
       });
-
+    
+    // Free-tier models occasionally return a completely empty completion with no error.
+    // If that happens and there were no tool calls either, retry once against the fallback model.
+    if (!accumulatedText.trim() && toolCalls.length === 0) {
+      console.warn("[OpenRouter] Empty response from primary model, retrying with fallback");
+      const retryResponse = await callOpenRouterStream("openrouter/free");
+      if (retryResponse.ok && retryResponse.body) {
+        const retryReader = retryResponse.body.getReader();
+        let retryBuffer = '';
+        while (true) {
+          const { done: retryDone, value: retryValue } = await retryReader.read();
+          if (retryDone) break;
+          retryBuffer += decoder.decode(retryValue, { stream: true });
+          const retryLines = retryBuffer.split('\n');
+          retryBuffer = retryLines.pop() || '';
+          for (const line of retryLines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const payload = trimmed.slice(5).trim();
+            if (!payload || payload === '[DONE]') continue;
+            let json;
+            try { json = JSON.parse(payload); } catch { continue; }
+            const retryDelta = json.choices?.[0]?.delta;
+            if (retryDelta?.content) {
+              accumulatedText += retryDelta.content;
+              res.write(`data: ${JSON.stringify({ type: 'text', content: retryDelta.content })}\n\n`);
+            }
+          }
+        }
+      }
+    }
+    
+    if (!accumulatedText.trim() && toolCalls.length === 0) {
+      res.write(`data: ${JSON.stringify({ error: "Both attempts returned an empty response. This can happen with free-tier models on long or complex prompts — try rephrasing more concisely, or retry." })}\n\n`);
+    }
+    
     res.write(`data: ${JSON.stringify({ type: 'done', toolCalls })}\n\n`);
     res.end();
   } catch (err: any) {

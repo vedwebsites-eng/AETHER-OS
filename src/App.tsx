@@ -13427,11 +13427,21 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       newMessages[msgIndex] = { ...coachMsg, text: "Regenerating..." };
       setMessages(newMessages);
 
-      const result = await generateCoachResponse(history, stats, weakestSphere, buildCoachContext(), coachProfile);
+      let liveText = '';
+      const result = await generateCoachResponseStream(
+        history,
+        stats,
+        weakestSphere,
+        buildCoachContext(),
+        coachProfile,
+        memorySummary,
+        (partialText) => { liveText = partialText; setStreamingText(partialText); },
+        abortControllerRef.current?.signal
+      );
       
       const updatedCoachMsg = {
         ...coachMsg,
-        text: result?.text || coachMsg.text,
+        text: result?.text || liveText || coachMsg.text,
         pendingActions: result?.toolCalls || []
       };
       
@@ -13444,6 +13454,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       const finalMessages = [...messages];
       finalMessages[msgIndex] = updatedCoachMsg;
       setMessages(finalMessages);
+      setStreamingText('');
       setCompleteToast('REGENERATED');
       setTimeout(() => setCompleteToast(null), 1500);
 
@@ -13742,7 +13753,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                   "group flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
                   m.sender === 'user' 
                     ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none" 
-                    : "bg-white/5 border border-white/10 text-text-m mr-auto rounded-tl-none border-l-2 border-l-cyan"
+                    : "bg-white/5 border border-white/10 text-white/90 font-medium mr-auto rounded-tl-none border-l-2 border-l-cyan"
                 )}
               >
                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
@@ -13758,13 +13769,26 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                     <button
                       onClick={async () => {
                         try {
-                          await navigator.clipboard.writeText(m.text);
+                          if (navigator.clipboard && window.isSecureContext) {
+                            await navigator.clipboard.writeText(m.text);
+                          } else {
+                            // Fallback for sandboxed preview environments without Clipboard API access
+                            const textarea = document.createElement('textarea');
+                            textarea.value = m.text;
+                            textarea.style.position = 'fixed';
+                            textarea.style.opacity = '0';
+                            document.body.appendChild(textarea);
+                            textarea.focus();
+                            textarea.select();
+                            document.execCommand('copy');
+                            document.body.removeChild(textarea);
+                          }
                           setCompleteToast('COPIED_TO_CLIPBOARD');
                           setTimeout(() => setCompleteToast(null), 1500);
                         } catch (err) {
                           console.error('Failed to copy!', err);
-                          setCompleteToast('COPY_FAILED');
-                          setTimeout(() => setCompleteToast(null), 1500);
+                          setCompleteToast('COPY_FAILED — try copying manually');
+                          setTimeout(() => setCompleteToast(null), 2500);
                         }
                       }}
                       className="flex items-center gap-1 text-[8px] font-mono uppercase text-white/30 hover:text-cyan transition-colors"
