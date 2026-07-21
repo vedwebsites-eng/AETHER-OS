@@ -1615,6 +1615,7 @@ interface MotivationItem {
   type: 'music' | 'quote' | 'link' | 'text';
   content: string; 
   title?: string;
+  vibe?: string;
   createdAt: string;
 }
 
@@ -1685,6 +1686,8 @@ interface AppSettings {
   aiRoutine?: string[];
   onboardingComplete?: boolean;
   lifeSyncCategories?: any[];
+  includeAIInDailyCheckin?: boolean;
+  lastAICheckinDate?: string;
 }
 
 interface WeeklyReview {
@@ -2488,6 +2491,7 @@ interface MotivationItem {
   type: 'music' | 'quote' | 'link' | 'text';
   content: string; 
   title?: string;
+  vibe?: string;
   createdAt: string;
 }
 
@@ -2883,6 +2887,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
   const [dailyWorkSubTab, setDailyWorkSubTab] = useState<'tasks' | 'habits' | 'timetable'>('tasks');
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [showAICheckinPrompt, setShowAICheckinPrompt] = useState(false);
+
+  useEffect(() => {
+    if (settings && settings.includeAIInDailyCheckin === undefined) {
+      setShowAICheckinPrompt(true);
+    }
+  }, [settings]);
   const [xpNotifications, setXpNotifications] = useState<XPNotification[]>([]);
   const [levelUpLevel, setLevelUpLevel] = useState<number | null>(null);
   const [celebratingAchievement, setCelebratingAchievement] = useState<Achievement | null>(null);
@@ -3911,10 +3922,35 @@ export default function App() {
 
   const [focusTask, setFocusTask] = useState<Task | null>(null);
   const [focusStartTime, setFocusStartTime] = useState<number>(0);
+  const [activeVibe, setActiveVibe] = useState<string | null>(null);
+
+  const CATEGORY_VIBE_MAP: Record<string, string> = {
+    work: 'techy',
+    learning: 'lofi',
+    creative: 'chill',
+    health: 'hype',
+    personal: 'chill',
+    routine: 'lofi',
+  };
+
+  const playVibe = (vibeTag: string) => {
+    const matches = motivationItems.filter(
+      i => (i.type === 'music' || i.type === 'link') && i.vibe === vibeTag
+    );
+    if (matches.length > 0) {
+      const pick = matches[Math.floor(Math.random() * matches.length)];
+      startPlaylist(pick);
+      setActiveVibe(vibeTag);
+    } else {
+      setActiveVibe(null);
+    }
+  };
 
   const startFocus = (task: Task) => {
     setFocusTask(task);
     setFocusStartTime(Date.now());
+    const suggestedVibe = CATEGORY_VIBE_MAP[task.category] || 'chill';
+    playVibe(suggestedVibe);
   };
 
   const endFocus = async () => {
@@ -4770,6 +4806,8 @@ export default function App() {
                     onComplete={handleCompleteTask} 
                     user={user} 
                     setActiveTab={handleTabChange} 
+                    settings={settings}
+                    updateSettings={updateSettings}
                     setIsMotivationPortalOpen={setIsMotivationPortalOpen} 
                     motivationItems={motivationItems}
                     currentlyPlaying={currentlyPlaying}
@@ -4841,6 +4879,9 @@ export default function App() {
                     tasks={tasks}
                     habits={habits}
                     habitLogs={habitLogs}
+                    motivationItems={motivationItems}
+                    startPlaylist={startPlaylist}
+                    setIsMotivationPortalOpen={setIsMotivationPortalOpen}
                   />
                 </ErrorBoundary>
               )}
@@ -4948,6 +4989,34 @@ export default function App() {
             title={shareModal.title}
           />
         )}
+        {showAICheckinPrompt && (
+          <div className="fixed inset-0 bg-black/80 z-[300] flex items-center justify-center p-6">
+            <div className="glass max-w-sm w-full p-8 rounded-3xl border border-cyan/20 space-y-6 text-center">
+              <Sparkles size={28} className="text-cyan mx-auto" />
+              <div className="space-y-2">
+                <h2 className="text-lg font-serif font-black uppercase italic text-white">Daily Check-in</h2>
+                <p className="text-xs font-mono text-text-m leading-relaxed">
+                  Want Ace's analysis included as part of your daily check-in, alongside Tasks, Journal, and Wheel of Life?
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { updateSettings({ includeAIInDailyCheckin: false }); setShowAICheckinPrompt(false); }}
+                  className="flex-1 py-3 bg-white/5 border border-white/10 text-white/60 font-mono text-xs font-black uppercase rounded-xl"
+                >
+                  No thanks
+                </button>
+                <button
+                  onClick={() => { updateSettings({ includeAIInDailyCheckin: true }); setShowAICheckinPrompt(false); }}
+                  className="flex-1 py-3 bg-cyan text-black font-mono text-xs font-black uppercase rounded-xl"
+                >
+                  Yes, include it
+                </button>
+              </div>
+              <p className="text-[9px] font-mono text-text-m/50 uppercase">You can change this later in settings</p>
+            </div>
+          </div>
+        )}
         {completeToast && (
           <motion.div 
             initial={{ y: 50, opacity: 0 }}
@@ -4988,6 +5057,20 @@ export default function App() {
                    </div>
                 </div>
                 <p className="text-[10px] font-mono text-text-m uppercase tracking-widest opacity-40">System_Stabilization_In_Progress... Maintain_Neural_Bridge</p>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {['techy', 'chill', 'hype', 'lofi', 'deep_focus', 'classical'].map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() => playVibe(tag)}
+                    className={`px-3 py-1.5 rounded-full text-[9px] font-mono uppercase tracking-wide border transition-all ${
+                      activeVibe === tag ? 'bg-cyan/20 border-cyan/50 text-cyan' : 'bg-white/5 border-white/10 text-text-m hover:border-white/20'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
               </div>
 
               <div className="flex gap-6 justify-center">
@@ -6988,6 +7071,7 @@ function MotivationPortal({
   const [newType, setNewType] = useState<MotivationItem['type']>('link');
   const [newContent, setNewContent] = useState('');
   const [newTitle, setNewTitle] = useState('');
+  const [newVibe, setNewVibe] = useState('');
 
   const getYoutubeId = (url: string): string | null => {
     const match = url?.match(
@@ -7043,9 +7127,10 @@ function MotivationPortal({
 
   const handleAdd = () => {
     if (!newContent) return;
-    onAdd({ type: newType, content: newContent, title: newTitle });
+    onAdd({ type: newType, content: newContent, title: newTitle, vibe: newVibe || undefined });
     setNewContent('');
     setNewTitle('');
+    setNewVibe('');
   };
 
   return (
@@ -7104,6 +7189,30 @@ function MotivationPortal({
                            onChange={e => setNewTitle(e.target.value)}
                            className="flex-1 bg-black/40 border border-white/10 p-3 rounded-xl text-xs font-mono text-white outline-none focus:border-accent/40"
                          />
+                      </div>
+                      <div className="space-y-1.5">
+                        <p className="text-[9px] font-mono text-text-m uppercase tracking-widest opacity-50">Vibe Tag (Optional)</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {['techy', 'chill', 'hype', 'lofi', 'deep_focus', 'classical'].map(tag => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => setNewVibe(newVibe === tag ? '' : tag)}
+                              className={`px-2.5 py-1 rounded-full text-[9px] font-mono uppercase tracking-wide border transition-all ${
+                                newVibe === tag ? 'bg-accent/20 border-accent/50 text-accent' : 'bg-white/5 border-white/10 text-text-m hover:border-white/20'
+                              }`}
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                          <input
+                            type="text"
+                            placeholder="custom..."
+                            value={['techy', 'chill', 'hype', 'lofi', 'deep_focus', 'classical'].includes(newVibe) ? '' : newVibe}
+                            onChange={e => setNewVibe(e.target.value)}
+                            className="w-20 bg-black/40 border border-white/10 px-2 py-1 rounded-full text-[9px] font-mono text-white outline-none focus:border-accent/40"
+                          />
+                        </div>
                       </div>
                       <textarea 
                         placeholder={newType === 'link' ? "PASTE_VIDEO_URL (YouTube/Instagram/TikTok)" : newType === 'music' ? "SPOTIFY_LINK or TRACK_NAME" : "MOTIVATIONAL_CONTENT"}
@@ -7382,6 +7491,71 @@ function LifeSyncOverview({ lifeSync, setActiveTab, categories = LIFE_CATEGORIES
   );
 }
 
+function DailyChecklistCard({ tasks, journals, stats, settings, setActiveTab, updateSettings }: {
+  tasks: Task[];
+  journals: JournalEntry[];
+  stats: UserStats | null;
+  settings: AppSettings | null;
+  setActiveTab: any;
+  updateSettings: (s: Partial<AppSettings>) => void;
+}) {
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const tasksDone = tasks.some(t => t.status === 'completed' && t.completedAt?.startsWith(todayStr));
+  const journalDone = journals.some(j => j.createdAt?.startsWith(todayStr));
+  const wheelDone = stats?.lifeSync?.lastSaved === todayStr;
+  const aiIncluded = settings?.includeAIInDailyCheckin === true;
+  const aiDone = settings?.lastAICheckinDate === todayStr;
+
+  const items = [
+    { id: 'tasks', label: 'DAILY_TASKS', done: tasksDone, icon: CheckCircle2, tab: 'dailyWork' },
+    { id: 'journal', label: 'JOURNAL', done: journalDone, icon: Book, tab: 'reflect' },
+    { id: 'wheel', label: 'WHEEL_OF_LIFE', done: wheelDone, icon: Target, tab: 'grow' },
+    ...(aiIncluded ? [{ id: 'ai', label: 'AI_CHECK_IN', done: aiDone, icon: Sparkles, tab: 'aetherCoach' }] : []),
+  ];
+
+  const completedCount = items.filter(i => i.done).length;
+
+  return (
+    <div className="glass p-6 rounded-2xl border border-white/5 space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">DAILY_CHECK_IN</span>
+        <span className="text-[10px] font-mono text-cyan">{completedCount}/{items.length}</span>
+      </div>
+      <div className="space-y-2">
+        {items.map(item => (
+          <button
+            key={item.id}
+            onClick={() => {
+              setActiveTab(item.tab);
+              if (item.id === 'ai') updateSettings({ lastAICheckinDate: todayStr });
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
+              item.done ? 'bg-success/5 border-success/20' : 'bg-white/5 border-white/10 hover:border-white/20'
+            }`}
+          >
+            <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${item.done ? 'bg-success' : 'border border-white/20'}`}>
+              {item.done && <CheckCircle2 size={12} className="text-black" />}
+            </div>
+            <item.icon size={14} className={item.done ? 'text-success' : 'text-text-m'} />
+            <span className={`text-xs font-mono font-black uppercase tracking-wide flex-1 text-left ${item.done ? 'text-success/80 line-through' : 'text-white/80'}`}>
+              {item.label}
+            </span>
+          </button>
+        ))}
+      </div>
+      {!aiIncluded && (
+        <button
+          onClick={() => updateSettings({ includeAIInDailyCheckin: true })}
+          className="w-full text-[9px] font-mono text-text-m/50 hover:text-cyan uppercase tracking-widest transition-colors"
+        >
+          + Add AI check-in to your daily routine
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Dashboard({ 
   stats, 
   tasks, 
@@ -7389,6 +7563,8 @@ function Dashboard({
   onComplete, 
   user, 
   setActiveTab,
+  settings,
+  updateSettings,
   setIsMotivationPortalOpen,
   motivationItems = [],
   currentlyPlaying,
@@ -7410,6 +7586,8 @@ function Dashboard({
   onComplete: (task: Task) => void; 
   user: User; 
   setActiveTab: any;
+  settings: AppSettings | null;
+  updateSettings: (s: Partial<AppSettings>) => void;
   setIsMotivationPortalOpen: (open: boolean) => void;
   motivationItems?: MotivationItem[];
   currentlyPlaying: string | null;
@@ -7505,6 +7683,14 @@ function Dashboard({
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
+      <DailyChecklistCard
+        tasks={tasks}
+        journals={journals}
+        stats={stats}
+        settings={settings}
+        setActiveTab={setActiveTab}
+        updateSettings={updateSettings}
+      />
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
            <h1 className="text-4xl font-serif font-black text-text-p uppercase tracking-[0.1em] italic text-glow-white">COMMAND_CENTER</h1>
@@ -13232,7 +13418,7 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
   );
 }
 
-function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [] }: any) {
+function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], startPlaylist, setIsMotivationPortalOpen }: any) {
   const coachMarkdownComponents = {
     p: ({children}: any) => <p className="whitespace-pre-wrap leading-loose mb-6 text-lg text-text-p">{children}</p>,
     strong: ({children}: any) => <strong className="text-cyan font-semibold">{children}</strong>,
@@ -14145,12 +14331,23 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       abortControllerRef.current = null;
 
       // 2. Add coach reply
+      const motivationTrigger = (result?.toolCalls || []).find((tc: any) => tc.name === 'trigger_motivation_boost');
+      const confirmableActions = (result?.toolCalls || []).filter((tc: any) => tc.name !== 'trigger_motivation_boost');
+
+      if (motivationTrigger) {
+        if (motivationItems.length > 0) {
+          const randomItem = motivationItems[Math.floor(Math.random() * motivationItems.length)];
+          startPlaylist(randomItem);
+        }
+        setIsMotivationPortalOpen(true);
+      }
+
       const coachMsgData = removeUndefinedFields({
         userId: user.uid,
         chatId: currentChatId,
         sender: 'coach',
         text: result.text,
-        pendingActions: result.toolCalls && result.toolCalls.length > 0 ? result.toolCalls : undefined,
+        pendingActions: confirmableActions.length > 0 ? confirmableActions : undefined,
         createdAt: new Date().toISOString()
       });
       await addDoc(collection(db, 'coach_messages'), coachMsgData);
