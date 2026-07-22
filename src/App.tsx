@@ -11377,6 +11377,16 @@ function JournalView({
 
     return (
       <div className="space-y-3">
+        {journals.length > 0 && (
+          <div className="flex justify-end pb-2">
+            <button
+              onClick={() => { if (confirm("Delete all journals? This cannot be undone.")) deleteAllJournals(); }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-mono text-red-400/70 hover:text-red-400 uppercase tracking-widest border border-red-500/20 hover:border-red-500/40 rounded-full transition-colors"
+            >
+              <Trash2 size={10} /> Delete All
+            </button>
+          </div>
+        )}
         {journals.map((journal, index) => (
           <div
             key={`journal-history-${journal.id || 'journal'}-${index}`}
@@ -11483,12 +11493,6 @@ function JournalView({
         </div>
         
         <div className="flex glass p-1.5 rounded-xl border border-white/10 bg-black/40 shadow-2xl">
-           <button
-             onClick={() => { if (confirm("Delete all journals?")) deleteAllJournals(); }}
-             className="px-4 text-[9px] font-mono text-red-400 uppercase tracking-widest hover:text-red-300"
-           >
-             DELETE_ALL
-           </button>
            {(['entry', 'history', 'insights'] as const).map(tab => (
              <button 
                key={tab} 
@@ -13439,7 +13443,7 @@ function DailyWorkView({
   );
 }
 
-function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habits, habitLogs }: any) {
+function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habits, habitLogs, deleteJournalEntry, deleteAllJournals }: any) {
   return (
     <div className="max-w-[1600px] mx-auto min-h-[85vh] flex flex-col gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
       
