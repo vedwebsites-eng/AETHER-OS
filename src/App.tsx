@@ -2711,6 +2711,28 @@ export default function App() {
   const [notepadLines, setNotepadLines] = useState<NotepadLine[]>([]);
   const [timeBlocks, setTimeBlocks] = useState<TimeBlock[]>([]);
   const [journals, setJournals] = useState<JournalEntry[]>([]);
+  
+  const deleteJournalEntry = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'journals', id));
+    } catch (e) {
+      handleFirestoreError(e, OperationType.DELETE, `journals/${id}`);
+    }
+  };
+
+  const deleteAllJournals = async () => {
+    try {
+        const batch = writeBatch(db);
+        journals.forEach(j => {
+          if (j.id) {
+            batch.delete(doc(db, 'journals', j.id));
+          }
+        });
+        await batch.commit();
+    } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, 'journals');
+    }
+  };
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [motivationItems, setMotivationItems] = useState<MotivationItem[]>([]);
@@ -4867,6 +4889,8 @@ export default function App() {
                     tasks={tasks}
                     habits={habits}
                     habitLogs={habitLogs}
+                    deleteJournalEntry={deleteJournalEntry}
+                    deleteAllJournals={deleteAllJournals}
                   />
                 </ErrorBoundary>
               )}
@@ -7499,7 +7523,17 @@ function DailyChecklistCard({ tasks, journals, stats, settings, setActiveTab, up
   setActiveTab: any;
   updateSettings: (s: Partial<AppSettings>) => void;
 }) {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const [todayStr, setTodayStr] = useState(new Date().toISOString().split('T')[0]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newTodayStr = new Date().toISOString().split('T')[0];
+      if (newTodayStr !== todayStr) {
+        setTodayStr(newTodayStr);
+      }
+    }, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [todayStr]);
 
   const tasksDone = tasks.some(t => t.status === 'completed' && t.completedAt?.startsWith(todayStr));
   const journalDone = journals.some(j => j.createdAt?.startsWith(todayStr));
@@ -10869,7 +10903,9 @@ function JournalView({
   stats,
   tasks = [],
   habits = [],
-  habitLogs = []
+  habitLogs = [],
+  deleteJournalEntry,
+  deleteAllJournals
 }: { 
   journals: JournalEntry[]; 
   user: User; 
@@ -10878,6 +10914,8 @@ function JournalView({
   tasks?: Task[];
   habits?: Habit[];
   habitLogs?: HabitLog[];
+  deleteJournalEntry: (id: string) => Promise<void>;
+  deleteAllJournals: () => Promise<void>;
 }) {
   const [activeSubTab, setActiveSubTab] = useState<'entry' | 'history' | 'insights'>('entry');
   const [content, setContent] = useState('');
@@ -11350,6 +11388,15 @@ function JournalView({
             {/* Header — always visible */}
             <div className="flex items-center justify-between px-6 py-4">
               <div className="flex items-center gap-4">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm("Delete this journal entry?")) deleteJournalEntry(journal.id!);
+                  }}
+                  className="text-white/20 hover:text-red-400 transition-colors"
+                >
+                  <Trash2 size={14} />
+                </button>
                 <span className="text-2xl">
                   {MOODS.find(m => m.id === journal.mood)?.emoji || '😐'}
                 </span>
@@ -11436,6 +11483,12 @@ function JournalView({
         </div>
         
         <div className="flex glass p-1.5 rounded-xl border border-white/10 bg-black/40 shadow-2xl">
+           <button
+             onClick={() => { if (confirm("Delete all journals?")) deleteAllJournals(); }}
+             className="px-4 text-[9px] font-mono text-red-400 uppercase tracking-widest hover:text-red-300"
+           >
+             DELETE_ALL
+           </button>
            {(['entry', 'history', 'insights'] as const).map(tab => (
              <button 
                key={tab} 
@@ -13411,6 +13464,8 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
             tasks={tasks}
             habits={habits}
             habitLogs={habitLogs}
+            deleteJournalEntry={deleteJournalEntry}
+            deleteAllJournals={deleteAllJournals}
          />
       </div>
 
@@ -14067,6 +14122,13 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 disabled={isGenerating}
                 className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
               />
+              <button
+                type="button"
+                onClick={() => !coachProfile ? setOnboardingInput('') : setInputText('')}
+                className="p-3 bg-black/40 border border-white/10 rounded-xl text-white/50 hover:text-red-400 hover:border-red-400/30 transition-all"
+              >
+                <Trash2 size={16} />
+              </button>
               {isGenerating ? (
                 <button
                   type="button"
