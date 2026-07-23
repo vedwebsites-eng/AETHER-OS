@@ -13671,9 +13671,11 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       
       // Update locally immediately (optimistic)
       const newMessages = [...messages];
-      newMessages[msgIndex] = { ...coachMsg, text: "Regenerating..." };
+      newMessages[msgIndex] = { ...coachMsg, text: "" };
       setMessages(newMessages);
+      setStreamingText('');
 
+      abortControllerRef.current = new AbortController();
       let liveText = '';
       const result = await generateCoachResponseStream(
         history,
@@ -13682,9 +13684,16 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         buildCoachContext(),
         coachProfile,
         memorySummary,
-        (partialText) => { liveText = partialText; setStreamingText(partialText); },
-        abortControllerRef.current?.signal
+        (partialText) => {
+          liveText = partialText;
+          setStreamingText(partialText);
+          const liveMessages = [...messages];
+          liveMessages[msgIndex] = { ...coachMsg, text: partialText };
+          setMessages(liveMessages);
+        },
+        abortControllerRef.current.signal
       );
+      abortControllerRef.current = null;
       
       const updatedCoachMsg = {
         ...coachMsg,
@@ -14404,8 +14413,9 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         if (motivationItems.length > 0) {
           const randomItem = motivationItems[Math.floor(Math.random() * motivationItems.length)];
           startPlaylist(randomItem);
+        } else {
+          setIsMotivationPortalOpen(true);
         }
-        setIsMotivationPortalOpen(true);
       }
 
       const coachMsgData = removeUndefinedFields({
