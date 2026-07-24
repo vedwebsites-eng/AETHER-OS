@@ -19,7 +19,8 @@ import {
   ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download, Briefcase,
   Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
   Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon, Info,
-  RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink, ChevronDown, Share2, Eye, EyeOff
+  RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink, ChevronDown, Share2, Eye, EyeOff, Mic,
+  PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -1671,6 +1672,7 @@ interface AppSettings {
     showXpPopups: boolean;
     showAchievements: boolean;
     soundVolume: number;
+    microphoneSensitivity: number;
     animations: 'full' | 'reduced' | 'none';
   };
   display: {
@@ -2682,7 +2684,7 @@ const initializeNewUser = async (user: User) => {
     const defaultSettings: AppSettings = {
       difficultyMultiplier: 1.0,
       goalTargets: { weeklyTasks: 20, weeklyJournals: 5, dailyLogin: 1 },
-      ui: { showXpPopups: true, showAchievements: true, soundVolume: 0.5, animations: 'full' },
+      ui: { showXpPopups: true, showAchievements: true, soundVolume: 0.5, microphoneSensitivity: 50, animations: 'full' },
       display: { theme: 'cyberpunk', language: 'en', timeFormat: '24h' },
       notifications: { taskReminders: true, achievementNotifs: true, streakReminders: true },
       aiRoutine: ['School', 'Tuition', 'Dinner', 'Gym', 'Meditation'],
@@ -2736,6 +2738,7 @@ export default function App() {
   const [habits, setHabits] = useState<Habit[]>([]);
   const [habitLogs, setHabitLogs] = useState<HabitLog[]>([]);
   const [motivationItems, setMotivationItems] = useState<MotivationItem[]>([]);
+  const [pendingMotivation, setPendingMotivation] = useState<MotivationItem | null>(null);
   const [currentlyPlaying, setCurrentlyPlaying] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playMode, setPlayMode] = useState<'single' | 'playlist' | 'shuffle'>('single');
@@ -2925,8 +2928,7 @@ export default function App() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [terminalLogs, setTerminalLogs] = useState<{ id: string; msg: string; type: 'info' | 'warn' | 'error' | 'success'; time: string }[]>([]);
   const [isManualOpen, setIsManualOpen] = useState(false);
-  const [isNodeRecalibrating, setIsNodeRecalibrating] = useState(false);
-  const [isNavExpanded, setIsNavExpanded] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const addToTerminal = (msg: string, type: 'info' | 'warn' | 'error' | 'success' = 'info') => {
     const id = Math.random().toString(36).substr(2, 9);
@@ -3956,13 +3958,18 @@ export default function App() {
   };
 
   const playVibe = (vibeTag: string) => {
-    const matches = motivationItems.filter(
-      i => (i.type === 'music' || i.type === 'link') && i.vibe === vibeTag
-    );
-    if (matches.length > 0) {
-      const pick = matches[Math.floor(Math.random() * matches.length)];
+    const playable = motivationItems.filter(i => i.type === 'music' || i.type === 'link');
+    const exactMatches = playable.filter(i => i.vibe === vibeTag);
+
+    if (exactMatches.length > 0) {
+      const pick = exactMatches[Math.floor(Math.random() * exactMatches.length)];
       startPlaylist(pick);
       setActiveVibe(vibeTag);
+    } else if (playable.length > 0) {
+      // No exact tag match, but you've got songs — play something rather than nothing
+      const pick = playable[Math.floor(Math.random() * playable.length)];
+      startPlaylist(pick);
+      setActiveVibe(null); // no tag was actually matched, so don't show a false "active vibe" label
     } else {
       setActiveVibe(null);
     }
@@ -4609,45 +4616,6 @@ export default function App() {
         </motion.div>
       )}
 
-      {/* Node Recalibration Overlay */}
-      <AnimatePresence>
-        {isNodeRecalibrating && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/80 backdrop-blur-md"
-          >
-            <div className="flex flex-col items-center gap-6">
-              <div className="relative">
-                <motion.div 
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                  className="w-16 h-16 border-2 border-cyan/30 rounded-full border-t-cyan border-r-cyan/50 shadow-[0_0_20px_rgba(0,217,255,0.3)]"
-                />
-                <Zap size={24} className="absolute inset-0 m-auto text-cyan animate-pulse" />
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <motion.p 
-                  animate={{ opacity: [0.5, 1, 0.5] }}
-                  transition={{ repeat: Infinity, duration: 1 }}
-                  className="text-[10px] font-mono font-black text-cyan uppercase tracking-[0.4em] animate-glitch"
-                >
-                  RECALIBRATING_NODE
-                </motion.p>
-                <div className="w-32 h-[1px] bg-white/10 relative overflow-hidden">
-                  <motion.div 
-                    initial={{ x: '-100%' }}
-                    animate={{ x: '100%' }}
-                    transition={{ duration: 0.45, ease: "linear" }}
-                    className="absolute inset-0 bg-cyan"
-                  />
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Control Panel Buttons */}
       <div className="fixed top-6 right-6 lg:top-8 lg:right-8 z-[60] flex items-center gap-3">
@@ -4945,6 +4913,14 @@ export default function App() {
         </div>
       </main>
     </div>
+
+      {pendingMotivation && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 glass p-4 rounded-xl border border-white/10 bg-black/80 text-white z-50 flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4">
+          <p className="text-sm">Ready to boost your motivation with: <span className="font-bold">{pendingMotivation.title}</span>?</p>
+          <button onClick={() => { startPlaylist(pendingMotivation); setPendingMotivation(null); }} className="px-3 py-1 bg-indigo-600 rounded-lg text-xs font-bold">Play</button>
+          <button onClick={() => setPendingMotivation(null)} className="px-3 py-1 bg-white/10 rounded-lg text-xs">Maybe later</button>
+        </div>
+      )}
 
       <MotivationPortal 
         isOpen={isMotivationPortalOpen} 
@@ -10919,6 +10895,45 @@ function JournalView({
 }) {
   const [activeSubTab, setActiveSubTab] = useState<'entry' | 'history' | 'insights'>('entry');
   const [content, setContent] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const toggleRecording = async () => {
+    if (isRecording) {
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+    } else {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      audioChunksRef.current = [];
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+      mediaRecorderRef.current.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('audio', audioBlob);
+        
+        const response = await fetch('/api/speech-to-text', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await response.json();
+        if (data.transcript) {
+          setContent(prev => (prev ? prev + ' ' + data.transcript : data.transcript));
+        }
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+    }
+  };
+
   const [mood, setMood] = useState<JournalEntry['mood']>('happy');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [currentPrompt, setCurrentPrompt] = useState(() => REFLECTION_PROMPTS[Math.floor(Math.random() * REFLECTION_PROMPTS.length)]);
@@ -11527,6 +11542,12 @@ function JournalView({
                        <p className="text-[8px] font-mono text-text-m uppercase">Potential_Gain</p>
                        <p className="text-sm font-mono font-black text-success">+{potentialXP} XP</p>
                     </div>
+                    <button 
+                       onClick={toggleRecording}
+                       className={cn("p-4 rounded-xl border transition-all mr-4", isRecording ? "bg-red-500/20 border-red-500/50 text-red-500 animate-pulse" : "bg-black/40 border-white/10 text-text-m hover:text-white")}
+                     >
+                       <Mic size={20} />
+                     </button>
                     <button 
                       onClick={addEntry}
                       className="px-8 py-4 bg-accent text-white font-mono font-black uppercase tracking-widest rounded-xl accent-glow hover:bg-red-600 transition-all shadow-2xl"
@@ -12894,13 +12915,22 @@ function SettingsView({ settings, stats, user, onUpdate, onPurchase }: { setting
             </motion.section>
           )}
 
-          {activeCategory === 'data' && (
-            <motion.section 
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="space-y-8"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="glass p-8 rounded-[3rem] border border-white/5 flex flex-col justify-between group h-64 overflow-hidden relative">
+                    <div className="space-y-2 relative z-10">
+                       <h4 className="text-xl font-serif font-black text-white italic uppercase">VOICE_INPUT_THRESHOLD</h4>
+                       <p className="text-[10px] font-mono text-text-m uppercase opacity-60">Adjust noise filter sensitivity.</p>
+                       <input 
+                         type="range" 
+                         min="0" 
+                         max="100" 
+                         value={settings.ui.microphoneSensitivity ?? 50}
+                         onChange={(e) => onUpdate({ ui: { ...settings.ui, microphoneSensitivity: parseInt(e.target.value) } })}
+                         className="w-full accent-accent"
+                       />
+                       <span className="text-xs font-mono text-white">{settings.ui.microphoneSensitivity ?? 50}%</span>
+                    </div>
+                 </div>
                  <div className="glass p-8 rounded-[3rem] border border-white/5 flex flex-col justify-between group h-64 overflow-hidden relative">
                     <div className="absolute -bottom-4 -right-4 opacity-5 pointer-events-none group-hover:scale-110 transition-transform">
                        <Download size={120} className="text-white" />
@@ -12968,8 +12998,6 @@ function SettingsView({ settings, stats, user, onUpdate, onPurchase }: { setting
                    TERMINATE_SESSION
                  </button>
               </div>
-            </motion.section>
-          )}
 
         </div>
       </div>
@@ -13809,7 +13837,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   return (
     <div className="flex h-full animate-in fade-in duration-500">
       {/* CHAT SIDEBAR */}
-      <div className="w-64 border-r border-white/5 flex flex-col shrink-0">
+      <div className={`border-r border-white/5 flex flex-col shrink-0 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-0 overflow-hidden'}`}>
         <div className="p-4 border-b border-white/5 space-y-2">
           <button
             onClick={startNewChat}
@@ -13889,6 +13917,14 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
           ))}
         </div>
       </div>
+
+      {/* Toggle button */}
+      <button
+        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+        className="absolute top-4 left-4 z-50 p-2 bg-black/50 hover:bg-black/70 rounded-lg text-white/50 hover:text-white transition-all"
+      >
+        {isSidebarOpen ? <PanelLeftClose size={18} /> : <PanelLeftOpen size={18} />}
+      </button>
 
       {/* MAIN CHAT PANE */}
       <div className="flex-1 flex flex-col min-w-0 glass rounded-r-[2.5rem] border-r border-white/10 overflow-hidden relative bg-gradient-to-b from-indigo-950/20 via-background-nested to-transparent shadow-[0_0_50px_rgba(34,211,238,0.1)]">
@@ -14412,7 +14448,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       if (motivationTrigger) {
         if (motivationItems.length > 0) {
           const randomItem = motivationItems[Math.floor(Math.random() * motivationItems.length)];
-          startPlaylist(randomItem);
+          setPendingMotivation(randomItem);
         } else {
           setIsMotivationPortalOpen(true);
         }

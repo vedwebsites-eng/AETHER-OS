@@ -3,11 +3,14 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import multer from "multer";
+// import fetch from "node-fetch";
 
 dotenv.config();
 
 const app = express();
-app.use(express.json());
+app.use(express.json({limit: '50mb'}));
+const upload = multer({ storage: multer.memoryStorage() });
 const PORT = 3000;
 
 // Lazy initialization of GoogleGenAI
@@ -56,6 +59,39 @@ const handleGeminiError = (err: any, res: any, contextMsg: string, fallbackData?
 
 app.get("/api/health", (req, res) => {
   res.json({ status: "healthy", timestamp: new Date().toISOString() });
+});
+
+app.post("/api/speech-to-text", upload.single("audio"), async (req, res) => {
+  try {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      return res.status(401).json({ error: "ELEVENLABS_API_KEY is not configured" });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: "No audio file provided" });
+    }
+
+    // ElevenLabs audio-to-text API call
+    const response = await fetch("https://api.elevenlabs.io/v1/audio-to-text", {
+      method: "POST",
+      headers: { 
+        "xi-api-key": apiKey,
+        // The API might expect multipart/form-data with the file
+      },
+      // This part might need adjustment based on ElevenLabs API format
+      body: req.file.buffer, 
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error?.message || "ElevenLabs Speech-to-Text API failed");
+    }
+
+    res.json({ transcript: data.text });
+  } catch (err: any) {
+    console.error("Speech-to-Text Error:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post("/api/gemini/analyze-journal", async (req, res) => {
