@@ -3181,11 +3181,7 @@ export default function App() {
   };
 
   const handleTabChange = (tab: AppTab) => {
-    setIsNodeRecalibrating(true);
-    setTimeout(() => {
-      setActiveTab(tab);
-      setIsNodeRecalibrating(false);
-    }, 450);
+    setActiveTab(tab);
   };
 
   const addMotivationItem = async (item: Partial<MotivationItem>) => {
@@ -4874,6 +4870,8 @@ export default function App() {
                     motivationItems={motivationItems}
                     startPlaylist={startPlaylist}
                     setIsMotivationPortalOpen={setIsMotivationPortalOpen}
+                    isSidebarOpen={isSidebarOpen}
+                    setIsSidebarOpen={setIsSidebarOpen}
                   />
                 </ErrorBoundary>
               )}
@@ -13505,7 +13503,7 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
   );
 }
 
-function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], startPlaylist, setIsMotivationPortalOpen }: any) {
+function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], startPlaylist, setIsMotivationPortalOpen, isSidebarOpen, setIsSidebarOpen }: any) {
   const coachMarkdownComponents = {
     p: ({children}: any) => <p className="whitespace-pre-wrap leading-loose mb-6 text-lg text-text-p">{children}</p>,
     strong: ({children}: any) => <strong className="text-cyan font-semibold">{children}</strong>,
