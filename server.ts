@@ -1,10 +1,8 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import multer from "multer";
-// import fetch from "node-fetch";
 
 dotenv.config();
 
@@ -13,38 +11,23 @@ app.use(express.json({limit: '50mb'}));
 const upload = multer({ storage: multer.memoryStorage() });
 const PORT = 3000;
 
-// Lazy initialization of GoogleGenAI
-const getAI = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY environment variable is required.");
-  }
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      }
-    }
-  });
-};
-
+// Lazy initialization removed - getAI removed
 const handleGeminiError = (err: any, res: any, contextMsg: string, fallbackData?: any) => {
   const errMsg = err?.message || String(err);
   const isLeaked = errMsg.includes("leaked") || errMsg.includes("Key blocked") || errMsg.includes("403") || errMsg.includes("PERMISSION_DENIED") || errMsg.includes("required");
   
   if (isLeaked) {
-    console.log(`[Aether_OS Server] Gemini service operating in offline mode for: ${contextMsg}`);
+    console.log(`[AETHOS Server] Gemini service operating in offline mode for: ${contextMsg}`);
     if (fallbackData !== undefined) {
       return res.status(200).json(fallbackData);
     }
     return res.status(200).json({ 
-      text: "Aether_OS // LINK_STATUS: OFFLINE\n\nYour GEMINI_API_KEY is invalid or has been reported as leaked. Please rotate or replace your API key via the 'Settings > Secrets' menu on AI Studio to restore full neural analysis systems." 
+      text: "AETHOS // LINK_STATUS: OFFLINE\n\nYour GEMINI_API_KEY is invalid or has been reported as leaked. Please rotate or replace your API key via the 'Settings > Secrets' menu on AI Studio to restore full neural analysis systems." 
     });
   }
   
   if (err?.status === 429 || err?.message?.includes("429")) {
-    console.warn(`[Aether_OS Server] Quota exhausted: ${contextMsg}`);
+    console.warn(`[AETHOS Server] Quota exhausted: ${contextMsg}`);
     if (fallbackData !== undefined) {
       return res.status(200).json(fallbackData);
     }
@@ -116,7 +99,7 @@ app.post("/api/gemini/analyze-journal", async (req, res) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
         "HTTP-Referer": "https://aetheros.app",
-        "X-Title": "AetherOS Analysis"
+        "X-Title": "AETHOS Analysis"
       },
       body: JSON.stringify({
         model,
@@ -147,17 +130,27 @@ app.post("/api/gemini/analyze-journal", async (req, res) => {
 
 app.post("/api/gemini/suggest-password", async (req, res) => {
   try {
-    const ai = getAI();
-    const prompt = `Generate a strong, secure password for a new user account.
-    The password should be at least 12 characters long, include uppercase, lowercase, numbers, and special characters.
-    Return only the password as a string.`;
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY missing");
+    const prompt = `Generate a strong, secure password. At least 12 characters, mix of uppercase, lowercase, numbers, and special characters. Return ONLY the password string, nothing else.`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
+    const callOpenRouter = async (model: string) => fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://aetheros.app",
+        "X-Title": "AETHOS Password"
+      },
+      body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] })
     });
 
-    res.json({ password: response.text.trim() });
+    let response = await callOpenRouter("meta-llama/llama-3.3-70b-instruct:free");
+    if (response.status === 429 || response.status === 404) response = await callOpenRouter("openrouter/free");
+    if (!response.ok) throw new Error("OpenRouter failed");
+
+    const data = await response.json();
+    res.json({ password: data.choices[0]?.message?.content?.trim() || "SecurePass!123" });
   } catch (err: any) {
     handleGeminiError(err, res, "Error suggesting password", {
       password: "DefaultSecure123!#" // Fallback password
@@ -187,7 +180,7 @@ app.post("/api/gemini/breakdown-task", async (req, res) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
         "HTTP-Referer": "https://aetheros.app",
-        "X-Title": "AetherOS Breakdown"
+        "X-Title": "AETHOS Breakdown"
       },
       body: JSON.stringify({
         model,
@@ -225,7 +218,7 @@ app.post("/api/gemini/daily-briefing", async (req, res) => {
     if (!apiKey) throw new Error("OPENROUTER_API_KEY missing");
 
     const taskTitles = activeTasks && Array.isArray(activeTasks) ? activeTasks.map((t: any) => t.title).join(", ") : "";
-    const prompt = `Generate a short, stylish "Aether_OS Daily System Briefing" for the user.
+    const prompt = `Generate a short, stylish "AETHOS Daily System Briefing" for the user.
     The tone should be futuristic, serious, and slightly philosophical (like a high-end AI assistant).
     Mention their current level (${stats.level || 1}), their streak (${stats.currentStreak || 0}), and highlight one priority task from their list.
     
@@ -237,12 +230,12 @@ app.post("/api/gemini/daily-briefing", async (req, res) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
         "HTTP-Referer": "https://aetheros.app",
-        "X-Title": "AetherOS Briefing"
+        "X-Title": "AETHOS Briefing"
       },
       body: JSON.stringify({
         model,
         messages: [
-          { role: "system", content: "You are Aether_OS, a high-level cognitive interface assistant. Keep it brief (under 100 words)." },
+          { role: "system", content: "You are AETHOS, a high-level cognitive interface assistant. Keep it brief (under 100 words)." },
           { role: "user", content: prompt }
         ]
       })
@@ -259,7 +252,7 @@ app.post("/api/gemini/daily-briefing", async (req, res) => {
     res.json({ text: data.choices[0]?.message?.content });
   } catch (err: any) {
     handleGeminiError(err, res, "Error generating daily briefing", {
-      text: "Aether_OS // LINK_STATUS: OFFLINE\n\nAnalysis system offline due to API configuration."
+      text: "AETHOS // LINK_STATUS: OFFLINE\n\nAnalysis system offline due to API configuration."
     });
   }
 });
@@ -295,7 +288,7 @@ app.post("/api/gemini/life-balance", async (req, res) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
         "HTTP-Referer": "https://aetheros.app",
-        "X-Title": "AetherOS Balance"
+        "X-Title": "AETHOS Balance"
       },
       body: JSON.stringify({
         model,
@@ -337,7 +330,7 @@ app.post("/api/gemini/life-insight", async (req, res) => {
     const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new Error("OPENROUTER_API_KEY missing");
     
-    const prompt = `Provide a short, punchy, futuristic "Aether_OS Improvement Protocol" for someone whose lowest life category is "${lowestCategory}".
+    const prompt = `Provide a short, punchy, futuristic "AETHOS Improvement Protocol" for someone whose lowest life category is "${lowestCategory}".
     Current levels: ${JSON.stringify(values || {})} (scale 1-10).
     Focus on actionable, non-cliché advice. Keep it under 60 words.`;
 
@@ -347,12 +340,12 @@ app.post("/api/gemini/life-insight", async (req, res) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
         "HTTP-Referer": "https://aetheros.app",
-        "X-Title": "AetherOS Insight"
+        "X-Title": "AETHOS Insight"
       },
       body: JSON.stringify({
         model,
         messages: [
-          { role: "system", content: "You are Aether_OS, a high-level cognitive interface. Provide tactical, philosophical, and futuristic life improvement plans." },
+          { role: "system", content: "You are AETHOS, a high-level cognitive interface. Provide tactical, philosophical, and futuristic life improvement plans." },
           { role: "user", content: prompt }
         ]
       })
@@ -369,7 +362,7 @@ app.post("/api/gemini/life-insight", async (req, res) => {
     res.json({ text: data.choices[0]?.message?.content });
   } catch (err: any) {
     handleGeminiError(err, res, "Error generating life insight", {
-      text: "Aether_OS // SYSTEM_CALIBRATION\n\nAnalysis system offline due to API configuration."
+      text: "AETHOS // SYSTEM_CALIBRATION\n\nAnalysis system offline due to API configuration."
     });
   }
 });
@@ -399,7 +392,7 @@ app.post("/api/gemini/coach-response", async (req, res) => {
       ? 'Be high energy and hype. Celebrate wins loudly. Keep the energy up.'
       : 'Be calm, steady, and wise. Speak like a mentor who has seen it all.';
 
-    let systemIns = `You are ${coachName}, a cybernetic AI life coach inside AetherOS.
+    let systemIns = `You are ${coachName}, a cybernetic AI life coach inside AETHOS.
 Your user's name is ${userName}.
 Their biggest goal: ${userGoal}
 Their biggest weakness: ${userWeakness}
@@ -718,30 +711,30 @@ app.post("/api/gemini/generate-chat-title", async (req, res) => {
 app.post("/api/gemini/estimate-xp", async (req, res) => {
   try {
     const { title, category, estimate, difficultyMultiplier } = req.body;
-    if (!title) {
-      return res.status(400).json({ error: "title parameter is missing" });
-    }
-    const ai = getAI();
-    const prompt = `You are a gamification engine for a productivity app called Aether. 
-    Analyze the following task and suggest an appropriate XP reward based on complexity and time.
-    Task Title: "${title}"
-    Category: "${category || ''}"
-    Estimated Time: ${estimate || 30} minutes
-    Difficulty Setting: ${difficultyMultiplier === 0.5 ? 'NOVICE (0.5x)' : difficultyMultiplier === 2.0 ? 'VM_MODE (2.0x)' : 'HARDWARE (1.0x)'}
-    
-    Respond with ONLY a single integer representing the suggested XP. 
-    Rules:
-    - Quick tasks (5-15m): 10-50 XP
-    - Medium tasks (30-60m): 100-250 XP
-    - Hard/Deep tasks (2h+): 300-600 XP
-    Apply the Difficulty Multiplier in your calculation.`;
+    if (!title) return res.status(400).json({ error: "title parameter is missing" });
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) throw new Error("OPENROUTER_API_KEY missing");
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: prompt,
+    const prompt = `You are a gamification engine for a productivity app. Analyze this task and respond with ONLY a single integer for XP reward. Rules: Quick tasks (5-15m) = 10-50 XP, Medium (30-60m) = 100-250 XP, Hard/Deep (2h+) = 300-600 XP. Apply the difficulty multiplier in your calculation.
+    Task: "${title}", Category: "${category || ''}", Estimated Time: ${estimate || 30} mins, Difficulty: ${difficultyMultiplier === 0.5 ? 'NOVICE (0.5x)' : difficultyMultiplier === 2.0 ? 'VM_MODE (2.0x)' : 'HARDWARE (1.0x)'}`;
+
+    const callOpenRouter = async (model: string) => fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://aetheros.app",
+        "X-Title": "AetherOS XP"
+      },
+      body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] })
     });
 
-    res.json({ text: response.text });
+    let response = await callOpenRouter("meta-llama/llama-3.3-70b-instruct:free");
+    if (response.status === 429 || response.status === 404) response = await callOpenRouter("openrouter/free");
+    if (!response.ok) throw new Error("OpenRouter failed");
+
+    const data = await response.json();
+    res.json({ text: data.choices[0]?.message?.content?.trim() || "100" });
   } catch (err: any) {
     handleGeminiError(err, res, "Error estimating XP", {
       text: "100"
@@ -767,7 +760,7 @@ app.post("/api/gemini/update-memory", async (req, res) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
         "HTTP-Referer": "https://aetheros.app",
-        "X-Title": "AetherOS Coach Memory"
+        "X-Title": "AETHOS Coach Memory"
       },
       body: JSON.stringify({
         model: "meta-llama/llama-3.3-70b-instruct:free",
@@ -825,7 +818,7 @@ app.post("/api/gemini/generate-timetable", async (req, res) => {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${apiKey}`,
         "HTTP-Referer": "https://aetheros.app",
-        "X-Title": "AetherOS Timetable"
+        "X-Title": "AETHOS Timetable"
       },
       body: JSON.stringify({
         model,
@@ -847,7 +840,7 @@ app.post("/api/gemini/generate-timetable", async (req, res) => {
   } catch (err: any) {
     const todayStr = req.body.todayStr || new Date().toISOString().split('T')[0];
     handleGeminiError(err, res, "Error generating timetable", [
-      { "title": "Aether_OS Wakeup & Calibration", "type": "routine", "startTime": `${todayStr}T07:00`, "endTime": `${todayStr}T08:00` },
+      { "title": "AETHOS Wakeup & Calibration", "type": "routine", "startTime": `${todayStr}T07:00`, "endTime": `${todayStr}T08:00` },
       { "title": "Focused Protocol Execution", "type": "task", "startTime": `${todayStr}T09:00`, "endTime": `${todayStr}T12:00` },
       { "title": "Recreation & System Maintenance", "type": "break", "startTime": `${todayStr}T12:00`, "endTime": `${todayStr}T13:00` },
       { "title": "Neural Archival & Reflection", "type": "routine", "startTime": `${todayStr}T21:00`, "endTime": `${todayStr}T22:00` }

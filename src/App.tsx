@@ -544,7 +544,7 @@ const AchievementShareCard = ({
         }} />
       ))}
 
-      {/* AetherOS watermark */}
+      {/* AETHOS watermark */}
       <div style={{
         position: 'absolute',
         bottom: '44px',
@@ -919,7 +919,7 @@ const WheelOfLifeShareCard = ({
         }} />
       ))}
 
-      {/* AetherOS watermark */}
+      {/* AETHOS watermark */}
       <p style={{
         position: 'absolute',
         bottom: '44px',
@@ -1316,7 +1316,7 @@ const HabitHeatmapShareCard = ({
         </div>
       </div>
 
-      {/* AetherOS watermark */}
+      {/* AETHOS watermark */}
       <p style={{
         position: 'absolute',
         bottom: '36px',
@@ -1460,7 +1460,7 @@ const ShareModal = ({
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => {
-                const text = `Check out my AetherOS stats! 🚀 #AetherOS #SelfImprovement`;
+                const text = `Check out my AETHOS stats! 🚀 #AETHOS #SelfImprovement`;
                 window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, '_blank');
               }}
               className="py-3 border border-white/10 hover:border-white/30 text-white/50 hover:text-white font-mono text-xs uppercase tracking-widest rounded-xl transition-all"
@@ -5537,7 +5537,7 @@ function AuthorizationPage({ onBack, onGoogleLogin }: { onBack: () => void; onGo
 
       {/* Bottom Corner */}
       <p className="absolute bottom-8 left-1/2 -translate-x-1/2 text-[9px] font-mono text-white/10 uppercase tracking-widest text-center">
-        AetherOS v4.8 — Encrypted
+        AETHOS v4.8 — Encrypted
       </p>
     </div>
   );
@@ -5579,7 +5579,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         animate={{ opacity: 1 }}
         className="min-h-screen bg-[#080808] flex flex-col items-center justify-center gap-8 px-8 text-center"
       >
-        <p className="text-[10px] font-mono text-white/30 uppercase tracking-[0.5em]">Booting AetherOS...</p>
+        <p className="text-[10px] font-mono text-white/30 uppercase tracking-[0.5em]">Booting AETHOS...</p>
         <div className="w-64 h-[1px] bg-white/10 relative overflow-hidden">
           <motion.div
             initial={{ width: '0%' }}
