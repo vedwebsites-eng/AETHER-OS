@@ -2209,7 +2209,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
                </div>
                <div className="flex items-center gap-3 mb-6">
                  <Brain className="text-indigo-400" />
-                 <span className="text-xs font-mono font-black text-indigo-400 uppercase tracking-widest">AETHER_OS // IMPROVEMENT_PROTOCOL</span>
+                 <span className="text-xs font-mono font-black text-indigo-400 uppercase tracking-widest">AETHOS // IMPROVEMENT_PROTOCOL</span>
                </div>
                <div className="space-y-4">
                  <div className="p-6 bg-white/5 rounded-xl border border-white/10 italic text-lg leading-relaxed font-serif text-text-p">
@@ -3115,7 +3115,7 @@ export default function App() {
           try {
             await updateDoc(doc(db, 'user_stats', user.uid), {
               dailyBriefing: {
-                content: "Aether_OS // LINK_STATUS: OFFLINE\n\nCognitive interface bandwidth currently throttled. Local neural telemetry is operating on offline fallback protocols. Prioritize direct action and stay focused on immediate daily items. Systems will attempt synchronization on next refresh loop.",
+                content: "AETHOS // LINK_STATUS: OFFLINE\n\nCognitive interface bandwidth currently throttled. Local neural telemetry is operating on offline fallback protocols. Prioritize direct action and stay focused on immediate daily items. Systems will attempt synchronization on next refresh loop.",
                 lastGenerated: today
               }
             });
@@ -4680,7 +4680,7 @@ export default function App() {
         {/* Brand System */}
         <div className="flex items-center gap-2 mb-4 hidden lg:flex cursor-pointer hover:opacity-80 transition-opacity" onClick={() => handleTabChange('dashboard')}>
           <Cpu className="text-accent animate-pulse" size={16} />
-          <span className="text-xs font-mono font-black tracking-widest text-text-p uppercase">AETHER_OS</span>
+          <span className="text-xs font-mono font-black tracking-widest text-text-p uppercase">AETHOS</span>
         </div>
         <div className="flex items-center justify-center mb-4 md:flex lg:hidden w-8 h-8 rounded-full bg-accent/10">
           <Cpu className="text-accent animate-pulse" size={16} />
@@ -4690,7 +4690,7 @@ export default function App() {
         <NavButton active={activeTab === 'dailyWork'} onClick={() => handleTabChange('dailyWork')} icon={<CheckCircle2 size={18} className="lg:w-5 lg:h-5" />} label="DAILY_WORK" />
         <NavButton active={activeTab === 'reflect'} onClick={() => handleTabChange('reflect')} icon={<Book size={18} className="lg:w-5 lg:h-5" />} label="REFLECT" />
         <NavButton active={activeTab === 'grow'} onClick={() => handleTabChange('grow')} icon={<TrendingUp size={18} className="lg:w-5 lg:h-5" />} label="GROW" />
-        <NavButton active={activeTab === 'aetherCoach'} onClick={() => handleTabChange('aetherCoach')} icon={<Sparkles size={18} className="lg:w-5 lg:h-5 text-cyan" />} label="AETHER_COACH" />
+        <NavButton active={activeTab === 'aetherCoach'} onClick={() => handleTabChange('aetherCoach')} icon={<Sparkles size={18} className="lg:w-5 lg:h-5 text-cyan" />} label="AETHOS_COACH" />
         <NavButton active={activeTab === 'configOs'} onClick={() => handleTabChange('configOs')} icon={<Settings size={18} className="lg:w-5 lg:h-5" />} label="CONFIG_OS" />
         
         <button 
@@ -5427,7 +5427,7 @@ function AuthorizationPage({ onBack, onGoogleLogin }: { onBack: () => void; onGo
       <div className="max-w-sm w-full px-6 relative z-10 flex flex-col">
         {/* 1. Logo/Brand mark */}
         <div className="mb-10">
-          <p className="text-[10px] font-mono text-white/20 uppercase tracking-[0.5em]">AetherOS</p>
+          <p className="text-[10px] font-mono text-white/20 uppercase tracking-[0.5em]">AETHOS</p>
         </div>
 
         {/* 2. Heading */}
@@ -5800,7 +5800,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 step: '01',
                 title: 'PLAN',
                 heading: 'Plan',
-                description: 'Set goals, habits, and tasks. Let AetherOS organize your day.',
+                description: 'Set goals, habits, and tasks. Let AETHOS organize your day.',
                 color: '#C8651B',
                 icon: '🎯',
                 badge: 'DECIDE_QUEUE'
@@ -5955,14 +5955,14 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 },
                 {
                   q: "Is it truly free?",
-                  a: "Yes, absolutely. AetherOS has no hidden fees, paywalls, or premium tiers for core features. All tracking tools, habit heatmaps, and stats are accessible to everyone, completely free.",
+                  a: "Yes, absolutely. AETHOS has no hidden fees, paywalls, or premium tiers for core features. All tracking tools, habit heatmaps, and stats are accessible to everyone, completely free.",
                 },
                 {
                   q: "How does Aether Coach AI work?",
                   a: "The coach processes your task completion rates, habit streak patterns, mood scores, and Wheel of Life balances dynamically. It operates within strict security boundaries to deliver hyper-personalized coaching without exposing your details.",
                 },
                 {
-                  q: "Can I use AetherOS on multiple devices?",
+                  q: "Can I use AETHOS on multiple devices?",
                   a: "Yes. All your achievements, stats, routines, and progress levels sync in real-time to your Google Account or registered email across any desktop, tablet, or smartphone.",
                 },
               ].map((faq, idx) => {
@@ -6259,13 +6259,13 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               className="space-y-6"
             >
               <p className="text-base font-mono text-white/50 leading-relaxed">
-                AetherOS was built out of frustration. Notion for planning. Done for habits. Day One for journaling. YouTube for motivation. Four apps, four logins, four context switches — and still no clear picture of progress.
+                AETHOS was built out of frustration. Notion for planning. Done for habits. Day One for journaling. YouTube for motivation. Four apps, four logins, four context switches — and still no clear picture of progress.
               </p>
               <p className="text-base font-mono text-white/50 leading-relaxed">
                 The idea was simple: what if all your self-improvement tools talked to each other? Your mood updates your life balance. Your habits feed your goals. Your AI coach reads everything and gives advice that's actually relevant to you.
               </p>
               <p className="text-base font-mono text-white/50 leading-relaxed">
-                That's AetherOS. One operating system for your ambition. Built for founders, students, and anyone serious about becoming better.
+                That's AETHOS. One operating system for your ambition. Built for founders, students, and anyone serious about becoming better.
               </p>
 
               {/* Founder note */}
@@ -6277,7 +6277,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   FOUNDER_NOTE
                 </p>
                 <p className="text-sm font-mono text-white/50 italic leading-relaxed">
-                  "I built this at 16 because I couldn't find a single app that did everything I needed without making me switch contexts 10 times a day. AetherOS is the tool I wished existed."
+                  "I built this at 16 because I couldn't find a single app that did everything I needed without making me switch contexts 10 times a day. AETHOS is the tool I wished existed."
                 </p>
                 <div className="flex items-center gap-3 mt-4">
                   <div className="w-8 h-8 rounded-full bg-[#C8651B]/20 border border-[#C8651B]/30 flex items-center justify-center">
@@ -6288,7 +6288,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                       Ved
                     </p>
                     <p className="text-[9px] font-mono text-white/20 uppercase tracking-widest">
-                      Founder, AetherOS
+                      Founder, AETHOS
                     </p>
                   </div>
                 </div>
@@ -6505,7 +6505,7 @@ function CommandPalette({ isOpen, onClose, onNavigate, activeTab }: { isOpen: bo
     { id: 'dailyWork', label: 'GO_TO_DAILY_WORK', icon: <CheckCircle2 size={18} />, tab: 'dailyWork' },
     { id: 'reflect', label: 'GO_TO_REFLECT_JOURNAL', icon: <Book size={18} />, tab: 'reflect' },
     { id: 'grow', label: 'GO_TO_GROW_SYSTEMS', icon: <TrendingUp size={18} />, tab: 'grow' },
-    { id: 'coach', label: 'GO_TO_AETHER_COACH', icon: <Sparkles size={18} />, tab: 'aetherCoach' },
+    { id: 'coach', label: 'GO_TO_AETHOS_COACH', icon: <Sparkles size={18} />, tab: 'aetherCoach' },
     { id: 'settings', label: 'GO_TO_CONFIG_OS', icon: <Settings size={18} />, tab: 'configOs' },
   ];
 
@@ -8987,7 +8987,7 @@ function ManualModal({
                   <HelpCircle size={16} />
                   <span className="text-[10px] font-mono font-black uppercase tracking-[0.3em]">System_Manual_v1.3 // SECURITY_AUDITED</span>
                 </div>
-                <h2 className="text-3xl md:text-5xl font-serif font-black text-white italic uppercase tracking-tighter">AETHER_OS_GUIDE</h2>
+                <h2 className="text-3xl md:text-5xl font-serif font-black text-white italic uppercase tracking-tighter">AETHOS_GUIDE</h2>
               </div>
               <div className="flex items-center gap-4">
                 <button 
@@ -12956,7 +12956,7 @@ function SettingsView({ settings, stats, user, onUpdate, onPurchase }: { setting
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `AETHER_OS_ARCHIVE_${user.uid.slice(0, 8)}.json`;
+                        a.download = `AETHOS_ARCHIVE_${user.uid.slice(0, 8)}.json`;
                         a.click();
                       }}
                       className="w-full py-4 bg-white/5 border border-white/10 rounded-2xl text-white font-mono text-[10px] font-black uppercase tracking-widest hover:bg-white hover:text-black transition-all relative z-10"
@@ -12995,7 +12995,7 @@ function SettingsView({ settings, stats, user, onUpdate, onPurchase }: { setting
               <div className="glass p-8 rounded-[3rem] border border-white/5 flex items-center justify-between">
                  <div className="space-y-1">
                     <p className="text-[10px] font-mono text-white font-black uppercase">SYSTEM_OAUTH_LOGOUT</p>
-                    <p className="text-[10px] font-mono text-text-m uppercase opacity-40">Disconnect current user node from AETHER_OS.</p>
+                    <p className="text-[10px] font-mono text-text-m uppercase opacity-40">Disconnect current user node from AETHOS.</p>
                  </div>
                  <button 
                    onClick={() => signOut(auth)}
@@ -13939,7 +13939,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
            <div className="flex items-center gap-3">
               <div className="w-2.5 h-2.5 rounded-full bg-cyan animate-pulse" />
               <div>
-                 <h3 className="text-xs font-mono font-black uppercase text-white tracking-widest">{coachProfile?.coachName?.toUpperCase() || 'AETHER_COACH'}</h3>
+                 <h3 className="text-xs font-mono font-black uppercase text-white tracking-widest">{coachProfile?.coachName?.toUpperCase() || 'AETHOS_COACH'}</h3>
                  <p className="text-[8px] font-mono text-cyan uppercase tracking-tighter">{coachProfile ? `CALIBRATED_TO_${coachProfile.userName?.toUpperCase()}` : 'INITIALIZING_PROFILE...'}</p>
               </div>
            </div>
@@ -13954,7 +13954,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                     <Trash2 size={12} />
                  </button>
               )}
-              <span className="px-2.5 py-1 bg-cyan/10 border border-cyan/20 rounded-md text-cyan text-[8px] font-mono font-black uppercase">AETHER LABS</span>
+              <span className="px-2.5 py-1 bg-cyan/10 border border-cyan/20 rounded-md text-cyan text-[8px] font-mono font-black uppercase">AETHOS LABS</span>
            </div>
         </div>
 
