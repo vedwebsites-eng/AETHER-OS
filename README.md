@@ -35,7 +35,8 @@ Built with React 19, TypeScript, Firebase/Firestore, Express, and Tailwind CSS. 
 ## Navigation
 
 ![AETHOS Sidebar]
-https://claude.ai/api/666fcf09-5ddb-4a0d-a421-a7ff8e321487/files/8d8143da-c2f8-40f1-b876-680613e5e826/preview
+<img width="238" height="597" alt="image" src="https://github.com/user-attachments/assets/581fdd0e-8ad1-460d-b85c-a4b475031293" />
+
 
 The left sidebar is your command interface. Every section is a module of your life:
 
@@ -53,7 +54,9 @@ The left sidebar is your command interface. Every section is a module of your li
 
 ## Daily Check-In
 
-![Daily Check-In](ss_02_checkin.png)
+![Daily Check-In]
+ <img width="894" height="223" alt="image" src="https://github.com/user-attachments/assets/354ca41a-161c-45c4-abdb-ad117de3ade6" />
+
 
 Every day starts with a `DAILY_CHECK_IN` — a lightweight ritual that keeps your streak alive and your system calibrated. Four nodes to clear:
 
@@ -68,7 +71,9 @@ Progress is tracked top-right (`0/4` → `4/4`). Miss a day and your streak rese
 
 ## Your Profile
 
-![User Profile](ss_03_profile.png)
+![User Profile]
+<img width="883" height="172" alt="image" src="https://github.com/user-attachments/assets/05ef88c8-2e22-4907-b58d-b47f420efe0a" />
+
 
 Every user has a persistent XP-driven profile. No hidden stats, no black boxes:
 
@@ -101,7 +106,9 @@ Feature unlocks are gated by level — the more you do, the more the OS opens up
 
 ### Metrics Sync
 
-![Core Metrics](ss_04_metrics.png)
+![Core Metrics]
+<img width="591" height="278" alt="image" src="https://github.com/user-attachments/assets/9b568f89-77ed-41ce-a99d-65fb467769de" />
+
 
 The top bar of `CORE_COMMAND` gives you a real-time snapshot across five nodes:
 
@@ -117,7 +124,9 @@ Below that: today's **Daily Challenge** — a procedurally assigned goal (`COMPL
 
 ### Achievements & Feed
 
-![Achievements Panel](ss_05_achievements.png)
+![Achievements Panel]
+<img width="297" height="562" alt="image" src="https://github.com/user-attachments/assets/2f5ac7b8-2cb3-48f4-a6f0-689d5ad93611" />
+
 
 The `QUICK_OVERRIDE` panel surfaces:
 
@@ -126,13 +135,17 @@ The `QUICK_OVERRIDE` panel surfaces:
 - **Daily inspiration** — a randomly pulled motivational quote
 - **Next milestone** — the next level unlock, always visible
 
-![Neural Feed](ss_06_feed.png)
+![Neural Feed]
+<img width="582" height="147" alt="image" src="https://github.com/user-attachments/assets/78285117-b09f-4d3a-a61b-a95a79ac053e" />
+
 
 The `NEURAL_FEED` shows your personal motivation vault — videos, quotes, and tracks you've added, ready to play directly from the dashboard.
 
 ### XP History
 
-![Neural History](ss_07_history.png)
+![Neural History]
+<img width="599" height="372" alt="image" src="https://github.com/user-attachments/assets/b97aa544-7b41-42e3-b470-1820696f398f" />
+
 
 `NEURAL_HISTORY` logs every XP event with a timestamp, type label (`TASK`, `JOURNAL`, `HABIT`), and reward amount. Full audit trail — no XP appears without a logged source.
 
@@ -142,7 +155,9 @@ The `NEURAL_FEED` shows your personal motivation vault — videos, quotes, and t
 
 ### Task Manager
 
-![Task Manager](ss_08_tasks.png)
+![Task Manager]
+<img width="890" height="582" alt="image" src="https://github.com/user-attachments/assets/915b723a-dac5-41c7-bd8e-6ad9c9a8dacd" />
+
 
 The `INITIATE_PROTOCOL_CMD` panel is your task input:
 
@@ -159,7 +174,9 @@ The `HABIT_SYNC_CENTER` on the right lets you push any active habit directly int
 
 ### Habit Matrix
 
-![Routine Matrix](ss_09_habits.png)
+![Routine Matrix]
+<img width="890" height="498" alt="image" src="https://github.com/user-attachments/assets/2e0c6e9b-f1a1-4ab0-96a2-9c80effec8d9" />
+
 
 `ROUTINE_MATRIX` is your habit tracking module. Each habit has:
 
@@ -171,7 +188,9 @@ Habits carry over daily. A missed day breaks the streak but never deletes the ha
 
 ### Timetable / Calendar
 
-![Scheduler](ss_10_calendar.png)
+![Scheduler]
+<img width="913" height="582" alt="image" src="https://github.com/user-attachments/assets/3b471355-acd0-41d8-b134-6144111a7d9d" />
+
 
 `TEMPORAL_SYNCHRONIZATION_HUB` is a full calendar with three views: Month, Week, Day.
 
@@ -187,7 +206,9 @@ Two live stats in the header:
 
 ### Entry
 
-![Journal Entry](ss_11_journal_entry.png)
+![Journal Entry]
+<img width="939" height="571" alt="image" src="https://github.com/user-attachments/assets/f7fe7291-e0fd-4639-8d91-8f90820b5129" />
+
 
 The journal is a rich-text editor powered by Tiptap — bold, italic, underline, H1/H2, bullet lists, links, highlight, and inline code. Every entry gets:
 
@@ -201,13 +222,17 @@ Hit `SYNC_TO_ARCHIVE` and the entry is saved to Firestore, XP is awarded, and th
 
 ### History
 
-![Journal History](ss_12_journal_history.png)
+![Journal History]
+<img width="900" height="546" alt="image" src="https://github.com/user-attachments/assets/8ba0f8b9-7187-4e23-bcfc-60fd449eef57" />
+
 
 Every entry is listed with date, word count, mood emoji, and energy level. Tap to expand the full entry inline. Delete individual entries or wipe the full archive.
 
 ### Insights
 
-![Journal Insights](ss_13_journal_insights.png)
+![Journal Insights]
+<img width="944" height="577" alt="image" src="https://github.com/user-attachments/assets/ae49872a-1f8d-4446-968b-86b932850ab1" />
+
 
 Three AI-powered analytics panels over your last 30 days:
 
@@ -221,11 +246,15 @@ Three AI-powered analytics panels over your last 30 days:
 
 ## Wheel of Life
 
-![Wheel of Life Radar](ss_14_wheel_radar.png)
+![Wheel of Life Radar]
+<img width="612" height="544" alt="image" src="https://github.com/user-attachments/assets/3ea7fcbf-d626-4eb7-908f-5ff615cd2b87" />
+
 
 The Wheel of Life is a radar chart across your life categories. You define which categories matter to you, and the AI scores each one based on your task history and journal entries — then plots them as a dynamic polygon.
 
-![Life Category Scores](ss_15_wheel_scores.png)
+![Life Category Scores]
+<img width="893" height="498" alt="image" src="https://github.com/user-attachments/assets/3c46e302-27a1-4c49-8efc-b8893a591644" />
+
 
 Below the radar: each category gets a numerical score (1–10) with a colored progress bar. The header cards surface:
 
@@ -241,7 +270,9 @@ The analysis runs via OpenRouter (LLaMA 70B) and re-syncs whenever you request i
 
 ### Neural Evolution
 
-![Neural Evolution](ss_16_grow.png)
+![Neural Evolution]
+<img width="919" height="516" alt="image" src="https://github.com/user-attachments/assets/e88280c4-2392-4b9c-aa01-a0ca15028b54" />
+
 
 `NEURAL_EVOLUTION` gives you a month-over-month view across four dimensions:
 
@@ -278,15 +309,19 @@ Sample achievements:
 
 ## Notepad
 
-![Notepad](ss_17_notepad.png)
+![Notepad]
+<img width="890" height="162" alt="image" src="https://github.com/user-attachments/assets/7735d4ee-a1a3-47dd-aa38-80608b32b8f3" />
+
 
 A persistent scratchpad that syncs to Firestore. Dump thoughts, quick to-dos, anything — without creating a formal task. Lines can be converted directly into tasks from the notepad with one click.
 
 ---
 
-## AETHOS Coach (Ace)
+## AETHOS Coach 
 
-![AETHOS Coach](ss_18_coach.png)
+![AETHOS Coach]
+<img width="870" height="501" alt="image" src="https://github.com/user-attachments/assets/a4ba53c9-47f0-4f6f-aa0c-f3205416cea0" />
+
 
 Ace is the AI life coach living inside AETHOS. Not a generic chatbot — Ace has full read access to your app data and uses it to give context-aware coaching.
 
@@ -321,7 +356,9 @@ Ace is the AI life coach living inside AETHOS. Not a generic chatbot — Ace has
 
 ## Config OS
 
-![Config OS](ss_19_config.png)
+![Config OS]
+<img width="866" height="113" alt="image" src="https://github.com/user-attachments/assets/78b88ebf-1b6d-4aa0-ab15-a6f5ff6987eb" />
+
 
 Five configuration tabs:
 
