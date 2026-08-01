@@ -34,7 +34,8 @@ Built with React 19, TypeScript, Firebase/Firestore, Express, and Tailwind CSS. 
 
 ## Navigation
 
-![AETHOS Sidebar](ss_01_sidebar.png)
+![AETHOS Sidebar]
+https://claude.ai/api/666fcf09-5ddb-4a0d-a421-a7ff8e321487/files/8d8143da-c2f8-40f1-b876-680613e5e826/preview
 
 The left sidebar is your command interface. Every section is a module of your life:
 
