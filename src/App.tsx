@@ -4859,21 +4859,24 @@ export default function App() {
                 </ErrorBoundary>
               )}
               {activeTab === 'aetherCoach' && (
-                <ErrorBoundary name="Aether_Coach_AI">
-                  <AetherCoachTabView
-                    stats={stats}
-                    user={user}
-                    journals={journals}
-                    tasks={tasks}
-                    habits={habits}
-                    habitLogs={habitLogs}
-                    motivationItems={motivationItems}
-                    startPlaylist={startPlaylist}
-                    setIsMotivationPortalOpen={setIsMotivationPortalOpen}
-                    isSidebarOpen={isSidebarOpen}
-                    setIsSidebarOpen={setIsSidebarOpen}
-                  />
-                </ErrorBoundary>
+                <div className="h-[calc(100vh-13rem)] overflow-hidden">
+                  <ErrorBoundary name="Aether_Coach_AI">
+                    <AetherCoachTabView
+                      stats={stats}
+                      user={user}
+                      journals={journals}
+                      tasks={tasks}
+                      habits={habits}
+                      habitLogs={habitLogs}
+                      motivationItems={motivationItems}
+                      startPlaylist={startPlaylist}
+                      setIsMotivationPortalOpen={setIsMotivationPortalOpen}
+                      setPendingMotivation={setPendingMotivation}
+                      isSidebarOpen={isSidebarOpen}
+                      setIsSidebarOpen={setIsSidebarOpen}
+                    />
+                  </ErrorBoundary>
+                </div>
               )}
               {activeTab === 'grow' && (
                 <ErrorBoundary name="Grow_Ascension_Matrix">
@@ -11478,11 +11481,16 @@ function JournalView({
                       <span className="text-[9px] font-mono text-white/30 uppercase">
                         {MOODS.find(m => m.id === journal.mood)?.emoji} {journal.mood?.toUpperCase() || 'NEUTRAL'}
                       </span>
-                      {journal.energyLevel && (
-                        <span className="text-[9px] font-mono text-white/30 uppercase">
-                          ⚡ {journal.energyLevel.toUpperCase()}
-                        </span>
-                      )}
+                      {journal.energyLevel && (() => {
+                        const ENERGY_EMOJIS: Record<string, string> = {
+                          drained: '🪫', low: '😴', neutral: '😐', high: '⚡', peak: '🔥'
+                        };
+                        return (
+                          <span className="text-[9px] font-mono text-white/30 uppercase">
+                            {ENERGY_EMOJIS[journal.energyLevel] || '⚡'} {journal.energyLevel.toUpperCase()}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                 </motion.div>
@@ -13503,7 +13511,7 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
   );
 }
 
-function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], startPlaylist, setIsMotivationPortalOpen, isSidebarOpen, setIsSidebarOpen }: any) {
+function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], startPlaylist, setIsMotivationPortalOpen, setPendingMotivation, isSidebarOpen, setIsSidebarOpen }: any) {
   const coachMarkdownComponents = {
     p: ({children}: any) => <p className="whitespace-pre-wrap leading-loose mb-6 text-lg text-text-p">{children}</p>,
     strong: ({children}: any) => <strong className="text-cyan font-semibold">{children}</strong>,
@@ -14054,6 +14062,61 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 ) : (
                   <ReactMarkdown components={coachMarkdownComponents}>{m.text}</ReactMarkdown>
                 )}
+                {m.sender === 'coach' && m.pendingActions?.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    {m.pendingActions.map((action: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between gap-3 bg-cyan/5 border border-cyan/20 rounded-xl px-4 py-3">
+                        <div>
+                          <p className="text-[9px] font-mono font-black uppercase text-cyan tracking-widest mb-0.5">
+                            {action.name === 'create_task' ? '⚡ CREATE_TASK' : '🔄 CREATE_HABIT'}
+                          </p>
+                          <p className="text-[11px] font-mono text-white/80">
+                            {action.args?.title || action.args?.name || 'Unnamed'}
+                          </p>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            onClick={async () => {
+                              if (action.name === 'create_task') await createTaskFromCoach(action.args);
+                              else if (action.name === 'create_habit') await createHabitFromCoach(action.args);
+                              // Remove this action from pendingActions after confirm
+                              const updated = messages.map(msg =>
+                                msg.id === m.id
+                                  ? { ...msg, pendingActions: msg.pendingActions.filter((_: any, idx: number) => idx !== i) }
+                                  : msg
+                              );
+                              setMessages(updated);
+                              // Also update Firestore
+                              try {
+                                await updateDoc(doc(db, 'coach_messages', m.id), {
+                                  pendingActions: updated.find(msg => msg.id === m.id)?.pendingActions || []
+                                });
+                              } catch (e) { console.warn('Could not update pendingActions in Firestore', e); }
+                              setCompleteToast(action.name === 'create_task' ? 'TASK_CREATED' : 'HABIT_CREATED');
+                              setTimeout(() => setCompleteToast(null), 2000);
+                            }}
+                            className="px-3 py-1.5 bg-cyan/20 hover:bg-cyan/30 border border-cyan/30 text-cyan text-[9px] font-mono font-black uppercase rounded-lg transition-all"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => {
+                              const updated = messages.map(msg =>
+                                msg.id === m.id
+                                  ? { ...msg, pendingActions: msg.pendingActions.filter((_: any, idx: number) => idx !== i) }
+                                  : msg
+                              );
+                              setMessages(updated);
+                            }}
+                            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 text-white/40 text-[9px] font-mono font-black uppercase rounded-lg transition-all"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {m.sender === 'coach' && (
                   <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
@@ -14116,14 +14179,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                   <span className="inline-block w-1.5 h-3 bg-cyan animate-pulse ml-0.5" />
                 </div>
               </div>
-            )}
-            {isGenerating && !streamingText && (
-               <div className="bg-white/5 border border-white/10 text-cyan max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed mr-auto rounded-tl-none flex items-center gap-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.2s]" />
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-bounce [animation-delay:0.4s]" />
-                  <span className="text-[10px] uppercase font-black tracking-widest opacity-60">SYNAPSE_PROCESSING_REPLY...</span>
-               </div>
             )}
              <div ref={messagesEndRef} />
           </div>
@@ -14385,6 +14440,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
 
     setInputText('');
     setIsGenerating(true);
+    abortControllerRef.current = new AbortController();
 
     try {
       let currentChatId = activeChatId;
