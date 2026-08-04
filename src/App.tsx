@@ -19,7 +19,7 @@ import {
   ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download, Briefcase,
   Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
   Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon, Info,
-  RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink, ChevronDown, Share2, Eye, EyeOff, Mic,
+  RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink, ChevronDown, Share2, Eye, EyeOff, Mic, Image,
   PanelLeftClose, PanelLeftOpen,
 } from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -13513,7 +13513,9 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
 
 function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], startPlaylist, setIsMotivationPortalOpen, setPendingMotivation, isSidebarOpen, setIsSidebarOpen }: any) {
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const chatPaneRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -13532,6 +13534,32 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  const startListening = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Speech recognition not supported in this browser.");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInputText(prev => prev + " " + transcript);
+    };
+    recognition.start();
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      console.log("Image selected:", file);
+      // Placeholder for image handling logic
+      setCompleteToast('IMAGE_SUPPORT_COMING_SOON');
+      setTimeout(() => setCompleteToast(null), 2000);
+    }
+  };
 
   const coachMarkdownComponents = {
     p: ({children}: any) => <p className="whitespace-pre-wrap leading-loose mb-6 text-lg text-text-p">{children}</p>,
@@ -14224,6 +14252,8 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
               <div className="flex flex-wrap gap-2">
                 {[
                   { id: 'synth', label: "BALANCE_SCAN", prompt: "Analyze my current life sync parameters and streak. Synthesize where my balance scores are healthy and which specific categories are suffering. Keep it actionable." },
+                  { id: 'mood', label: 'ANALYZE_MOOD', prompt: "Analyze my recent mood logs and journal entries. Tell me about my emotional trends." },
+                  { id: 'focus', label: 'FOCUS_CHECK', prompt: "I'm feeling distracted. Help me do a focus check - look at my current tasks and help me prioritize one." },
                   { id: 'weak', label: 'WEAK_ROUTINES', prompt: `Based on my weakest category which is ${weakestSphere}, help me identify potential bottlenecks in my routines and suggest 3 high-impact habits to introduce today.` },
                   { id: 'obstacles', label: 'TOMORROW', prompt: "Synthesize today's metrics and predict what psychological or scheduling obstacles I might face tomorrow. Give me a strategy to bypass them." }
                 ].map(p => (
@@ -14257,6 +14287,21 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 disabled={isGenerating}
                 className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
               />
+              <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+              <button
+                type="button"
+                onClick={startListening}
+                className={cn("p-3 bg-black/40 border border-white/10 rounded-xl transition-all", isListening ? "text-red-500 border-red-500/50" : "text-white/50 hover:text-white")}
+              >
+                <Mic size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="p-3 bg-black/40 border border-white/10 rounded-xl text-white/50 hover:text-white transition-all"
+              >
+                <Image size={16} />
+              </button>
               <button
                 type="button"
                 onClick={() => !coachProfile ? setOnboardingInput('') : setInputText('')}
