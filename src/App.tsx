@@ -13512,6 +13512,27 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
 }
 
 function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], startPlaylist, setIsMotivationPortalOpen, setPendingMotivation, isSidebarOpen, setIsSidebarOpen }: any) {
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const chatPaneRef = useRef<HTMLDivElement>(null);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      chatPaneRef.current?.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullScreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
   const coachMarkdownComponents = {
     p: ({children}: any) => <p className="whitespace-pre-wrap leading-loose mb-6 text-lg text-text-p">{children}</p>,
     strong: ({children}: any) => <strong className="text-cyan font-semibold">{children}</strong>,
@@ -13933,10 +13954,22 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       </button>
 
       {/* MAIN CHAT PANE */}
-      <div className="flex-1 flex flex-col min-w-0 glass rounded-r-[2.5rem] border-r border-white/10 overflow-hidden relative bg-gradient-to-b from-indigo-950/20 via-background-nested to-transparent shadow-[0_0_50px_rgba(34,211,238,0.1)]">
+      <div 
+        ref={chatPaneRef}
+        className={cn(
+        "flex-1 flex flex-col min-w-0 glass rounded-r-[2.5rem] border-r border-white/10 overflow-hidden relative bg-gradient-to-b from-indigo-950/20 via-background-nested to-transparent shadow-[0_0_50px_rgba(34,211,238,0.1)]",
+        isFullScreen && "fixed inset-0 z-50 rounded-none border-none shadow-none"
+      )}>
         {/* Coach Header */}
         <div className="p-6 bg-white/5 border-b border-white/5 flex items-center justify-between">
            <div className="flex items-center gap-3">
+              <button
+                onClick={toggleFullscreen}
+                className="p-1.5 hover:bg-white/10 rounded-md text-white/50 hover:text-white transition-all"
+                title={isFullScreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+              >
+                {isFullScreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
               <div className="w-2.5 h-2.5 rounded-full bg-cyan animate-pulse" />
               <div>
                  <h3 className="text-xs font-mono font-black uppercase text-white tracking-widest">{coachProfile?.coachName?.toUpperCase() || 'AETHOS_COACH'}</h3>
