@@ -2164,7 +2164,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
         <button
           onClick={() => openShare?.(
             'wheel-share-card',
-            `AETHEROS_WHEEL_${new Date().toISOString().split('T')[0]}`,
+            `AETHOS_WHEEL_${new Date().toISOString().split('T')[0]}`,
             'WHEEL OF LIFE CARD'
           )}
           className="flex items-center justify-center gap-2 px-4 py-5 rounded-2xl border border-white/10 hover:border-[#7f77dd]/50 hover:bg-[#7f77dd]/10 transition-all group cursor-pointer active:scale-95"
@@ -6742,7 +6742,7 @@ function ProfileCard({
                 <button
                   onClick={() => openShare(
                     'streak-share-card',
-                    `AETHEROS_STREAK_${stats?.currentStreak || 0}D`,
+                    `AETHOS_STREAK_${stats?.currentStreak || 0}D`,
                     'STREAK CARD'
                   )}
                   className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-white/10 hover:border-[#C8651B]/50 hover:bg-[#C8651B]/10 transition-all group shrink-0"
@@ -10577,7 +10577,7 @@ function RoutineMatrixView({
           <button
             onClick={() => openShare?.(
               'heatmap-share-card',
-              `AETHEROS_HEATMAP_${new Date().toISOString().split('T')[0]}`,
+              `AETHOS_HEATMAP_${new Date().toISOString().split('T')[0]}`,
               'HABIT HEATMAP CARD'
             )}
             className="flex items-center gap-2 px-4 py-3 rounded-xl border border-white/10 hover:border-cyan/40 hover:bg-cyan/5 transition-all group cursor-pointer active:scale-95"
@@ -13894,7 +13894,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
               ) : (
                 <button
                   onClick={() => switchChat(chat.id)}
-                  className={`flex-1 text-left px-2 py-2.5 text-xs font-mono truncate ${
+                  className={`flex-1 text-left px-3 py-3 text-sm font-mono truncate ${
                     chat.id === activeChatId ? 'text-cyan' : 'text-white/50'
                   }`}
                 >
@@ -14043,12 +14043,12 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
           </div>
         ) : (
           // NORMAL CHAT
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
+          <div className="flex-1 overflow-y-auto p-8 md:p-12 space-y-6 no-scrollbar">
             {messages.map((m, idx) => (
               <div 
                 key={m.id || `fallback-msg-${idx}`} 
                 className={cn(
-                  "group flex flex-col max-w-[85%] rounded-2xl p-4 font-mono text-xs leading-relaxed",
+                  "group flex flex-col max-w-[90%] rounded-2xl p-5 font-mono text-sm leading-relaxed",
                   m.sender === 'user' 
                     ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none" 
                     : "bg-white/5 border border-white/10 text-white/90 font-medium mr-auto rounded-tl-none border-l-2 border-l-cyan"
