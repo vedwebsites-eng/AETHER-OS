@@ -1553,6 +1553,8 @@ interface Habit {
   lastCompletedDate?: string;
   color: string;
   isArchived: boolean;
+  temptationBundle?: string;
+  rewardBundle?: string;
 }
 
 interface HabitLog {
@@ -1697,6 +1699,8 @@ interface WeeklyReview {
   userId: string;
   wentWell: string;
   didntGo: string;
+  avoided: string;
+  valueAlignment: string;
   nextWeekFocus: string;
   week: string;
   createdAt: string;
@@ -1727,6 +1731,7 @@ interface UserStats {
   punctualStreak?: number;
   pomodoroSessions?: number;
   pomodoroToday?: number;
+  streakShields?: number;
   dailyChallenge?: {
     id: string;
     progress: number;
@@ -2658,6 +2663,7 @@ const initializeNewUser = async (user: User) => {
       punctualStreak: 0,
       pomodoroSessions: 0,
       pomodoroToday: 0,
+      streakShields: 0,
       activityLog: [],
       dailyChallenge: undefined,
       lifeSync: {
@@ -3520,6 +3526,7 @@ export default function App() {
 
         if (lastActive === today) return; // Already synced today
 
+        let shieldsEarned = 0;
         let newStreak = stats.currentStreak;
         let newExperience = stats.experience;
         let challengeUpdate = stats.dailyChallenge;
@@ -3536,12 +3543,12 @@ export default function App() {
           newExperience += dailyBonus;
           
           // Milestones
-          if (newStreak === 7) newExperience += 200;
-          if (newStreak === 14) newExperience += 300;
-          if (newStreak === 30) newExperience += 500;
-          if (newStreak === 90) newExperience += 800;
-          if (newStreak === 100) newExperience += 1000;
-          if (newStreak === 365) newExperience += 2000;
+          if (newStreak === 7) { newExperience += 200; shieldsEarned++; }
+          if (newStreak === 14) { newExperience += 300; shieldsEarned++; }
+          if (newStreak === 30) { newExperience += 500; shieldsEarned++; }
+          if (newStreak === 90) { newExperience += 800; shieldsEarned++; }
+          if (newStreak === 100) { newExperience += 1000; shieldsEarned++; }
+          if (newStreak === 365) { newExperience += 2000; shieldsEarned++; }
 
           if (newStreak === 7 || newStreak === 14 || 
               newStreak === 30 || newStreak === 90 || 
@@ -3567,8 +3574,24 @@ export default function App() {
             setXpNotifications(prev => prev.filter(n => n.id !== streakId));
           }, 5000);
         } else {
-          // Streak broken
-          newStreak = 1;
+          // Streak broken — check for shield
+          const hasShield = (stats.streakShields || 0) > 0;
+          if (hasShield) {
+            // Shield absorbs the break — streak continues, shield consumed
+            newStreak = stats.currentStreak;
+            await updateDoc(doc(db, 'user_stats', user.uid), {
+              streakShields: (stats.streakShields || 1) - 1,
+            });
+            const shieldId = `shield-${Date.now()}`;
+            setXpNotifications(prev => [...prev, {
+              id: shieldId,
+              amount: 0,
+              source: 'STREAK_SHIELD_ACTIVATED — UPTIME_PROTECTED'
+            }]);
+            setTimeout(() => setXpNotifications(prev => prev.filter(n => n.id !== shieldId)), 4000);
+          } else {
+            newStreak = 1;
+          }
         }
 
         // Daily Challenge Rotation
@@ -3588,6 +3611,7 @@ export default function App() {
           experience: newExperience,
           dailyChallenge: challengeUpdate,
           pomodoroToday: 0,
+          streakShields: (stats.streakShields || 0) + shieldsEarned,
           streakHistory: [...(stats.streakHistory || []), today]
         });
       } catch (e) {
@@ -4760,6 +4784,13 @@ export default function App() {
                     <Flame size={14} className={cn("lg:w-5 lg:h-5", stats.currentStreak > 0 ? "text-orange-500 animate-pulse" : "text-text-s opacity-30")} />
                     <span>{stats.currentStreak}</span>
                   </div>
+                  {(stats.streakShields || 0) > 0 && (
+                    <div className="flex items-center gap-0.5 mt-0.5" title={`${stats.streakShields} streak shield${stats.streakShields === 1 ? '' : 's'} active`}>
+                      {Array.from({ length: Math.min(stats.streakShields || 0, 3) }).map((_, i) => (
+                        <span key={i} className="text-[10px]">🛡️</span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="text-center group flex flex-col items-center">
                   <p className="text-[8px] lg:text-[10px] text-text-m uppercase font-bold tracking-widest font-mono opacity-40">Active</p>
@@ -6782,10 +6813,20 @@ function ProfileCard({
   );
 }
 
-const QuickStatsGrid = React.memo(function QuickStatsGrid({ stats, journals }: { stats: UserStats | null, journals: any[] }) {
+const QuickStatsGrid = React.memo(function QuickStatsGrid({ stats, journals, tasks }: { stats: UserStats | null, journals: any[], tasks: any[] }) {
   if (!stats) return null;
   const { levelProgress } = getLevelFromXP(stats.experience);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+
+  // Cognitive load: sum weighted task minutes completed today
+  const todayStr = new Date().toISOString().split('T')[0];
+  const priorityWeight: Record<string, number> = { critical: 2.0, high: 1.5, medium: 1.0, low: 0.6 };
+  const cognitiveMinutes = (tasks || [])
+    .filter((t: any) => t.status === 'completed' && (t.completedAt || '').startsWith(todayStr))
+    .reduce((sum: number, t: any) => sum + ((t.estimate || 30) * (priorityWeight[t.priority?.toLowerCase()] || 1.0)), 0);
+  const cognitiveLabel = cognitiveMinutes === 0 ? 'IDLE' : cognitiveMinutes < 90 ? 'LOW' : cognitiveMinutes < 210 ? 'MEDIUM' : cognitiveMinutes < 360 ? 'HIGH' : 'CRITICAL';
+  const cognitiveColor = cognitiveMinutes === 0 ? 'text-text-s' : cognitiveMinutes < 90 ? 'text-success' : cognitiveMinutes < 210 ? 'text-cyan' : cognitiveMinutes < 360 ? 'text-warning' : 'text-danger';
+
 
   const explanations: Record<string, string> = {
     'XP_DATA': 'Experience points accumulated by resolving standard targets, carrying out lifestyle habits, and committing logs.',
@@ -6793,6 +6834,7 @@ const QuickStatsGrid = React.memo(function QuickStatsGrid({ stats, journals }: {
     'STREAK': 'Refers to consecutive, uninterrupted daily log-in cycles of program engagement or reflective journal entries.',
     'LOGS': 'Total volume of narrative reflection journals committed and safely archived onto the neural timeline.',
     'NODE_SYNC': 'Progress level alignment percent showing how close you are to completing qualifications for the next level.',
+    'COG_LOAD': 'Weighted sum of high-demand work completed today. CRITICAL means your decision quality is likely degrading — route to lighter tasks or rest.',
   };
   
   const metrics = [
@@ -6801,10 +6843,11 @@ const QuickStatsGrid = React.memo(function QuickStatsGrid({ stats, journals }: {
     { label: 'STREAK', value: stats.currentStreak, icon: <Flame className="text-warning w-3 h-3 sm:w-3.5 sm:h-3.5" />, unit: 'DAYS' },
     { label: 'LOGS', value: journals.length, icon: <Book className="text-accent w-3 h-3 sm:w-3.5 sm:h-3.5" />, unit: 'ENT' },
     { label: 'NODE_SYNC', value: `${Math.floor(levelProgress)}%`, icon: <PieChart className="text-blue-400 w-3 h-3 sm:w-3.5 sm:h-3.5" />, unit: 'VAL' },
+    { label: 'COG_LOAD', value: cognitiveLabel, icon: <Brain className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${cognitiveColor}`} />, unit: '', isCogLoad: true, cogColor: cognitiveColor },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 sm:gap-6">
+    <div className="grid grid-cols-2 md:grid-cols-6 gap-4 sm:gap-6">
       {metrics.map((m, i) => (
         <motion.div 
           key={m.label}
@@ -6837,7 +6880,7 @@ const QuickStatsGrid = React.memo(function QuickStatsGrid({ stats, journals }: {
           </div>
 
           <div className="flex items-baseline gap-1 mt-auto relative z-10">
-            <span className="text-xl sm:text-2xl font-serif font-black text-white italic">{m.value}</span>
+            <span className={`text-xl sm:text-2xl font-serif font-black italic ${(m as any).isCogLoad ? (m as any).cogColor : 'text-white'}`}>{m.value}</span>
             <span className="text-[8px] sm:text-[10px] font-mono text-text-s uppercase opacity-50 font-bold">{m.unit}</span>
           </div>
 
@@ -7723,7 +7766,7 @@ function Dashboard({
                    CORE_METRICS_SYNC
                 </h3>
              </div>
-             <QuickStatsGrid stats={stats} journals={journals} />
+             <QuickStatsGrid stats={stats} journals={journals} tasks={tasks} />
           </section>
 
           <DailyChallengeWidget stats={stats} />
@@ -10648,6 +10691,11 @@ function RoutineMatrixView({
                              </div>
                              <span className="text-[8px] font-mono text-text-m opacity-40 uppercase tracking-tighter">{habit.frequency}</span>
                           </div>
+                          {habit.rewardBundle && (
+                            <p className="text-[9px] font-mono text-cyan/60 truncate flex items-center gap-1">
+                              <span className="opacity-60">🎯</span> {habit.rewardBundle}
+                            </p>
+                          )}
                         </div>
                       </div>
                       
@@ -10847,6 +10895,20 @@ function RoutineMatrixView({
                     </div>
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-mono font-black text-text-m uppercase ml-1">
+                      Bundle_Reward <span className="opacity-40 normal-case tracking-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Only listen to podcasts while doing this..."
+                      value={(newHabit as any).rewardBundle || ''}
+                      onChange={e => setNewHabit({...newHabit, rewardBundle: e.target.value} as any)}
+                      className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-xl focus:border-cyan/50 text-white font-mono text-xs outline-none placeholder-white/20 transition-all"
+                    />
+                    <p className="text-[9px] font-mono text-text-s opacity-40 ml-1">Pair this habit with something enjoyable — you'll only get that reward while doing this.</p>
+                  </div>
+
                   <div className="flex gap-4 pt-4">
                     <button 
                       onClick={() => setIsAddModalOpen(false)}
@@ -10894,7 +10956,22 @@ function JournalView({
   deleteJournalEntry: (id: string) => Promise<void>;
   deleteAllJournals: () => Promise<void>;
 }) {
-  const [activeSubTab, setActiveSubTab] = useState<'entry' | 'history' | 'insights'>('entry');
+  const [activeSubTab, setActiveSubTab] = useState<'entry' | 'history' | 'insights' | 'gratitude'>('entry');
+  const [gratitudeEntries, setGratitudeEntries] = useState<string[]>(['', '', '']);
+  const [gratitudeSubmitting, setGratitudeSubmitting] = useState(false);
+  const [gratitudeDoneToday, setGratitudeDoneToday] = useState(false);
+
+  // Check if gratitude already done today
+  React.useEffect(() => {
+    if (!user) return;
+    const today = new Date().toISOString().split('T')[0];
+    import('firebase/firestore').then(({ collection: col, query, where, getDocs, getFirestore }) => {
+      const db2 = getFirestore();
+      const q = query(col(db2, 'gratitude_logs'), where('userId', '==', user.uid), where('date', '==', today));
+      getDocs(q).then(snap => { if (!snap.empty) setGratitudeDoneToday(true); });
+    });
+  }, [user]);
+
   const [content, setContent] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -11514,16 +11591,18 @@ function JournalView({
         </div>
         
         <div className="flex glass p-1.5 rounded-xl border border-white/10 bg-black/40 shadow-2xl">
-           {(['entry', 'history', 'insights'] as const).map(tab => (
+           {(['entry', 'history', 'insights', 'gratitude'] as const).map(tab => (
              <button 
                key={tab} 
                onClick={() => setActiveSubTab(tab)}
                className={cn(
                  "px-6 py-2.5 rounded-lg text-xs font-mono font-black uppercase tracking-widest transition-all relative overflow-hidden",
-                 activeSubTab === tab ? "bg-accent text-white accent-glow" : "text-text-m hover:text-white hover:bg-white/5"
+                 activeSubTab === tab
+                   ? tab === 'gratitude' ? "bg-emerald-600 text-white shadow-[0_0_20px_rgba(16,185,129,0.3)]" : "bg-accent text-white accent-glow"
+                   : "text-text-m hover:text-white hover:bg-white/5"
                )}
              >
-               {tab}
+               {tab === 'gratitude' ? '🌱 GRATITUDE' : tab}
              </button>
            ))}
         </div>
@@ -11736,6 +11815,87 @@ function JournalView({
 
       {activeSubTab === 'history' && renderHistory()}
       {activeSubTab === 'insights' && renderInsights()}
+      {activeSubTab === 'gratitude' && (
+        <div className="max-w-2xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+          <div className="glass rounded-2xl border border-emerald-500/20 p-8 space-y-6">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-400 text-lg">🌱</span>
+                <h3 className="text-xs font-mono font-black uppercase tracking-[0.3em] text-emerald-400">GRATITUDE_PROTOCOL</h3>
+              </div>
+              <p className="text-[10px] font-mono text-text-s opacity-50">Three things. Every day. Takes 60 seconds. Compounds over time.</p>
+              {!gratitudeDoneToday && <p className="text-[9px] font-mono text-emerald-400/60">+15 XP on completion • Once per day</p>}
+            </div>
+
+            {gratitudeDoneToday ? (
+              <div className="text-center py-12 space-y-3">
+                <span className="text-4xl">✅</span>
+                <p className="text-xs font-mono font-black text-emerald-400 uppercase tracking-widest">GRATITUDE_SYNCED_TODAY</p>
+                <p className="text-[10px] font-mono text-text-s opacity-40">Come back tomorrow to log again.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {gratitudeEntries.map((entry, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <label className="text-[10px] font-mono font-black text-text-m uppercase ml-1 opacity-60">
+                      {i === 0 ? '01 — I am grateful for...' : i === 1 ? '02 — Something that went well...' : '03 — A person I appreciate...'}
+                    </label>
+                    <input
+                      type="text"
+                      value={entry}
+                      onChange={e => {
+                        const updated = [...gratitudeEntries];
+                        updated[i] = e.target.value;
+                        setGratitudeEntries(updated);
+                      }}
+                      placeholder="Type here..."
+                      className="w-full px-5 py-4 bg-white/5 border border-emerald-500/20 rounded-xl focus:border-emerald-500/50 text-white font-mono text-sm outline-none placeholder-white/20 transition-all"
+                    />
+                  </div>
+                ))}
+
+                <button
+                  disabled={gratitudeSubmitting || gratitudeEntries.every(e => !e.trim())}
+                  onClick={async () => {
+                    const filled = gratitudeEntries.filter(e => e.trim());
+                    if (filled.length === 0) return;
+                    setGratitudeSubmitting(true);
+                    try {
+                      const today = new Date().toISOString().split('T')[0];
+                      const { addDoc: addDocument, collection: col, getFirestore } = await import('firebase/firestore');
+                      const db2 = getFirestore();
+                      await addDocument(col(db2, 'gratitude_logs'), {
+                        userId: user.uid,
+                        date: today,
+                        entries: filled,
+                        createdAt: new Date().toISOString()
+                      });
+                      await onAddXP(15, 'GRATITUDE_PROTOCOL_COMPLETE');
+                      setGratitudeDoneToday(true);
+                      setGratitudeEntries(['', '', '']);
+                      localStorage.setItem(`gratitude_cache_${user.uid}`, JSON.stringify(filled.map((e, i) => ({ day: today, entry: e, slot: i }))));
+                    } catch (e) {
+                      console.error('Gratitude log error:', e);
+                    } finally {
+                      setGratitudeSubmitting(false);
+                    }
+                  }}
+                  className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 disabled:cursor-not-allowed text-white font-mono font-black uppercase text-xs rounded-xl transition-all shadow-[0_0_20px_rgba(16,185,129,0.2)] hover:shadow-[0_0_30px_rgba(16,185,129,0.4)]"
+                >
+                  {gratitudeSubmitting ? 'SYNCING...' : 'SYNC_GRATITUDE +15 XP'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="glass rounded-2xl border border-white/5 p-6 space-y-3">
+            <p className="text-[9px] font-mono text-text-s opacity-40 uppercase tracking-widest">WHY_THIS_WORKS</p>
+            <p className="text-[10px] font-mono text-text-m leading-relaxed opacity-60">
+              Emmons & McCullough (2003): daily gratitude logging measurably improves wellbeing, sleep quality, and motivation within 3 weeks. AETHOS feeds your entries to Ace — it references them when you are in a low state.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -12080,15 +12240,23 @@ function WeeklyReviewItem({ review }: { review: WeeklyReview }) {
       {!isCollapsed && (
         <div className="mt-4 space-y-4 border-t border-white/5 pt-4 text-xs font-mono text-text-p leading-relaxed">
           <div>
-            <span className="text-accent block text-[9px] font-bold uppercase mb-1">WHAT_WENT_WELL</span>
+            <span className="text-success block text-[9px] font-bold uppercase mb-1">01 — WHAT_WENT_WELL</span>
             <p className="bg-black/30 p-3 rounded-lg border border-white/5 text-white">{review.wentWell}</p>
           </div>
           <div>
-            <span className="text-danger block text-[9px] font-bold uppercase mb-1">WHAT_DIDNT_GO</span>
+            <span className="text-danger block text-[9px] font-bold uppercase mb-1">02 — WHAT_DRAINED_ME</span>
             <p className="bg-black/30 p-3 rounded-lg border border-white/5 text-white">{review.didntGo}</p>
           </div>
           <div>
-            <span className="text-cyan block text-[9px] font-bold uppercase mb-1">NEXT_WEEK_FOCUS</span>
+            <span className="text-warning block text-[9px] font-bold uppercase mb-1">03 — WHAT_I_AVOIDED</span>
+            <p className="bg-black/30 p-3 rounded-lg border border-white/5 text-white">{review.avoided || '—'}</p>
+          </div>
+          <div>
+            <span className="text-purple-400 block text-[9px] font-bold uppercase mb-1">04 — VALUES_ALIGNMENT</span>
+            <p className="bg-black/30 p-3 rounded-lg border border-white/5 text-white">{review.valueAlignment || '—'}</p>
+          </div>
+          <div>
+            <span className="text-cyan block text-[9px] font-bold uppercase mb-1">05 — NEXT_WEEK_MUST_HAVE</span>
             <p className="bg-black/30 p-3 rounded-lg border border-white/5 text-white">{review.nextWeekFocus}</p>
           </div>
         </div>
@@ -14470,7 +14638,12 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       pendingTasks,
       completedTodayCount,
       activeHabits: activeHabitsList,
-      recentJournals: sortedJournals
+      recentJournals: sortedJournals,
+      recentGratitude: (() => {
+        try {
+          return JSON.parse(localStorage.getItem(`gratitude_cache_${user?.uid}`) || '[]');
+        } catch { return []; }
+      })()
     };
   };
 
@@ -14503,7 +14676,9 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       targetStreak: args.targetStreak || 30,
       color: '#22d3ee',
       createdAt: new Date().toISOString(),
-      isArchived: false
+      isArchived: false,
+      temptationBundle: args.temptationBundle,
+      rewardBundle: args.rewardBundle
     });
   };
 
@@ -14710,6 +14885,7 @@ function GrowView({
   journals,
   addToTerminal,
   timeBlocks,
+  weeklyReviews,
   openShare,
   setSharingAchievement,
   handlePurchasePerk,
@@ -14718,8 +14894,91 @@ function GrowView({
   saveNotepadLines,
   convertNotepadLineToTask
 }: any) {
+  const [showReviewModal, setShowReviewModal] = React.useState(false);
+  const [reviewForm, setReviewForm] = React.useState({
+    wentWell: '', didntGo: '', avoided: '', valueAlignment: '', nextWeekFocus: ''
+  });
+  const [reviewSubmitting, setReviewSubmitting] = React.useState(false);
+
+  const thisWeek = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-\'W\'II');
+  const alreadyReviewedThisWeek = (weeklyReviews || []).some((r: any) => r.week === thisWeek);
+
+  const submitWeeklyReview = async () => {
+    if (!reviewForm.wentWell.trim() || !reviewForm.nextWeekFocus.trim()) return;
+    setReviewSubmitting(true);
+    try {
+      await addDoc(collection(db, 'weekly_reviews'), {
+        userId: user.uid,
+        wentWell: reviewForm.wentWell.trim(),
+        didntGo: reviewForm.didntGo.trim(),
+        avoided: reviewForm.avoided.trim(),
+        valueAlignment: reviewForm.valueAlignment.trim(),
+        nextWeekFocus: reviewForm.nextWeekFocus.trim(),
+        week: thisWeek,
+        createdAt: new Date().toISOString()
+      });
+      await onAddXP(50, 'WEEKLY_REVIEW_PROTOCOL_COMPLETE');
+      setReviewForm({ wentWell: '', didntGo: '', avoided: '', valueAlignment: '', nextWeekFocus: '' });
+      setShowReviewModal(false);
+    } catch (e) {
+      console.error('Weekly review error:', e);
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
   return (
     <div className="max-w-[1400px] mx-auto space-y-16 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+      {/* Weekly Review Modal */}
+      {showReviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setShowReviewModal(false)}>
+          <div className="glass border border-white/10 rounded-3xl p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[9px] font-mono text-accent uppercase tracking-[0.4em] font-black">WEEKLY_REVIEW_PROTOCOL</p>
+                <h3 className="text-2xl font-serif font-black text-white italic uppercase">Week {thisWeek.split('-W')[1]}</h3>
+                <p className="text-[9px] font-mono text-text-s opacity-40 mt-1">+50 XP on completion</p>
+              </div>
+              <button onClick={() => setShowReviewModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all text-text-s hover:text-white">✕</button>
+            </div>
+
+            <div className="space-y-5">
+              {[
+                { key: 'wentWell', label: '01 — What went well this week?', color: 'border-success/30 focus:border-success/60', tag: 'text-success' },
+                { key: 'didntGo', label: '02 — What drained me?', color: 'border-danger/30 focus:border-danger/60', tag: 'text-danger' },
+                { key: 'avoided', label: '03 — What did I avoid and why?', color: 'border-warning/30 focus:border-warning/60', tag: 'text-warning' },
+                { key: 'valueAlignment', label: '04 — Am I living in line with my values?', color: 'border-purple-500/30 focus:border-purple-500/60', tag: 'text-purple-400' },
+                { key: 'nextWeekFocus', label: '05 — The one thing next week must have.', color: 'border-cyan/30 focus:border-cyan/60', tag: 'text-cyan' },
+              ].map(({ key, label, color, tag }) => (
+                <div key={key} className="space-y-1.5">
+                  <label className={`text-[10px] font-mono font-black uppercase ml-1 ${tag}`}>{label}</label>
+                  <textarea
+                    rows={2}
+                    value={(reviewForm as any)[key]}
+                    onChange={e => setReviewForm({ ...reviewForm, [key]: e.target.value })}
+                    placeholder="Type here..."
+                    className={`w-full px-5 py-3 bg-white/5 border ${color} rounded-xl text-white font-mono text-xs outline-none placeholder-white/20 transition-all resize-none`}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-4 pt-2">
+              <button onClick={() => setShowReviewModal(false)} className="flex-1 py-3 glass border border-white/10 text-white font-mono font-black uppercase text-xs rounded-xl hover:bg-white/5 transition-all">
+                CANCEL
+              </button>
+              <button
+                disabled={reviewSubmitting || !reviewForm.wentWell.trim() || !reviewForm.nextWeekFocus.trim()}
+                onClick={submitWeeklyReview}
+                className="flex-1 py-3 bg-accent text-white font-mono font-black uppercase text-xs rounded-xl accent-glow disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                {reviewSubmitting ? 'SYNCING...' : 'SYNC_REVIEW +50 XP'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* TOP: Full-width Wheel of Life */}
       <LifeSyncView
@@ -14733,6 +14992,45 @@ function GrowView({
         lifeSyncCategories={lifeSyncCategories}
       />
 
+      {/* WEEKLY REVIEW PROTOCOL */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-accent/10 border border-accent/20 flex items-center justify-center">
+              <span className="text-lg">📋</span>
+            </div>
+            <div>
+              <h3 className="text-sm font-mono font-black uppercase tracking-widest text-white">WEEKLY_REVIEW_PROTOCOL</h3>
+              <p className="text-[9px] font-mono text-text-s opacity-40 uppercase">5 questions · takes 5 minutes · +50 XP</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowReviewModal(true)}
+            disabled={alreadyReviewedThisWeek}
+            className="px-5 py-2.5 bg-accent text-white font-mono font-black uppercase text-[10px] rounded-xl accent-glow hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100"
+          >
+            {alreadyReviewedThisWeek ? 'REVIEWED_THIS_WEEK ✓' : 'START_REVIEW'}
+          </button>
+        </div>
+
+        {(weeklyReviews || []).length > 0 && (
+          <div className="space-y-3">
+            <p className="text-[9px] font-mono text-text-s opacity-40 uppercase tracking-widest">PAST_REVIEWS</p>
+            {[...(weeklyReviews || [])].sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt)).slice(0, 4).map((review: any) => (
+              <WeeklyReviewItem key={review.id} review={review} />
+            ))}
+          </div>
+        )}
+
+        {(weeklyReviews || []).length === 0 && (
+          <div className="glass rounded-2xl border border-white/5 p-8 text-center space-y-2">
+            <p className="text-2xl">📋</p>
+            <p className="text-xs font-mono font-black text-text-m uppercase tracking-widest">NO_REVIEWS_YET</p>
+            <p className="text-[10px] font-mono text-text-s opacity-40">Start your first weekly review above. Takes 5 minutes, compounds for life.</p>
+          </div>
+        )}
+      </section>
+
       {/* BOTTOM: Stats + Achievements */}
       <StatsView
         stats={stats}
@@ -14740,7 +15038,7 @@ function GrowView({
         tasks={tasks}
         journals={journals}
         timeBlocks={timeBlocks}
-        weeklyReviews={[]}
+        weeklyReviews={weeklyReviews || []}
         openShare={openShare}
         setSharingAchievement={setSharingAchievement}
       />
