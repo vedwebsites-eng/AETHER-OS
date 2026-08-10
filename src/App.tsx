@@ -17,7 +17,7 @@ import {
   Sparkles, Award, Volume2, Bell, TrendingUp, Clock, CalendarDays, Maximize2, Minimize2, Move, LayoutGrid, List,
   Bold, Italic, Underline as UnderlineIcon, ListOrdered, Heading1, Heading2, Link as LinkIcon, Eraser, Type, Palette,
   ShoppingBag, Shield, ShieldCheck, User as UserIcon, Download, Briefcase,
-  Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal,
+  Music, Youtube, Instagram, Quote, HelpCircle, Command, Terminal, Heart,
   Mail, Lock, Users, Globe, Network, Cpu, Brain, Menu, Sun, Moon, Info,
   RefreshCw, Copy, Play, FileText, SkipBack, SkipForward, Pause, ExternalLink, ChevronDown, Share2, Eye, EyeOff, Mic, Image,
   PanelLeftClose, PanelLeftOpen,
@@ -1692,6 +1692,7 @@ interface AppSettings {
   lifeSyncCategories?: any[];
   includeAIInDailyCheckin?: boolean;
   lastAICheckinDate?: string;
+  coreValues?: string[];
 }
 
 interface WeeklyReview {
@@ -12741,7 +12742,7 @@ function ShopView({ stats, user, onPurchase }: { stats: UserStats | null; user: 
 }
 
 function SettingsView({ settings, stats, user, onUpdate, onPurchase }: { settings: AppSettings | null; stats: UserStats | null; user: User; onUpdate: (s: Partial<AppSettings>) => void; onPurchase: (item: any) => void }) {
-  const [activeCategory, setActiveCategory] = useState<'profile' | 'gameplay' | 'interface' | 'notifications' | 'shop' | 'data'>('profile');
+  const [activeCategory, setActiveCategory] = useState<'profile' | 'gameplay' | 'interface' | 'notifications' | 'shop' | 'data' | 'values'>('profile');
   const [localDisplayName, setLocalDisplayName] = useState(user.displayName || '');
   const [isEditingName, setIsEditingName] = useState(false);
 
@@ -12754,6 +12755,7 @@ function SettingsView({ settings, stats, user, onUpdate, onPurchase }: { setting
     { id: 'notifications', label: 'COMMS_PROTOCOLS', icon: <Bell size={16} />, color: 'text-success' },
     { id: 'shop', label: 'MARKETPLACE', icon: <ShoppingBag size={16} />, color: 'text-indigo-400' },
     { id: 'data', label: 'SYSTEM_MEMORY', icon: <HardDrive size={16} />, color: 'text-text-m' },
+    { id: 'values', label: 'VALUES_CORE', icon: <Heart size={16} />, color: 'text-pink-400' },
   ] as const;
 
   return (
@@ -13932,7 +13934,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         history,
         stats,
         weakestSphere,
-        buildCoachContext(),
+        buildCoachContext(null),
         coachProfile,
         memorySummary,
         (partialText) => {
@@ -14559,7 +14561,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     }
   };
 
-  function buildCoachContext() {
+  function buildCoachContext(settings: AppSettings | null) {
     const todayStr = new Date().toISOString().split('T')[0];
 
     // 1. Full lifeSync.current balance object
@@ -14633,6 +14635,27 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         return item;
       });
 
+    // Low state detection — triggers Self-Compassion Protocol in Ace
+    const recentMoods = sortedJournals.slice(0, 2).map((j: any) => j.mood);
+    const isLowMood = recentMoods.some((m: string) => ['sad', 'anxious', 'angry', 'stressed'].includes(m));
+    const isLowStreak = (stats?.currentStreak || 0) < 3;
+    const todayStr2 = new Date().toISOString().split('T')[0];
+    const thisWeekTasks = (tasks || []).filter((t: any) => {
+      if (!t.completedAt) return false;
+      const taskDate = new Date(t.completedAt);
+      const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+      return taskDate >= weekAgo;
+    });
+    const thisWeekPending = (tasks || []).filter((t: any) => {
+      const taskDate = new Date(t.createdAt || '');
+      const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+      return taskDate >= weekAgo && t.status !== 'completed';
+    });
+    const weeklyCompletionRate = (thisWeekTasks.length + thisWeekPending.length) > 0
+      ? thisWeekTasks.length / (thisWeekTasks.length + thisWeekPending.length)
+      : 1;
+    const lowStateDetected = (isLowMood && isLowStreak) || weeklyCompletionRate < 0.15;
+
     return {
       lifeSyncCurrent,
       pendingTasks,
@@ -14643,7 +14666,14 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         try {
           return JSON.parse(localStorage.getItem(`gratitude_cache_${user?.uid}`) || '[]');
         } catch { return []; }
-      })()
+      })(),
+      coreValues: settings?.coreValues?.length ? settings.coreValues : null,
+      evidenceVault: (() => {
+        try {
+          return JSON.parse(localStorage.getItem(`wins_cache_${user?.uid}`) || '[]');
+        } catch { return []; }
+      })(),
+      lowStateDetected
     };
   };
 
@@ -14738,7 +14768,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         history,
         stats,
         weakestSphere,
-        buildCoachContext(),
+        buildCoachContext(null),
         coachProfile,
         memorySummary,
         (partialText) => setStreamingText(partialText),
@@ -14899,6 +14929,49 @@ function GrowView({
     wentWell: '', didntGo: '', avoided: '', valueAlignment: '', nextWeekFocus: ''
   });
   const [reviewSubmitting, setReviewSubmitting] = React.useState(false);
+  const [wins, setWins] = React.useState<any[]>([]);
+  const [showWinForm, setShowWinForm] = React.useState(false);
+  const [winForm, setWinForm] = React.useState({ title: '', description: '', category: 'RESILIENCE' });
+  const [winSubmitting, setWinSubmitting] = React.useState(false);
+
+  // Load wins from Firestore
+  React.useEffect(() => {
+    if (!user) return;
+    getDocs(query(
+      collection(db, 'wins_log'),
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc'),
+      limit(20)
+    )).then(snap => {
+      setWins(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+    }).catch(() => {});
+  }, [user]);
+
+  const submitWin = async () => {
+    if (!winForm.title.trim()) return;
+    setWinSubmitting(true);
+    try {
+      const newWin = {
+        userId: user.uid,
+        title: winForm.title.trim(),
+        description: winForm.description.trim(),
+        category: winForm.category,
+        date: new Date().toISOString().split('T')[0],
+        createdAt: new Date().toISOString()
+      };
+      const ref = await addDoc(collection(db, 'wins_log'), newWin);
+      setWins(prev => [{ ...newWin, id: ref.id }, ...prev]);
+      const updatedWins = [{ ...newWin, id: ref.id }, ...wins].slice(0, 5);
+      localStorage.setItem(`wins_cache_${user.uid}`, JSON.stringify(updatedWins.map(w => ({ title: w.title, category: w.category, date: w.date }))));
+      await onAddXP(20, 'EVIDENCE_VAULT_ENTRY');
+      setWinForm({ title: '', description: '', category: 'RESILIENCE' });
+      setShowWinForm(false);
+    } catch (e) {
+      console.error('Win log error:', e);
+    } finally {
+      setWinSubmitting(false);
+    }
+  };
 
   const thisWeek = format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-\'W\'II');
   const alreadyReviewedThisWeek = (weeklyReviews || []).some((r: any) => r.week === thisWeek);
@@ -15027,6 +15100,120 @@ function GrowView({
             <p className="text-2xl">📋</p>
             <p className="text-xs font-mono font-black text-text-m uppercase tracking-widest">NO_REVIEWS_YET</p>
             <p className="text-[10px] font-mono text-text-s opacity-40">Start your first weekly review above. Takes 5 minutes, compounds for life.</p>
+          </div>
+        )}
+      </section>
+
+      {/* EVIDENCE VAULT */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
+              <span className="text-lg">🏆</span>
+            </div>
+            <div>
+              <h3 className="text-sm font-mono font-black uppercase tracking-widest text-white">EVIDENCE_VAULT</h3>
+              <p className="text-[9px] font-mono text-text-s opacity-40 uppercase">Proof you can execute. Ace reads this when you're in a low state.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowWinForm(!showWinForm)}
+            className="px-5 py-2.5 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 text-yellow-300 font-mono font-black uppercase text-[10px] rounded-xl transition-all hover:scale-105 active:scale-95"
+          >
+            + LOG_WIN
+          </button>
+        </div>
+
+        {showWinForm && (
+          <div className="glass border border-yellow-500/20 rounded-2xl p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+            <p className="text-[9px] font-mono text-yellow-400 uppercase tracking-widest font-black">NEW_EVIDENCE_ENTRY · +20 XP</p>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-mono font-black text-text-m uppercase ml-1">What did you do or prove?</label>
+              <input
+                type="text"
+                value={winForm.title}
+                onChange={e => setWinForm({ ...winForm, title: e.target.value })}
+                placeholder="e.g. Showed up to gym despite being exhausted"
+                className="w-full px-5 py-3 bg-white/5 border border-yellow-500/20 focus:border-yellow-500/50 rounded-xl text-white font-mono text-sm outline-none placeholder-white/20 transition-all"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono font-black text-text-m uppercase ml-1">Category</label>
+                <select
+                  value={winForm.category}
+                  onChange={e => setWinForm({ ...winForm, category: e.target.value })}
+                  className="w-full px-4 py-3 bg-white/5 border border-yellow-500/20 rounded-xl text-white font-mono text-xs outline-none"
+                >
+                  {['RESILIENCE', 'DISCIPLINE', 'SKILL', 'SOCIAL', 'BREAKTHROUGH', 'CONSISTENCY'].map(c => (
+                    <option key={c} value={c} className="bg-[#0a0a0a]">{c}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono font-black text-text-m uppercase ml-1">Context (optional)</label>
+                <input
+                  type="text"
+                  value={winForm.description}
+                  onChange={e => setWinForm({ ...winForm, description: e.target.value })}
+                  placeholder="Any extra detail..."
+                  className="w-full px-4 py-3 bg-white/5 border border-yellow-500/20 focus:border-yellow-500/50 rounded-xl text-white font-mono text-xs outline-none placeholder-white/20 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowWinForm(false)}
+                className="flex-1 py-3 glass border border-white/10 text-text-m font-mono font-black uppercase text-xs rounded-xl hover:bg-white/5 transition-all"
+              >
+                CANCEL
+              </button>
+              <button
+                disabled={winSubmitting || !winForm.title.trim()}
+                onClick={submitWin}
+                className="flex-1 py-3 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/30 text-yellow-300 font-mono font-black uppercase text-xs rounded-xl disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
+                {winSubmitting ? 'LOGGING...' : 'LOG_WIN +20 XP'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {wins.length > 0 ? (
+          <div className="space-y-3">
+            {wins.slice(0, 8).map((win: any) => {
+              const categoryColors: Record<string, string> = {
+                RESILIENCE: 'text-orange-400 border-orange-400/20 bg-orange-400/5',
+                DISCIPLINE: 'text-cyan border-cyan/20 bg-cyan/5',
+                SKILL: 'text-blue-400 border-blue-400/20 bg-blue-400/5',
+                SOCIAL: 'text-green-400 border-green-400/20 bg-green-400/5',
+                BREAKTHROUGH: 'text-purple-400 border-purple-400/20 bg-purple-400/5',
+                CONSISTENCY: 'text-yellow-400 border-yellow-400/20 bg-yellow-400/5',
+              };
+              const colorClass = categoryColors[win.category] || 'text-text-m border-white/10 bg-white/5';
+              return (
+                <div key={win.id} className="glass rounded-2xl border border-white/5 p-4 flex items-start gap-4">
+                  <div className={`px-2 py-1 rounded-lg border text-[8px] font-mono font-black uppercase shrink-0 ${colorClass}`}>
+                    {win.category}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-mono font-black text-white uppercase tracking-wide">{win.title}</p>
+                    {win.description && <p className="text-[10px] font-mono text-text-s opacity-50 mt-0.5 truncate">{win.description}</p>}
+                    <p className="text-[9px] font-mono text-text-s opacity-30 mt-1">{new Date(win.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                  </div>
+                  <span className="text-xl shrink-0">🏆</span>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="glass rounded-2xl border border-white/5 p-8 text-center space-y-2">
+            <p className="text-2xl">🏆</p>
+            <p className="text-xs font-mono font-black text-text-m uppercase tracking-widest">VAULT_EMPTY</p>
+            <p className="text-[10px] font-mono text-text-s opacity-40">Log your first win. Every time you push through, it's proof you can do it again.</p>
           </div>
         )}
       </section>

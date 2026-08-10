@@ -437,7 +437,6 @@ TEEN DEMOTIVATION / "ZERO STATE" — when the user describes having no motivatio
 These are reasoning patterns to apply naturally in your own words — never recite these bullet points back to the user or reference "the playbook."`;
 
     if (memorySummary) {
-
       systemIns += `\n\n=== LONG-TERM MEMORY (from past conversations) ===\n${memorySummary}`;
     }
 
@@ -446,7 +445,23 @@ These are reasoning patterns to apply naturally in your own words — never reci
     - Weakest Life Sphere: ${lowestCategory || 'None'}`;
 
     if (context) {
-      const { lifeSyncCurrent, pendingTasks, completedTodayCount, activeHabits, recentJournals } = context;
+      const { lifeSyncCurrent, pendingTasks, completedTodayCount, activeHabits, recentJournals, recentGratitude, coreValues, evidenceVault, lowStateDetected } = context;
+
+      systemIns += `\n\n=== SELF-COMPASSION PROTOCOL ===
+This section overrides your default response pattern when the user is in a confirmed low state.
+
+A low state is confirmed when: their recent journal shows a sad or anxious mood AND their streak is below 3, OR their task completion rate this week is critically low. The frontend will send lowStateDetected: true in this case.
+
+${lowStateDetected ? `⚠️ LOW STATE DETECTED for this session.
+
+MANDATORY response pattern for the first reply in this conversation:
+1. ACKNOWLEDGE first — name what's actually hard based on their real data (streak, mood, tasks). Be specific, not generic. Do NOT say "I understand" or "that must be tough."
+2. NORMALIZE without lecturing — one sentence, grounded in reality. No fake positivity. No "you've got this."
+3. EVIDENCE — pull ONE specific thing from their Evidence Vault or past wins to remind them this isn't their permanent state. If Evidence Vault is empty, use their streak history or a completed task.
+4. ONE small action — the smallest possible re-entry point. Not a plan. One thing. Make it so small it's almost impossible to refuse.
+5. BANNED phrases: "you've got this", "believe in yourself", "stay positive", "you're amazing", "keep pushing", "I know you can do it". These are toxic positivity and must not appear.
+6. Tone: warm, grounded, direct. Like a friend who has seen you at your worst and still respects you.` : `No low state detected. Use standard coaching approach.`}`;
+
       systemIns += `\n\n=== REAL-TIME TODAY CONTEXT ===`;
       if (lifeSyncCurrent && Object.keys(lifeSyncCurrent).length > 0) {
         systemIns += `\n- Life Balance breakdown (scores 1-10):`;
@@ -480,6 +495,22 @@ These are reasoning patterns to apply naturally in your own words — never reci
           if (j.excerpt) journalStr += `\n    excerpt: "${j.excerpt}"`;
           systemIns += journalStr;
         });
+      }
+
+      if (coreValues && coreValues.length > 0) {
+        systemIns += `\n- User's core values (ranked, most important first): ${coreValues.join(', ')}. Reference these when helping them make decisions or when their actions seem misaligned with what they care about.`;
+      }
+
+      if (recentGratitude && recentGratitude.length > 0) {
+        systemIns += `\n- Recent gratitude entries (use these when user is in a low state to remind them of what's good): ${recentGratitude.slice(0, 5).map((g: any) => `"${g.entry}"`).join(', ')}`;
+      }
+
+      if (evidenceVault && evidenceVault.length > 0) {
+        systemIns += `\n- Evidence Vault — personal wins the user has logged as proof they can execute:`;
+        evidenceVault.slice(0, 5).forEach((w: any) => {
+          systemIns += `\n  * [${w.category}] "${w.title}" (${w.date})`;
+        });
+        systemIns += `\n  Use these wins as specific evidence when the user doubts themselves — don't be generic, cite what they actually did.`;
       }
     }
 
