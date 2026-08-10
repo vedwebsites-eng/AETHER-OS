@@ -445,7 +445,7 @@ These are reasoning patterns to apply naturally in your own words — never reci
     - Weakest Life Sphere: ${lowestCategory || 'None'}`;
 
     if (context) {
-      const { lifeSyncCurrent, pendingTasks, completedTodayCount, activeHabits, recentJournals, recentGratitude, coreValues, evidenceVault, lowStateDetected } = context;
+      const { lifeSyncCurrent, pendingTasks, completedTodayCount, activeHabits, recentJournals, recentGratitude, coreValues, evidenceVault, lowStateDetected, woop } = context;
 
       systemIns += `\n\n=== SELF-COMPASSION PROTOCOL ===
 This section overrides your default response pattern when the user is in a confirmed low state.
@@ -482,6 +482,20 @@ When active WOOP data exists:
 10. If Plan is vague, help user make it concrete.
 11. Keep recommendations small and executable.
 12. WOOP supports action; it does not replace task management.`;
+
+      if (woop) {
+        systemIns += `\n\n=== WOOP DATA ===`;
+        if (woop.active && woop.active.length > 0) {
+            systemIns += `\n- Active WOOPs:`;
+            woop.active.forEach((w: any) => systemIns += `\n  * Wish: ${w.wish}, Outcome: ${w.outcome}, Obstacle: ${w.obstacle} (${w.obstacleType || 'internal'}), Plan: ${w.plan}`);
+        } else {
+            systemIns += `\n- No active WOOPs.`;
+        }
+        if (woop.recentCompleted && woop.recentCompleted.length > 0) {
+            systemIns += `\n- Recent Completed WOOPs:`;
+            woop.recentCompleted.forEach((w: any) => systemIns += `\n  * Wish: ${w.wish}, Outcome: ${w.outcome}`);
+        }
+      }
 
       systemIns += `\n\n=== REAL-TIME TODAY CONTEXT ===`;
       if (lifeSyncCurrent && Object.keys(lifeSyncCurrent).length > 0) {
