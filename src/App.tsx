@@ -13684,6 +13684,7 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
 function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], startPlaylist, setIsMotivationPortalOpen, setPendingMotivation, isSidebarOpen, setIsSidebarOpen }: any) {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [permissionError, setPermissionError] = useState<string | null>(null);
   const chatPaneRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -13705,20 +13706,40 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
-  const startListening = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Speech recognition not supported in this browser.");
+  const recognitionRef = useRef<any>(null);
+
+  const startListening = async () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
       return;
     }
-    const recognition = new SpeechRecognition();
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setInputText(prev => prev + " " + transcript);
-    };
-    recognition.start();
+    
+    setPermissionError(null);
+
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        setPermissionError("Speech recognition not supported in this browser.");
+        return;
+      }
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
+      recognition.onstart = () => setIsListening(true);
+      recognition.onend = () => setIsListening(false);
+      recognition.onerror = () => {
+        setIsListening(false);
+        setPermissionError("Microphone error occurred.");
+      };
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInputText(prev => prev + " " + transcript);
+      };
+      recognition.start();
+    } catch (err) {
+      setPermissionError("Microphone access denied or not available.");
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -14461,7 +14482,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
               <button
                 type="button"
                 onClick={startListening}
-                className={cn("p-3 bg-black/40 border border-white/10 rounded-xl transition-all", isListening ? "text-red-500 border-red-500/50" : "text-white/50 hover:text-white")}
+                className={cn("p-3 rounded-xl border transition-all", isListening ? "bg-red-500/20 border-red-500/50 text-red-500" : "bg-black/40 border-white/10 text-white/50 hover:text-white")}
               >
                 <Mic size={16} />
               </button>
@@ -14497,6 +14518,11 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 </button>
               )}
             </form>
+            {permissionError && (
+              <div className="text-red-500 text-xs font-mono mt-2 p-3 bg-red-500/10 rounded-xl border border-red-500/20">
+                {permissionError}
+              </div>
+            )}
           </div>
         )}
       </div>
