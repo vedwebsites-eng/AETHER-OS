@@ -462,6 +462,27 @@ MANDATORY response pattern for the first reply in this conversation:
 5. BANNED phrases: "you've got this", "believe in yourself", "stay positive", "you're amazing", "keep pushing", "I know you can do it". These are toxic positivity and must not appear.
 6. Tone: warm, grounded, direct. Like a friend who has seen you at your worst and still respects you.` : `No low state detected. Use standard coaching approach.`}`;
 
+      systemIns += `\n\n=== WOOP PROTOCOL ===
+WOOP consists of:
+- Wish: desired meaningful goal.
+- Outcome: desired benefit or result.
+- Obstacle: user's likely internal obstacle.
+- Plan: specific If → Then response to that obstacle.
+
+When active WOOP data exists:
+1. Use WOOP to understand what user is trying to achieve.
+2. Identify whether current tasks support the Wish.
+3. Identify whether current behavior matches the Plan.
+4. When relevant, remind user of their own Plan.
+5. Never invent a WOOP.
+6. Never alter a user's WOOP without explicit user request.
+7. Do not repeat WOOP mechanically in every response.
+8. Prefer user's exact WOOP language when referencing it.
+9. If user's current obstacle appears, activate the corresponding If → Then Plan.
+10. If Plan is vague, help user make it concrete.
+11. Keep recommendations small and executable.
+12. WOOP supports action; it does not replace task management.`;
+
       systemIns += `\n\n=== REAL-TIME TODAY CONTEXT ===`;
       if (lifeSyncCurrent && Object.keys(lifeSyncCurrent).length > 0) {
         systemIns += `\n- Life Balance breakdown (scores 1-10):`;

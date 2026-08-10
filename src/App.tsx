@@ -35,6 +35,7 @@ import { EmptyState } from './components/EmptyState';
 import { WheelOfLifeVisualization } from './components/WheelOfLife';
 import { OnboardingModal } from './components/OnboardingModal';
 import { DashboardLanding } from './components/DashboardLanding';
+import { WOOPView } from './components/WOOPView';
 import { toPng } from 'html-to-image';
 
 // --- ShareCard Utilities and Components ---
@@ -2914,6 +2915,7 @@ export default function App() {
     setIsPlaying(true);
   };
   const [weeklyReviews, setWeeklyReviews] = useState<WeeklyReview[]>([]);
+  const [woopPlans, setWoopPlans] = useState<WOOPPlan[]>([]);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [syncFailed, setSyncFailed] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
@@ -2926,6 +2928,15 @@ export default function App() {
       setShowAICheckinPrompt(true);
     }
   }, [settings]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'users', user.uid, 'woop'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setWoopPlans(snap.docs.map(d => ({ ...d.data(), id: d.id } as WOOPPlan)));
+    });
+    return unsubscribe;
+  }, [user]);
   const [xpNotifications, setXpNotifications] = useState<XPNotification[]>([]);
   const [levelUpLevel, setLevelUpLevel] = useState<number | null>(null);
   const [celebratingAchievement, setCelebratingAchievement] = useState<Achievement | null>(null);
@@ -4901,6 +4912,7 @@ export default function App() {
                       habits={habits}
                       habitLogs={habitLogs}
                       motivationItems={motivationItems}
+                      woopPlans={woopPlans}
                       startPlaylist={startPlaylist}
                       setIsMotivationPortalOpen={setIsMotivationPortalOpen}
                       setPendingMotivation={setPendingMotivation}
@@ -13681,7 +13693,7 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
   );
 }
 
-function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], startPlaylist, setIsMotivationPortalOpen, setPendingMotivation, isSidebarOpen, setIsSidebarOpen }: any) {
+function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], woopPlans = [], startPlaylist, setIsMotivationPortalOpen, setPendingMotivation, isSidebarOpen, setIsSidebarOpen }: any) {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
@@ -14296,6 +14308,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         ) : (
           // NORMAL CHAT
           <div className="flex-1 overflow-y-auto p-8 md:p-12 space-y-6 no-scrollbar">
+            <WOOPView woopPlans={woopPlans} user={user} />
             {messages.map((m, idx) => (
               <div 
                 key={m.id || `fallback-msg-${idx}`} 
@@ -14699,7 +14712,20 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
           return JSON.parse(localStorage.getItem(`wins_cache_${user?.uid}`) || '[]');
         } catch { return []; }
       })(),
-      lowStateDetected
+      lowStateDetected,
+      woop: {
+        active: woopPlans.filter(w => w.status === "active").slice(0, 3).map(w => ({
+          wish: w.wish,
+          outcome: w.outcome,
+          obstacle: w.obstacle,
+          plan: w.plan,
+          obstacleType: w.obstacleType
+        })),
+        recentCompleted: woopPlans.filter(w => w.status === "completed").slice(0, 3).map(w => ({
+          wish: w.wish,
+          outcome: w.outcome
+        }))
+      }
     };
   };
 

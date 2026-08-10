@@ -20,3 +20,31 @@ export interface Habit {
   color: string;
   isArchived: boolean;
 }
+
+export interface WOOPPlan {
+  id: string;
+  userId: string;
+
+  wish: string;
+  outcome: string;
+  obstacle: string;
+  plan: string;
+
+  createdAt: any;
+  updatedAt: any;
+
+  status: "active" | "completed" | "archived";
+
+  completedAt?: any;
+
+  // AI-useful metadata
+  obstacleType?: 
+    | "internal"
+    | "external"
+    | "emotional"
+    | "behavioral"
+    | "environmental"
+    | "unknown";
+
+  linkedTaskIds?: string[];
+}

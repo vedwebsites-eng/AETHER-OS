@@ -117,6 +117,16 @@ service cloud.firestore {
              (!('didntGo' in data) || (data.didntGo is string && data.didntGo.size() <= 2000));
     }
 
+    // WOOPPlan Validation
+    function isValidWOOP(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.wish is string && data.wish.size() <= 500 &&
+             data.outcome is string && data.outcome.size() <= 500 &&
+             data.obstacle is string && data.obstacle.size() <= 500 &&
+             data.plan is string && data.plan.size() <= 500 &&
+             data.status in ['active', 'completed', 'archived'];
+    }
+
     // CoachMessage Validation
     function isValidCoachMessage(data) {
       return data.userId is string && data.userId.size() <= 128 &&
@@ -221,6 +231,14 @@ service cloud.firestore {
       allow read: if isOwner(resource.data.userId);
       allow create: if isVerified() && isValidWeeklyReview(incoming()) && isOwner(incoming().userId) && isValidId(reviewId);
       allow update: if isVerified() && isOwner(existing().userId) && isValidWeeklyReview(incoming()) && isImmutablePassed('weekly_reviews');
+      allow delete: if isVerified() && isOwner(existing().userId);
+    }
+
+    // WOOPPlans
+    match /users/{userId}/woop/{woopId} {
+      allow read: if isOwner(userId);
+      allow create: if isVerified() && isValidWOOP(incoming()) && isOwner(incoming().userId) && isValidId(woopId);
+      allow update: if isVerified() && isOwner(existing().userId) && isValidWOOP(incoming()) && isImmutablePassed('woop');
       allow delete: if isVerified() && isOwner(existing().userId);
     }
 
