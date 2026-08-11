@@ -6945,14 +6945,14 @@ const RecentActivityFeed = React.memo(function RecentActivityFeed({ log }: { log
   );
 
   return (
-    <div className="space-y-3">
+    <div className="flex gap-3 overflow-x-auto pb-4">
       {safeLog.map((activity, i) => (
-        <div key={`${activity.id || 'activity'}-${i}`}>
+        <div key={`${activity.id || 'activity'}-${i}`} className="shrink-0 w-64">
           <motion.div 
             initial={{ x: -20, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: i * 0.1 }}
-            className="flex items-center gap-4 p-4 glass rounded-xl border-l-2 border-l-white/10 hover:border-l-accent transition-all group bg-white/1"
+            className="flex items-center gap-4 p-4 glass rounded-xl border-l-2 border-l-white/10 hover:border-l-accent transition-all bg-white/1 h-full"
           >
             <div className={cn(
               "p-2 rounded flex items-center justify-center shrink-0",
@@ -7902,7 +7902,7 @@ function Dashboard({
               );
             })()}
 
-            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+            <div className="flex gap-3 overflow-x-auto pb-2 custom-scrollbar">
               {motivationItems.length === 0 ? (
                 <div className="w-full flex items-center justify-center py-6 border border-dashed border-white/5 bg-white/1 rounded-xl">
                   <p className="text-[9px] font-mono text-white/20 uppercase tracking-widest">
@@ -12796,7 +12796,7 @@ function SettingsView({ settings, stats, user, onUpdate, onPurchase }: { setting
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-12">
-        <div className="md:col-span-12 space-y-12">
+        <div className="md:col-span-12 space-y-12 overflow-x-auto w-full custom-scrollbar">
           
           {activeCategory === 'profile' && (
             <motion.section 

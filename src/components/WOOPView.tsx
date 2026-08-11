@@ -78,12 +78,12 @@ export const WOOPView: React.FC<WOOPViewProps> = ({ woopPlans, user }) => {
 
       {showForm ? (
         <div className="space-y-3">
-          <input placeholder="Wish..." value={form.wish} onChange={e => setForm({...form, wish: e.target.value})} className="w-full bg-white/5 p-3 rounded-lg text-sm" />
-          <input placeholder="Outcome..." value={form.outcome} onChange={e => setForm({...form, outcome: e.target.value})} className="w-full bg-white/5 p-3 rounded-lg text-sm" />
-          <input placeholder="Obstacle..." value={form.obstacle} onChange={e => setForm({...form, obstacle: e.target.value})} className="w-full bg-white/5 p-3 rounded-lg text-sm" />
-          <input placeholder="Plan (If... Then...)..." value={form.plan} onChange={e => setForm({...form, plan: e.target.value})} className="w-full bg-white/5 p-3 rounded-lg text-sm" />
+          <input placeholder="Wish..." value={form.wish} onChange={e => setForm({...form, wish: e.target.value})} className="w-full bg-black/40 border border-white/10 p-3 rounded-xl text-sm font-mono" />
+          <input placeholder="Outcome..." value={form.outcome} onChange={e => setForm({...form, outcome: e.target.value})} className="w-full bg-black/40 border border-white/10 p-3 rounded-xl text-sm font-mono" />
+          <input placeholder="Obstacle..." value={form.obstacle} onChange={e => setForm({...form, obstacle: e.target.value})} className="w-full bg-black/40 border border-white/10 p-3 rounded-xl text-sm font-mono" />
+          <input placeholder="Plan (If... Then...)..." value={form.plan} onChange={e => setForm({...form, plan: e.target.value})} className="w-full bg-black/40 border border-white/10 p-3 rounded-xl text-sm font-mono" />
           {error && <p className="text-red-500 text-xs">{error}</p>}
-          <button onClick={saveWOOP} disabled={submitting} className="w-full bg-cyan/20 p-3 rounded-lg text-cyan font-black uppercase text-xs">
+          <button onClick={saveWOOP} disabled={submitting} className="w-full bg-cyan/10 border border-cyan/20 p-3 rounded-xl text-cyan font-black uppercase text-xs tracking-widest hover:bg-cyan/20 transition-all">
             {submitting ? 'SAVING...' : 'SAVE_WOOP'}
           </button>
         </div>

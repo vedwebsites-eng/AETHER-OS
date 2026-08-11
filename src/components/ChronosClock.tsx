@@ -43,7 +43,7 @@ export const ChronosClock = () => {
       <div className="text-4xl font-mono font-bold text-white tracking-tighter">
         {formatTime(timeLeft)}
       </div>
-      <div className="text-[10px] font-mono text-text-s uppercase tracking-widest">Remaining</div>
+      <div className="text-[12px] font-mono text-text-s uppercase tracking-widest">Remaining</div>
 
       <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
         <div 
