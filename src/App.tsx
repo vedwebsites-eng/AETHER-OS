@@ -36,6 +36,7 @@ import { WheelOfLifeVisualization } from './components/WheelOfLife';
 import { OnboardingModal } from './components/OnboardingModal';
 import { DashboardLanding } from './components/DashboardLanding';
 import { WOOPView } from './components/WOOPView';
+import { WOOPPlan } from './types';
 import { toPng } from 'html-to-image';
 
 // --- ShareCard Utilities and Components ---
@@ -1990,7 +1991,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
   const saveSnapshot = async () => {
     setIsSaving(true);
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = chronos.getLocalDateKey();
       await addDoc(collection(db, 'life_snapshots'), {
         userId: user.uid,
         date: today,

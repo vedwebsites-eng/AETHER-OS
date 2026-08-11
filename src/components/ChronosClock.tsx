@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { chronos } from '../services/chronos';
 
 export const ChronosClock = () => {
-  const [timeLeft, setTimeLeft] = useState(chronos.getTimeUntilReset());
+  const [timeLeft, setTimeLeft] = useState(chronos.getRemainingMs());
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setTimeLeft(chronos.getTimeUntilReset());
+      setTimeLeft(chronos.getRemainingMs());
     }, 1000);
 
     return () => clearInterval(timer);

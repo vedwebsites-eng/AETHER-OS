@@ -1,5 +1,6 @@
 import { doc, getDoc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { startOfDay, addDays, differenceInMilliseconds } from 'date-fns';
 
 export interface ClockSettings {
   lastResetAt: Timestamp;
@@ -18,13 +19,12 @@ class ChronosCore {
   private async init() {
     const docRef = doc(db, 'system_settings', 'global_clock');
     
-    // Initial fetch
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       this.settings = snap.data() as ClockSettings;
+      this.notifyListeners();
     }
 
-    // Subscribe for real-time updates
     onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         this.settings = snap.data() as ClockSettings;
@@ -44,23 +44,34 @@ class ChronosCore {
     this.listeners.forEach(l => l());
   }
 
-  public getNextResetTime(): Date {
-    if (!this.settings) return new Date(Date.now() + 24 * 60 * 60 * 1000);
-    
-    const lastReset = this.settings.lastResetAt.toDate();
-    const nextReset = new Date(lastReset);
-    nextReset.setDate(nextReset.getDate() + 1);
-    
-    return nextReset;
+  private getCycleBase(): Date {
+    if (!this.settings) return startOfDay(new Date());
+    return this.settings.lastResetAt.toDate();
   }
 
-  public getTimeUntilReset(): number {
-    const nextReset = this.getNextResetTime();
-    return Math.max(0, nextReset.getTime() - Date.now());
+  public getCycleStart(): Date {
+    return this.getCycleBase();
   }
 
-  public isResetNeeded(): boolean {
-    return this.getTimeUntilReset() <= 0;
+  public getCycleEnd(): Date {
+    return addDays(this.getCycleStart(), 1);
+  }
+
+  public getCurrentCycle(): { start: Date; end: Date } {
+    return { start: this.getCycleStart(), end: this.getCycleEnd() };
+  }
+
+  public getRemainingMs(): number {
+    return Math.max(0, differenceInMilliseconds(this.getCycleEnd(), new Date()));
+  }
+
+  public isExpired(timestamp: Timestamp | Date): boolean {
+    const date = timestamp instanceof Timestamp ? timestamp.toDate() : timestamp;
+    return date < this.getCycleStart();
+  }
+
+  public getLocalDateKey(date: Date = new Date()): string {
+    return date.toISOString().split('T')[0];
   }
 }
 
