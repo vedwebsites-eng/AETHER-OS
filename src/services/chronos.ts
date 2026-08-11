@@ -70,6 +70,18 @@ class ChronosCore {
     return date < this.getCycleStart();
   }
 
+  public getNextCycleStart(): Date {
+    return addDays(this.getCycleStart(), 1);
+  }
+
+  public getCycleId(): string {
+    return this.getLocalDateKey(this.getCycleStart());
+  }
+
+  public isCurrentCycle(date: Date): boolean {
+    return date >= this.getCycleStart() && date < this.getCycleEnd();
+  }
+
   public getLocalDateKey(date: Date = new Date()): string {
     return date.toISOString().split('T')[0];
   }

@@ -37,6 +37,7 @@ import { OnboardingModal } from './components/OnboardingModal';
 import { DashboardLanding } from './components/DashboardLanding';
 import { WOOPView } from './components/WOOPView';
 import { WOOPPlan } from './types';
+import { chronos } from './services/chronos';
 import { toPng } from 'html-to-image';
 
 // --- ShareCard Utilities and Components ---
@@ -3188,7 +3189,7 @@ export default function App() {
         isBoss: false,
         isSpeedRun: false,
         createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt: chronos.getCycleEnd().toISOString(),
         isExpired: false
       });
       saveNotepadLines(notepadLines.filter(l => l.id !== line.id));
@@ -4044,7 +4045,7 @@ export default function App() {
           scheduledStart: block.startTime,
           scheduledEnd: block.endTime,
           createdAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          expiresAt: chronos.getCycleEnd().toISOString(),
           isExpired: false
         });
       } else {
@@ -8243,7 +8244,7 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
         isSpeedRun: false, // Updated on completion if user marks it
         difficulty: 'medium', // legacy
         createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt: chronos.getCycleEnd().toISOString(),
         isExpired: false
       });
       setNewTitle('');
@@ -8650,7 +8651,7 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
                               isBoss: false,
                               habitId: h.id,
                               createdAt: new Date().toISOString(),
-                              expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                              expiresAt: chronos.getCycleEnd().toISOString(),
                               isExpired: false
                             };
                             await addDoc(collection(db, 'tasks'), newTask);
@@ -9550,7 +9551,7 @@ function TemporalHub({
         estimate: s.estimate || 30,
         subTasks: [],
         createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt: chronos.getCycleEnd().toISOString(),
         isExpired: false
       };
       await addDoc(collection(db, 'tasks'), newTask);
@@ -13276,7 +13277,7 @@ function DailyWorkView({
         subTasks: [],
         userId: user.uid,
         createdAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt: chronos.getCycleEnd().toISOString(),
         isExpired: false
       };
       await addDoc(collection(db, 'tasks'), newTask);
@@ -13475,7 +13476,7 @@ function DailyWorkView({
                                                  isBoss: false,
                                                  habitId: h.id,
                                                  createdAt: new Date().toISOString(),
-                                                 expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                                                 expiresAt: chronos.getCycleEnd().toISOString(),
                                                  isExpired: false
                                               };
                                               await addDoc(collection(db, 'tasks'), newTask);
@@ -14744,7 +14745,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
       isSpeedRun: false,
       difficulty: 'medium',
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: chronos.getCycleEnd().toISOString(),
       isExpired: false
     });
   };
