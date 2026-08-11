@@ -1,11 +1,11 @@
 import { doc, getDoc, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { startOfDay, addDays, differenceInMilliseconds } from 'date-fns';
+import { addDays, differenceInMilliseconds, isBefore } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 
 export interface ClockSettings {
   lastResetAt: Timestamp;
-  resetTime: string; // "HH:mm"
-  timezone: string;
+  timezone: string; // e.g., "America/Los_Angeles"
 }
 
 class ChronosCore {
@@ -44,13 +44,27 @@ class ChronosCore {
     this.listeners.forEach(l => l());
   }
 
-  private getCycleBase(): Date {
-    if (!this.settings) return startOfDay(new Date());
+  private getTZ(): string {
+    return this.settings?.timezone || 'UTC';
+  }
+
+  private getBaseDate(): Date {
+    if (!this.settings) return new Date();
     return this.settings.lastResetAt.toDate();
   }
 
   public getCycleStart(): Date {
-    return this.getCycleBase();
+    const base = this.getBaseDate();
+    const now = new Date();
+    
+    // Calculate how many 24h periods have passed since base
+    const diffMs = differenceInMilliseconds(now, base);
+    const periods = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    
+    // The start of the current cycle
+    const startOfCurrentCycle = addDays(base, periods);
+    
+    return startOfCurrentCycle;
   }
 
   public getCycleEnd(): Date {
@@ -65,25 +79,25 @@ class ChronosCore {
     return Math.max(0, differenceInMilliseconds(this.getCycleEnd(), new Date()));
   }
 
+  public getCycleId(): string {
+    return formatInTimeZone(this.getCycleStart(), this.getTZ(), 'yyyy-MM-dd-HH:mm');
+  }
+
   public isExpired(timestamp: Timestamp | Date): boolean {
     const date = timestamp instanceof Timestamp ? timestamp.toDate() : timestamp;
-    return date < this.getCycleStart();
+    return isBefore(date, this.getCycleStart());
+  }
+
+  public isCurrentCycle(date: Date): boolean {
+    return !isBefore(date, this.getCycleStart()) && isBefore(date, this.getCycleEnd());
   }
 
   public getNextCycleStart(): Date {
     return addDays(this.getCycleStart(), 1);
   }
 
-  public getCycleId(): string {
-    return this.getLocalDateKey(this.getCycleStart());
-  }
-
-  public isCurrentCycle(date: Date): boolean {
-    return date >= this.getCycleStart() && date < this.getCycleEnd();
-  }
-
   public getLocalDateKey(date: Date = new Date()): string {
-    return date.toISOString().split('T')[0];
+    return formatInTimeZone(date, this.getTZ(), 'yyyy-MM-dd');
   }
 }
 

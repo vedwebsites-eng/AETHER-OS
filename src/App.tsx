@@ -2983,19 +2983,16 @@ export default function App() {
     };
 
     const interval = setInterval(() => {
-      const now = new Date();
       tasks.forEach(async (task) => {
         if (task.status === 'completed' || task.isExpired || !task.expiresAt) return;
-        const expiresAt = new Date(task.expiresAt);
-        const msLeft = expiresAt.getTime() - now.getTime();
-
+        
         // Mark as expired when time runs out
-        if (msLeft <= 0) {
+        if (chronos.isExpired(new Date(task.expiresAt))) {
           try {
             await updateDoc(doc(db, 'tasks', task.id), {
               isExpired: true,
               status: 'expired',
-              expiredAt: now.toISOString(),
+              expiredAt: new Date().toISOString(),
             });
             // Show toast notification
             showToast(`TASK_EXPIRED: "${task.title.toUpperCase()}" — Protocol failed.`);
@@ -7558,11 +7555,11 @@ function DailyChecklistCard({ tasks, journals, stats, settings, setActiveTab, up
   setActiveTab: any;
   updateSettings: (s: Partial<AppSettings>) => void;
 }) {
-  const [todayStr, setTodayStr] = useState(new Date().toISOString().split('T')[0]);
+  const [todayStr, setTodayStr] = useState(chronos.getLocalDateKey());
 
   useEffect(() => {
     const interval = setInterval(() => {
-      const newTodayStr = new Date().toISOString().split('T')[0];
+      const newTodayStr = chronos.getLocalDateKey();
       if (newTodayStr !== todayStr) {
         setTodayStr(newTodayStr);
       }
