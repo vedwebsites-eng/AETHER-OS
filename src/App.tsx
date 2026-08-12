@@ -38,6 +38,7 @@ import { DashboardLanding } from './components/DashboardLanding';
 import { WOOPView } from './components/WOOPView';
 import { WOOPPlan } from './types';
 import { chronos } from './services/chronos';
+import { ChronosClock } from './components/ChronosClock';
 import { toPng } from 'html-to-image';
 
 // --- ShareCard Utilities and Components ---
@@ -230,7 +231,7 @@ const StreakShareCard = ({
           letterSpacing: '0.3em',
           textTransform: 'uppercase',
         }}>
-          AETHEROS
+          AETHOS
         </p>
       </div>
 
@@ -559,7 +560,7 @@ const AchievementShareCard = ({
           letterSpacing: '0.35em',
           textTransform: 'uppercase',
         }}>
-          AETHEROS
+          AETHOS
         </p>
       </div>
 
@@ -932,7 +933,7 @@ const WheelOfLifeShareCard = ({
         letterSpacing: '0.35em',
         textTransform: 'uppercase',
       }}>
-        AETHEROS
+        AETHOS
       </p>
 
       {/* Date */}
@@ -1329,7 +1330,7 @@ const HabitHeatmapShareCard = ({
         letterSpacing: '0.4em',
         textTransform: 'uppercase',
       }}>
-        AETHEROS
+        AETHOS
       </p>
 
       {/* Date */}
@@ -2231,7 +2232,7 @@ function LifeSyncView({ stats, user, onAddXP, tasks, journals, addToTerminal, op
                    ACKNOWLEDGE_PROTOCOL
                  </button>
                </div>
-            </div>
+</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -3569,7 +3570,7 @@ export default function App() {
             setTimeout(() => {
               openShare(
                 'streak-share-card',
-                `AETHEROS_STREAK_${newStreak}D`,
+                `AETHOS_STREAK_${newStreak}D`,
                 `${newStreak} DAY STREAK`
               );
             }, 2000);
@@ -4273,7 +4274,7 @@ export default function App() {
             setTimeout(() => {
               openShare(
                 'streak-share-card',
-                `AETHEROS_STREAK_${newStreak}D`,
+                `AETHOS_STREAK_${newStreak}D`,
                 `${newStreak} DAY STREAK`
               );
             }, 2000);
@@ -4299,6 +4300,18 @@ export default function App() {
       }
 
       await addXP(earnedXP, source, { isBoss: task.isBoss });
+
+      // Flow state prompt — trigger for tasks ≥ 30 min
+      if ((task.estimate || 0) >= 30) {
+        setTimeout(() => {
+          setFlowPrompt({
+            taskId: task.id,
+            taskTitle: task.title,
+            category: task.category || 'personal',
+            estimate: task.estimate || 30
+          });
+        }, 3500); // After confetti settles
+      }
 
       // If completing a task synced with a habit, automatically complete the habit log today
       if (task.habitId) {
@@ -4349,6 +4362,35 @@ export default function App() {
       handleFirestoreError(e, OperationType.UPDATE, `tasks/${task.id}`);
     }
   };
+
+  async function logFlowState(wasFlow: boolean) {
+    if (!flowPrompt || !user) return;
+    const now = new Date();
+    try {
+      await addDoc(collection(db, 'flow_logs'), {
+        userId: user.uid,
+        taskId: flowPrompt.taskId,
+        taskTitle: flowPrompt.taskTitle,
+        category: flowPrompt.category,
+        estimate: flowPrompt.estimate,
+        wasFlow,
+        timeOfDay: now.getHours(),
+        energyLabel: (() => {
+          const h = now.getHours();
+          if (h < 9) return 'EARLY';
+          if (h < 12) return 'MORNING';
+          if (h < 15) return 'AFTERNOON';
+          if (h < 19) return 'EVENING';
+          return 'NIGHT';
+        })(),
+        date: now.toISOString().split('T')[0],
+        createdAt: now.toISOString()
+      });
+    } catch (e) {
+      console.warn('Flow log error:', e);
+    } finally {
+    }
+  }
 
   const addHabit = async (habitData: Omit<Habit, 'id' | 'userId' | 'createdAt' | 'isArchived'>) => {
     if (!user) return;
@@ -4546,7 +4588,9 @@ export default function App() {
               className="w-24 h-24 border-t-2 border-r-2 rounded-full flex items-center justify-center p-4"
             >
               <Zap className="text-accent animate-pulse" size={32} />
-            </motion.div>
+               </div>
+            </div>
+           </motion.div>
           </div>
 
           {/* Diagnostic Text Sequence */}
@@ -4785,7 +4829,6 @@ export default function App() {
                   );
                 })()}
               </div>
-            </div>
             
             {stats && (
               <div className="flex items-center justify-between md:justify-end gap-3 sm:gap-6 lg:gap-8 border-t md:border-t-0 border-white/5 pt-3 md:pt-0">
@@ -4902,8 +4945,8 @@ export default function App() {
               )}
               {activeTab === 'aetherCoach' && (
                 <div className="h-[calc(100vh-13rem)] overflow-hidden">
-                  <ErrorBoundary name="Aether_Coach_AI">
-                    <AetherCoachTabView
+                  <ErrorBoundary name="AETHOS_Coach_AI">
+                    <AETHOSCoachTabView
                       stats={stats}
                       user={user}
                       journals={journals}
@@ -4952,7 +4995,9 @@ export default function App() {
                   />
                 </ErrorBoundary>
               )}
-            </motion.div>
+               </div>
+            </div>
+           </motion.div>
           </AnimatePresence>
         </div>
       </main>
@@ -4998,7 +5043,7 @@ export default function App() {
               setTimeout(() => {
                 openShare(
                   'achievement-share-card',
-                  `AETHEROS_${ach.title}`,
+                  `AETHOS_${ach.title}`,
                   'ACHIEVEMENT CARD'
                 );
               }, 100);
@@ -5071,37 +5116,65 @@ export default function App() {
             {completeToast}
           </motion.div>
         )}
-        {errorToast && (
-          <motion.div 
-            initial={{ y: 50, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 50, opacity: 0 }}
-            className="fixed bottom-32 left-1/2 -translate-x-1/2 glass px-8 py-4 rounded-full border border-danger/40 text-danger font-mono font-black tracking-widest text-xs uppercase z-[250] shadow-[0_0_30px_rgba(239,68,68,0.25)]"
-          >
-            ⚠ {errorToast}
-          </motion.div>
+        {flowPrompt && (
+          <div className="fixed bottom-24 md:bottom-8 right-4 z-50 animate-in slide-in-from-right-4 fade-in duration-300">
+            <div className="glass border border-cyan/30 rounded-2xl px-5 py-4 shadow-[0_0_30px_rgba(0,217,255,0.15)] max-w-xs">
+              <p className="text-[9px] font-mono text-cyan uppercase tracking-widest font-black mb-2">FLOW_STATE_QUERY</p>
+              <p className="text-xs font-mono text-white/80 mb-3 leading-relaxed">
+                <span className="text-white font-black">{flowPrompt.taskTitle.slice(0, 30)}{flowPrompt.taskTitle.length > 30 ? '...' : ''}</span>
+                <br />Were you in a flow state?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => logFlowState(true)}
+                  className="flex-1 py-2 bg-cyan/20 hover:bg-cyan/30 border border-cyan/30 text-cyan text-[9px] font-mono font-black uppercase rounded-xl transition-all"
+                >
+                  ⚡ YES
+                </button>
+                <button
+                  onClick={() => logFlowState(false)}
+                  className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 text-[9px] font-mono font-black uppercase rounded-xl transition-all"
+                >
+                  NO
+                </button>
+                <button
+                  className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white/30 text-[9px] font-mono font-black uppercase rounded-xl transition-all"
+                >
+                  —
+                </button>
+              </div>
+          </div>
         )}
-        {focusTask && (
-          <div className="fixed inset-0 bg-black z-[200] flex flex-col items-center justify-center p-8 text-center">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(0,217,255,0.1),transparent)]" />
-            
-            <div className="relative space-y-12 max-w-2xl">
-              <div className="space-y-4">
-                <p className="text-cyan font-mono text-sm tracking-[0.5em] uppercase animate-pulse">FOCUS_MODE_ACTIVE</p>
-                <h1 className="text-5xl font-serif font-black text-white uppercase tracking-widest leading-tight">{focusTask.title}</h1>
-                <p className="text-text-m font-mono text-sm uppercase opacity-50 tracking-[0.2em]">{focusTask.category} // ESTIMATE: {focusTask.estimate} MIN</p>
+        {flowPrompt && (
+          <div className="fixed bottom-24 md:bottom-8 right-4 z-50 animate-in slide-in-from-right-4 fade-in duration-300">
+            <div className="glass border border-cyan/30 rounded-2xl px-5 py-4 shadow-[0_0_30px_rgba(0,217,255,0.15)] max-w-xs">
+              <p className="text-[9px] font-mono text-cyan uppercase tracking-widest font-black mb-2">FLOW_STATE_QUERY</p>
+              <p className="text-xs font-mono text-white/80 mb-3 leading-relaxed">
+                <span className="text-white font-black">{flowPrompt.taskTitle.slice(0, 30)}{flowPrompt.taskTitle.length > 30 ? '...' : ''}</span>
+                <br />Were you in a flow state?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => logFlowState(true)}
+                  className="flex-1 py-2 bg-cyan/20 hover:bg-cyan/30 border border-cyan/30 text-cyan text-[9px] font-mono font-black uppercase rounded-xl transition-all"
+                >
+                  ⚡ YES
+                </button>
+                <button
+                  onClick={() => logFlowState(false)}
+                  className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 text-[9px] font-mono font-black uppercase rounded-xl transition-all"
+                >
+                  NO
+                </button>
+                <button
+                  onClick={() => setFlowPrompt(null)}
+                  className="px-3 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white/30 text-[9px] font-mono font-black uppercase rounded-xl transition-all"
+                >
+                  —
+                </button>
               </div>
-
-              <div className="flex flex-col items-center gap-6">
-                <div className="w-64 h-64 rounded-full border-4 border-cyan/20 flex items-center justify-center relative">
-                   <div className="absolute inset-0 rounded-full border-4 border-cyan border-t-transparent animate-spin duration-[3s]" />
-                   <div className="text-6xl font-mono font-black text-cyan">
-                      {Math.floor((Date.now() - focusStartTime) / 1000 / 60)}:
-                      {String(Math.floor((Date.now() - focusStartTime) / 1000) % 60).padStart(2, '0')}
-                   </div>
-                </div>
-                <p className="text-[10px] font-mono text-text-m uppercase tracking-widest opacity-40">System_Stabilization_In_Progress... Maintain_Neural_Bridge</p>
-              </div>
+          </div>
+        )}
 
               <div className="flex flex-wrap gap-1.5 justify-center">
                 {['techy', 'chill', 'hype', 'lofi', 'deep_focus', 'classical'].map(tag => (
@@ -5134,7 +5207,6 @@ export default function App() {
                   ABORT_LINK
                 </button>
               </div>
-            </div>
             
             <div className="absolute bottom-12 left-12 right-12 flex justify-between items-end opacity-20 pointer-events-none">
                <div className="space-y-2">
@@ -5641,7 +5713,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
     <div className="min-h-screen overflow-y-auto overflow-x-hidden selection:bg-[#C8651B]/30 relative bg-[#080808] text-white flex flex-col justify-between">
       {/* Top Nav */}
       <header className="h-16 px-8 md:px-16 flex items-center justify-between border-b border-white/5 bg-[#080808] z-30 shrink-0 w-full animate-fade-in">
-        <div className="font-serif font-black text-xl text-[#C8651B]">AETHEROS</div>
+        <div className="font-serif font-black text-xl text-[#C8651B]">AETHOS</div>
         <div className="flex items-center gap-6">
           <button
             onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
@@ -5927,7 +5999,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                     </span>
                   )}
                 </div>
-              </motion.div>
+                 </div>
+            </div>
+           </motion.div>
             ))}
           </div>
 
@@ -5988,7 +6062,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
               <h3 className="text-3xl md:text-4xl font-serif font-black uppercase italic text-white leading-tight">
                 Frequently Asked <span className="text-[#2E6B9E]">Questions.</span>
               </h3>
-            </motion.div>
+               </div>
+            </div>
+           </motion.div>
 
             <div className="max-w-3xl mx-auto space-y-4">
               {[
@@ -6001,7 +6077,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   a: "Yes, absolutely. AETHOS has no hidden fees, paywalls, or premium tiers for core features. All tracking tools, habit heatmaps, and stats are accessible to everyone, completely free.",
                 },
                 {
-                  q: "How does Aether Coach AI work?",
+                  q: "How does AETHOS Coach AI work?",
                   a: "The coach processes your task completion rates, habit streak patterns, mood scores, and Wheel of Life balances dynamically. It operates within strict security boundaries to deliver hyper-personalized coaching without exposing your details.",
                 },
                 {
@@ -6040,10 +6116,14 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                           <p className="p-5 text-xs font-mono text-white/40 leading-relaxed">
                             {faq.a}
                           </p>
-                        </motion.div>
+                           </div>
+            </div>
+           </motion.div>
                       )}
                     </AnimatePresence>
-                  </motion.div>
+                     </div>
+            </div>
+           </motion.div>
                 );
               })}
             </div>
@@ -6113,7 +6193,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             },
             {
               number: '03',
-              title: 'AETHER_COACH',
+              title: 'AETHOS_COACH',
               label: 'AI Life Coach',
               description: 'An AI that reads your mood, tasks, habits, and life balance — then gives advice specific to YOU. Not generic. Personal.',
               color: '#7f77dd',
@@ -6209,7 +6289,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                 className="absolute bottom-0 left-6 right-6 h-[1px] opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                 style={{ background: `linear-gradient(90deg, transparent, ${feature.color}40, transparent)` }}
               />
-            </motion.div>
+               </div>
+            </div>
+           </motion.div>
           ))}
         </div>
 
@@ -6336,7 +6418,9 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                   </div>
                 </div>
               </div>
-            </motion.div>
+               </div>
+            </div>
+           </motion.div>
 
             {/* Right — values + stats */}
             <motion.div
@@ -6399,9 +6483,13 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
                       {value.description}
                     </p>
                   </div>
-                </motion.div>
+                   </div>
+            </div>
+           </motion.div>
               ))}
-            </motion.div>
+               </div>
+            </div>
+           </motion.div>
           </div>
         </div>
       </section>
@@ -6487,7 +6575,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         <div className="flex flex-wrap items-center justify-center sm:justify-end gap-4 text-[10px] font-mono text-white/30">
           <div className="flex items-center gap-2">
             <div className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
-            <span>AETHER_NET_OK</span>
+            <span>AETHOS_NET_OK</span>
           </div>
           <span className="text-white/10">|</span>
           <span>LATENCY_12MS</span>
@@ -6604,12 +6692,11 @@ function CommandPalette({ isOpen, onClose, onNavigate, activeTab }: { isOpen: bo
               )}
             </div>
             <div className="p-3 bg-black/40 border-t border-white/5 flex justify-between items-center px-6">
-              <span className="text-[8px] font-mono text-text-m uppercase opacity-40 italic">AETHER_RECALIBRATION_OS v2.1.0</span>
+              <span className="text-[8px] font-mono text-text-m uppercase opacity-40 italic">AETHOS_RECALIBRATION v2.1.0</span>
               <div className="flex gap-4">
                 <span className="text-[8px] font-mono text-text-m uppercase">↑↓ NAVIGATE</span>
                 <span className="text-[8px] font-mono text-text-m uppercase">↵ EXECUTE</span>
               </div>
-            </div>
           </motion.div>
         </div>
       )}
@@ -6795,6 +6882,7 @@ function ProfileCard({
                     SHARE
                   </span>
                 </button>
+                <ChronosClock />
               )}
             </div>
           </div>
@@ -6923,7 +7011,9 @@ const QuickStatsGrid = React.memo(function QuickStatsGrid({ stats, journals, tas
                      {explanations[m.label]}
                    </p>
                 </div>
-              </motion.div>
+                 </div>
+            </div>
+           </motion.div>
             )}
           </AnimatePresence>
         </motion.div>
@@ -7039,7 +7129,6 @@ const AchievementsSummary = React.memo(function AchievementsSummary({ stats }: {
                      <div className="h-full bg-purple-500 w-[43%]" />
                   </div>
                </div>
-            </div>
           ))}
           <div className="pt-2">
             <button className="w-full py-2 bg-white/5 rounded font-mono text-[9px] uppercase tracking-widest text-text-m hover:bg-white/10 transition-all">VIEW_ALL_ACHIEVEMENTS</button>
@@ -7385,7 +7474,9 @@ function MotivationPortal({
                         </span>
                       )}
                     </div>
-                  </motion.div>
+                     </div>
+            </div>
+           </motion.div>
                 );
               })()}
 
@@ -7500,7 +7591,6 @@ function MotivationPortal({
                    )}
                  </div>
               </div>
-            </div>
             
             <div className="p-8 bg-white/2 border-t border-white/5 text-center">
                <p className="text-[8px] font-mono text-text-m uppercase tracking-[0.3em] opacity-40 italic">WARNING: Excessive neural stimulation may lead to hyper-productivity.</p>
@@ -7898,7 +7988,9 @@ function Dashboard({
                       </span>
                     )}
                   </div>
-                </motion.div>
+                   </div>
+            </div>
+           </motion.div>
               );
             })()}
 
@@ -8058,7 +8150,9 @@ function Dashboard({
                   <span className="text-[10px] font-mono text-warning font-black uppercase tracking-widest">STREAK_AT_RISK</span>
                </div>
                <p className="text-[10px] font-mono text-text-m uppercase leading-tight italic">"DATA_FLOW_STALLED. COMPLETE_TASK_TO_MAINTAIN_LINK."</p>
-            </motion.div>
+               </div>
+            </div>
+           </motion.div>
           )}
 
           <section className="space-y-4">
@@ -8565,7 +8659,6 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
                     </div>
                 </div>
               </div>
-            </div>
               <div className="flex items-center gap-4 relative z-10">
                  <div className="hidden lg:flex flex-col items-end opacity-0 group-hover:opacity-100 transition-opacity">
                     <span className="text-[8px] font-mono text-text-s uppercase">HASH_{task.id.slice(0, 8)}</span>
@@ -8600,7 +8693,6 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
                   </button>
                 )}
               </div>
-            </div>
           ))}
         </div>
 
@@ -8612,7 +8704,6 @@ function TasksView({ tasks, user, onComplete, settings, setCompleteToast, habits
                 <Cpu size={16} className="text-cyan animate-pulse" />
                 <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">HABIT_SYNC_CENTER</span>
               </div>
-            </div>
             
             <p className="text-[10px] font-mono text-text-m opacity-50 uppercase leading-relaxed">
               Enable active habit loops to instantly deploy them as custom target protocols in today's active tasks registry.
@@ -8781,7 +8872,9 @@ function LevelUpOverlay({ level, onClose, stats }: { level: number; onClose: () 
                      <p className="text-[10px] font-mono text-warning font-black uppercase">SYNC_REWARD</p>
                      <p className="text-xl font-serif font-black text-white italic">{r.label}</p>
                   </div>
-                </motion.div>
+                   </div>
+            </div>
+           </motion.div>
               ))}
               {currentUnlocks.map((u, i) => (
                 <motion.div 
@@ -8796,7 +8889,9 @@ function LevelUpOverlay({ level, onClose, stats }: { level: number; onClose: () 
                       <p className="text-[10px] font-mono text-accent font-black uppercase">SYSTEM_UPGRADE</p>
                       <p className="text-sm font-serif font-black text-white italic uppercase tracking-tight">{u.label}</p>
                    </div>
-                </motion.div>
+                   </div>
+            </div>
+           </motion.div>
               ))}
               {rewards.length === 0 && currentUnlocks.length === 0 && (
                 <div className="col-span-2 glass p-8 rounded-2xl border border-white/5 bg-white/2">
@@ -8904,7 +8999,7 @@ function ManualModal({
           redirect: () => onRedirect('reflect')
         },
         {
-          title: "AETHER_COACH",
+          title: "AETHOS_COACH",
           description: "Your localized AI cognitive advisor powered by Gemini. Discuss balance, bottlenecks, or strategies directly in an interactive dialogue.",
           icon: <Sparkles size={18} className="text-cyan" />,
           redirect: () => onRedirect('aetherCoach')
@@ -9007,7 +9102,7 @@ function ManualModal({
         },
         {
           title: "SYSTEM_THEMES",
-          description: "Real-time environment recalibration. Unlock unique aesthetic skins for AetherOS.",
+          description: "Real-time environment recalibration. Unlock unique aesthetic skins for AETHOSOS.",
           icon: <Palette size={18} className="text-accent" />,
           redirect: () => onRedirect('configOs')
         }
@@ -9059,7 +9154,6 @@ function ManualModal({
                   <X size={28} />
                 </button>
               </div>
-            </div>
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto p-8 md:p-12 no-scrollbar">
@@ -9102,7 +9196,9 @@ function ManualModal({
                           <p className="text-xs text-text-m font-mono leading-relaxed opacity-70 group-hover:opacity-100 transition-opacity">
                             {item.description}
                           </p>
-                        </motion.div>
+                           </div>
+            </div>
+           </motion.div>
                       ))}
                     </div>
                   </div>
@@ -9115,7 +9211,7 @@ function ManualModal({
                     <ShieldCheck className="text-success" size={40} />
                     <div>
                         <h3 className="text-lg font-serif font-black text-white italic uppercase">Operational_Integrity_Statement</h3>
-                        <p className="text-[10px] font-mono text-text-m uppercase">Aether_OS Kernel // Security_Advisory</p>
+                        <p className="text-[10px] font-mono text-text-m uppercase">AETHOS_OS Kernel // Security_Advisory</p>
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-xs font-mono leading-relaxed opacity-80">
@@ -9127,7 +9223,6 @@ function ManualModal({
                     </p>
                 </div>
               </div>
-            </div>
 
             {/* Footer */}
             <div className="p-8 border-t border-white/5 bg-white/1 flex justify-center shrink-0">
@@ -9288,7 +9383,7 @@ function FocusProtocol({ stats, user, onAddXP, setCompleteToast, addToTerminal }
              <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
              <span className="text-[10px] font-mono text-accent uppercase tracking-[0.4em] font-black">Focus_Protocol_Active</span>
           </div>
-          <h3 className="text-3xl font-serif font-black text-white uppercase italic tracking-wider">AETHER_POMODORO</h3>
+          <h3 className="text-3xl font-serif font-black text-white uppercase italic tracking-wider">AETHOS_POMODORO</h3>
           
           <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 w-fit">
             <button 
@@ -9858,7 +9953,9 @@ function TemporalHub({
                    <div className="flex gap-0.5">{dayTasks.slice(0, 3).map((t, i) => (<div key={`task-dot-${t.id}-${i}`} className={cn("w-1.5 h-1.5 rounded-full", t.status === 'completed' ? "bg-success" : "bg-text-s")} />))}</div>
                    {xp > 0 && <span className="text-[8px] font-mono text-cyan/70">+{xp}</span>}
                 </div>
-              </motion.div>
+                 </div>
+            </div>
+           </motion.div>
             );
           })}
         </div>
@@ -9924,14 +10021,18 @@ function TemporalHub({
                      <div className="absolute inset-0 flex items-center justify-center">
                         <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }} transition={{ duration: 2, repeat: Infinity }}>
                           <Sparkles className="text-cyan fill-cyan/20" size={48} />
-                        </motion.div>
+                           </div>
+            </div>
+           </motion.div>
                      </div>
                   </div>
                   <div className="mt-12 text-center space-y-4">
                     <p className="text-cyan font-mono text-xs tracking-[0.8em] font-black animate-pulse">NEURAL_SYNC_IN_PROGRESS</p>
                     <p className="text-text-m font-mono text-[10px] uppercase opacity-50 tracking-[0.3em] font-black">{generationStep}</p>
                   </div>
-               </motion.div>
+                  </div>
+            </div>
+           </motion.div>
              )}
            </AnimatePresence>
            <div className="w-20 bg-background-nested/50 border-r border-white/5 pt-12 shrink-0">
@@ -10038,7 +10139,9 @@ function TemporalHub({
                                    </button>
                                  </div>
                               </div>
-                           </motion.div>
+                              </div>
+            </div>
+           </motion.div>
                          );
                        })}
                     </div>
@@ -10135,7 +10238,9 @@ function TemporalHub({
                       <span className="text-[9px] font-mono text-text-m opacity-50 uppercase">NODE_{task.category}</span>
                       <span className="text-[9px] font-mono text-cyan font-black uppercase">{task.estimate}M</span>
                     </div>
-                  </motion.div>
+                     </div>
+            </div>
+           </motion.div>
                 ))
               )}
             </div>
@@ -10208,7 +10313,6 @@ function TemporalHub({
                   )}
                 </div>
               </div>
-            </div>
           </div>
 
           <div className="lg:col-span-3">
@@ -10243,7 +10347,9 @@ function TemporalHub({
                      </button>
                    ))}
                 </div>
-             </motion.div>
+                </div>
+            </div>
+           </motion.div>
           </div>
         )}
       </AnimatePresence>
@@ -10279,7 +10385,9 @@ function TemporalHub({
                       setIsBlockModalOpen(false); 
                     }} className="flex-1 py-4 bg-accent text-white font-mono font-black uppercase rounded-xl accent-glow">{blockForm.id ? 'Update Sync' : 'Initialize'}</button>
                  </div>
-              </motion.div>
+                 </div>
+            </div>
+           </motion.div>
            </div>
          )}
       </AnimatePresence>
@@ -10813,7 +10921,9 @@ function RoutineMatrixView({
                     Archive_Protocol
                   </button>
                 </div>
-              </motion.div>
+                 </div>
+            </div>
+           </motion.div>
             )}
           </AnimatePresence>
         </div>
@@ -10939,7 +11049,9 @@ function RoutineMatrixView({
                     </button>
                   </div>
                 </div>
-             </motion.div>
+                </div>
+            </div>
+           </motion.div>
           </div>
         )}
       </AnimatePresence>
@@ -11582,7 +11694,9 @@ function JournalView({
                       })()}
                     </div>
                   </div>
-                </motion.div>
+                   </div>
+            </div>
+           </motion.div>
               )}
             </AnimatePresence>
           </div>
@@ -11690,11 +11804,15 @@ function JournalView({
                         >
                           <Activity size={12} /> ROTATE_PROMPT
                         </button>
-                     </motion.div>
+                        </div>
+            </div>
+           </motion.div>
                    )}
                  </AnimatePresence>
                  {!usePrompt && <p className="text-sm font-mono text-text-m opacity-50 italic">Reflection prompts provide deeper introspection and +25 XP synchronization bonus.</p>}
-              </motion.div>
+                 </div>
+            </div>
+           </motion.div>
 
               <TipTapEditor 
                 content={content} 
@@ -12618,7 +12736,7 @@ function StatsView({
                         if (openShare) {
                           openShare(
                             'achievement-share-card',
-                            `AETHEROS_${ach.title}`,
+                            `AETHOS_${ach.title}`,
                             'ACHIEVEMENT CARD'
                           );
                         }
@@ -12729,7 +12847,9 @@ function ShopView({ stats, user, onPurchase }: { stats: UserStats | null; user: 
                   {isOwned ? 'DECRYPTED' : isLevelLocked ? 'LOCKED' : 'DECRYPT'}
                 </button>
               </div>
-            </motion.div>
+               </div>
+            </div>
+           </motion.div>
           );
         })}
       </div>
@@ -12874,7 +12994,7 @@ function SettingsView({ settings, stats, user, onUpdate, onPurchase }: { setting
                     </div>
                     <div>
                       <p className="text-xs font-mono font-black text-success uppercase">ENCRYPTED_LINK</p>
-                      <p className="text-[8px] font-mono text-text-m uppercase">ALL_DATA_FLOWS_PROTECTED_BY_AETHER_SECURITY</p>
+                      <p className="text-[8px] font-mono text-text-m uppercase">ALL_DATA_FLOWS_PROTECTED_BY_AETHOS_SECURITY</p>
                     </div>
                   </div>
                 </div>
@@ -13650,7 +13770,9 @@ function DailyWorkView({
                     addToTerminal={addToTerminal}
                  />
                )}
-            </motion.div>
+               </div>
+            </div>
+           </motion.div>
          </AnimatePresence>
       </div>
 
@@ -13662,14 +13784,14 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
   return (
     <div className="max-w-[1600px] mx-auto min-h-[85vh] flex flex-col gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
       
-      {/* Floating Action/Header section to prompt Aether Integrated Coach */}
+      {/* Floating Action/Header section to prompt AETHOS Integrated Coach */}
       <div className="flex justify-end pr-2">
          <button
            onClick={() => setActiveTab('aetherCoach')}
            className="px-6 py-3.5 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(34,211,238,0.2)] flex items-center gap-2 border border-cyan/30"
          >
            <Sparkles size={14} className="animate-pulse" />
-           PROMPT_AETHER_COACH
+           PROMPT_AETHOS_COACH
          </button>
       </div>
 
@@ -13692,7 +13814,7 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
   );
 }
 
-function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], woopPlans = [], startPlaylist, setIsMotivationPortalOpen, setPendingMotivation, isSidebarOpen, setIsSidebarOpen }: any) {
+function AETHOSCoachTabView({ stats, user, journals, tasks = [], habits = [], habitLogs = [], motivationItems = [], woopPlans = [], startPlaylist, setIsMotivationPortalOpen, setPendingMotivation, isSidebarOpen, setIsSidebarOpen }: any) {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [permissionError, setPermissionError] = useState<string | null>(null);
@@ -14242,7 +14364,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 )}
               >
                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
-                  {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
+                  {m.sender === 'user' ? 'YOU' : 'AETHOS_COACH'}
                 </span>
                 <p className="whitespace-pre-wrap">{m.text}</p>
               </div>
@@ -14268,7 +14390,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 <input
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder={`PROMPT_${coachProfile.coachName?.toUpperCase() || 'AETHER_COACH'}...`}
+                  placeholder={`PROMPT_${coachProfile.coachName?.toUpperCase() || 'AETHOS_COACH'}...`}
                   disabled={isGenerating}
                   autoFocus
                   className="flex-1 bg-black/40 border border-white/10 rounded-xl px-5 py-4 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
@@ -14302,7 +14424,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                   </button>
                 ))}
               </div>
-            </div>
           </div>
         ) : (
           // NORMAL CHAT
@@ -14319,7 +14440,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 )}
               >
                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
-                  {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
+                  {m.sender === 'user' ? 'YOU' : 'AETHOS_COACH'}
                 </span>
                 {m.sender === 'user' ? (
                   <p className="whitespace-pre-wrap">{m.text}</p>
@@ -14425,7 +14546,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
             ))}
             {isGenerating && !streamingText && (
               <div className="flex flex-col items-start">
-                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHER_COACH</span>
+                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHOS_COACH</span>
                 <div className="glass rounded-2xl px-4 py-3 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan/60 animate-bounce" style={{ animationDelay: '0ms' }} />
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan/60 animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -14435,7 +14556,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
             )}
             {isGenerating && streamingText && (
               <div className="flex flex-col items-start group">
-                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHER_COACH</span>
+                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHOS_COACH</span>
                 <div className="max-w-[85%] glass rounded-2xl px-4 py-3">
                   <ReactMarkdown components={coachMarkdownComponents}>
                     {streamingText}
@@ -14486,7 +14607,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
               <input
                 value={!coachProfile ? onboardingInput : inputText}
                 onChange={(e) => !coachProfile ? setOnboardingInput(e.target.value) : setInputText(e.target.value)}
-                placeholder={!coachProfile ? "TYPE_YOUR_RESPONSE..." : "PROMPT_AETHER_COACH..."}
+                placeholder={!coachProfile ? "TYPE_YOUR_RESPONSE..." : "PROMPT_AETHOS_COACH..."}
                 disabled={isGenerating}
                 className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
               />
@@ -14921,7 +15042,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
           userId: user.uid,
           chatId: activeChatId,
           sender: 'coach',
-          text: `Aether_OS Error: ${errMsg}`,
+          text: `AETHOS_OS Error: ${errMsg}`,
           createdAt: new Date().toISOString()
         });
         await addDoc(collection(db, 'coach_messages'), errorMsgData);
@@ -14935,7 +15056,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
  
    async function handleClearConversation() {
      if (!user) return;
-     const confirmClear = window.confirm("Are you sure you want to completely erase your neural log with the Aether Coach? This cannot be undone.");
+     const confirmClear = window.confirm("Are you sure you want to completely erase your neural log with the AETHOS Coach? This cannot be undone.");
      if (!confirmClear) return;
  
      try {
@@ -15213,7 +15334,6 @@ function GrowView({
                   className="w-full px-4 py-3 bg-white/5 border border-yellow-500/20 focus:border-yellow-500/50 rounded-xl text-white font-mono text-xs outline-none placeholder-white/20 transition-all"
                 />
               </div>
-            </div>
 
             <div className="flex gap-3">
               <button
