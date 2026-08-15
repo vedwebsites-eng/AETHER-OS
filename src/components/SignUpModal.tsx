@@ -38,7 +38,16 @@ export function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalProps) {
     try {
       if (isSignIn) {
         // Sign In Logic
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        
+        // Verify user exists in database
+        const userStatsRef = doc(db, 'user_stats', userCredential.user.uid);
+        const userStatsSnap = await getDoc(userStatsRef);
+        
+        if (!userStatsSnap.exists()) {
+            setError('Account not fully initialized - Please contact support.');
+            return;
+        }
       } else {
         // Sign Up Logic
         await registerWithEmail(email, password);
@@ -46,7 +55,15 @@ export function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalProps) {
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Authentication failed.');
+      if (err.code === 'auth/wrong-password') {
+        setError('Incorrect password.');
+      } else if (err.code === 'auth/user-not-found') {
+        setError('No account found with this email.');
+      } else if (err.code === 'auth/invalid-email') {
+        setError('Invalid email address.');
+      } else {
+        setError(err.message || 'Authentication failed.');
+      }
     } finally {
       setIsLoading(false);
     }
