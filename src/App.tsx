@@ -39,6 +39,7 @@ import { WOOPView } from './components/WOOPView';
 import { WOOPPlan } from './types';
 import { chronos } from './services/chronos';
 import { ChronosClock } from './components/ChronosClock';
+import { SystemCalibrating } from './components/SystemCalibrating';
 import { toPng } from 'html-to-image';
 
 // --- ShareCard Utilities and Components ---
@@ -4868,30 +4869,32 @@ export default function App() {
             >
               {activeTab === 'dashboard' && (
                 <ErrorBoundary name="Core_Command_Dashboard">
-                  <Dashboard 
-                    stats={stats} 
-                    tasks={tasks} 
-                    journals={journals} 
-                    onComplete={handleCompleteTask} 
-                    user={user} 
-                    setActiveTab={handleTabChange} 
-                    settings={settings}
-                    updateSettings={updateSettings}
-                    setIsMotivationPortalOpen={setIsMotivationPortalOpen} 
-                    motivationItems={motivationItems}
-                    currentlyPlaying={currentlyPlaying}
-                    isPlaying={isPlaying}
-                    playMode={playMode}
-                    queue={queue}
-                    queueIndex={queueIndex}
-                    setCurrentlyPlaying={setCurrentlyPlaying}
-                    setIsPlaying={setIsPlaying}
-                    setPlayMode={setPlayMode}
-                    setQueue={setQueue}
-                    setQueueIndex={setQueueIndex}
-                    startPlaylist={startPlaylist}
-                    openShare={openShare}
-                  />
+                  {!stats ? <SystemCalibrating /> : (
+                    <Dashboard 
+                      stats={stats} 
+                      tasks={tasks} 
+                      journals={journals} 
+                      onComplete={handleCompleteTask} 
+                      user={user} 
+                      setActiveTab={handleTabChange} 
+                      settings={settings}
+                      updateSettings={updateSettings}
+                      setIsMotivationPortalOpen={setIsMotivationPortalOpen} 
+                      motivationItems={motivationItems}
+                      currentlyPlaying={currentlyPlaying}
+                      isPlaying={isPlaying}
+                      playMode={playMode}
+                      queue={queue}
+                      queueIndex={queueIndex}
+                      setCurrentlyPlaying={setCurrentlyPlaying}
+                      setIsPlaying={setIsPlaying}
+                      setPlayMode={setPlayMode}
+                      setQueue={setQueue}
+                      setQueueIndex={setQueueIndex}
+                      startPlaylist={startPlaylist}
+                      openShare={openShare}
+                    />
+                  )}
                 </ErrorBoundary>
               )}
               {activeTab === 'dailyWork' && (
@@ -4984,13 +4987,15 @@ export default function App() {
               )}
               {activeTab === 'configOs' && (
                 <ErrorBoundary name="Config_OS_Settings">
-                  <SettingsView 
-                    settings={settings} 
-                    stats={stats} 
-                    user={user} 
-                    onUpdate={updateSettings} 
-                    onPurchase={handleUnlockItem}
-                  />
+                  {!settings ? <SystemCalibrating /> : (
+                    <SettingsView 
+                      settings={settings} 
+                      stats={stats} 
+                      user={user} 
+                      onUpdate={updateSettings} 
+                      onPurchase={handleUnlockItem}
+                    />
+                  )}
                 </ErrorBoundary>
               )}
             </motion.div>
