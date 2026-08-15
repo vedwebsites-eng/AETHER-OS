@@ -33,17 +33,6 @@ service cloud.firestore {
              (!('currentStreak' in data) || (data.currentStreak is int && data.currentStreak >= 0));
     }
 
-    function isAntiCheatPassed() {
-      return incoming().experience >= existing().experience &&
-             (incoming().experience - existing().experience <= 500) &&
-             (incoming().level == existing().level || incoming().level == existing().level + 1) &&
-             (!('currentStreak' in incoming()) || !('currentStreak' in existing()) || 
-               incoming().currentStreak == existing().currentStreak || 
-               incoming().currentStreak == existing().currentStreak + 1 || 
-               incoming().currentStreak == 0 || 
-               incoming().currentStreak == 1);
-    }
-
     // Task Validation
     function isValidTask(data) {
       return data.userId is string && data.userId.size() <= 128 &&
@@ -160,6 +149,16 @@ service cloud.firestore {
 
     // UserStats: Identified by userId
     match /user_stats/{userId} {
+      function isAntiCheatPassed() {
+        return incoming().experience >= existing().experience &&
+               (incoming().experience - existing().experience <= 500) &&
+               (incoming().level == existing().level || incoming().level == existing().level + 1) &&
+               (!('currentStreak' in incoming()) || !('currentStreak' in existing()) || 
+                 incoming().currentStreak == existing().currentStreak || 
+                 incoming().currentStreak == existing().currentStreak + 1 || 
+                 incoming().currentStreak == 0 || 
+                 incoming().currentStreak == 1);
+      }
       allow read: if isOwner(userId);
       allow create: if isOwner(userId) && isVerified() && isValidUserStats(incoming()) && incoming().userId == userId;
       allow update: if isOwner(userId) && isVerified() && isValidUserStats(incoming()) && isImmutablePassed('user_stats') && isAntiCheatPassed();

@@ -2937,7 +2937,7 @@ export default function App() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [syncFailed, setSyncFailed] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
-  const [dailyWorkSubTab, setDailyWorkSubTab] = useState<'tasks' | 'habits' | 'timetable'>('tasks');
+  const [dailyWorkSubTab, setDailyWorkSubTab] = useState<'tasks' | 'habits' | 'timetable' | 'woop'>('tasks');
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [showAICheckinPrompt, setShowAICheckinPrompt] = useState(false);
 
@@ -4925,6 +4925,7 @@ export default function App() {
                     setSubTab={setDailyWorkSubTab}
                     addToTerminal={addToTerminal}
                     openShare={openShare}
+                    woopPlans={woopPlans}
                   />
                 </ErrorBoundary>
               )}
@@ -6054,6 +6055,14 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
 
             <div className="max-w-3xl mx-auto space-y-4">
               {[
+                {
+                  q: "How can I track my deep work sessions?",
+                  a: "Use our new Flow State Logger. AETHOS will automatically detect deep work sessions based on your task estimate and prompt you to log your flow state, providing valuable insights into your productivity patterns.",
+                },
+                {
+                  q: "How is global time synchronized?",
+                  a: "Our Chronos Clock feature ensures your tasks and productivity metrics are synced to global time, providing a consistent timeline across all your devices.",
+                },
                 {
                   q: "How is my data stored?",
                   a: "Your data is stored securely in Firebase Firestore. We use encrypted transport layers and strict client-side verification to ensure that only you can ever view or modify your habits, journals, and tasks.",
@@ -13423,6 +13432,15 @@ function DailyWorkView({
         >
           Timetable
         </button>
+        <button 
+          onClick={() => setActiveTab('woop')} 
+          className={cn(
+            "flex-1 py-2 text-xs font-mono font-black uppercase text-center rounded-lg transition-all min-h-[44px] flex items-center justify-center",
+            activeTab === 'woop' ? "bg-purple-600 text-white" : "text-text-m hover:text-white"
+          )}
+        >
+          WOOP
+        </button>
       </div>
 
       {/* LEFT SIDEBAR PANEL (Collapsible, Hidden on Mobile) */}
@@ -14370,7 +14388,6 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
         ) : (
           // NORMAL CHAT
           <div className="flex-1 overflow-y-auto p-8 md:p-12 space-y-6 no-scrollbar">
-            <WOOPView woopPlans={woopPlans} user={user} />
             {messages.map((m, idx) => (
               <div 
                 key={m.id || `fallback-msg-${idx}`} 
