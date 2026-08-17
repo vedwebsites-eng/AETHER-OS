@@ -50,7 +50,7 @@ app.post("/api/speech-to-text", upload.single("audio"), async (req, res) => {
     if (!apiKey) {
       return res.status(401).json({ error: "ELEVENLABS_API_KEY is not configured" });
     }
-    if (!req.file) {
+    if (!(req as any).file) {
       return res.status(400).json({ error: "No audio file provided" });
     }
 
@@ -62,7 +62,7 @@ app.post("/api/speech-to-text", upload.single("audio"), async (req, res) => {
         // The API might expect multipart/form-data with the file
       },
       // This part might need adjustment based on ElevenLabs API format
-      body: req.file.buffer, 
+      body: (req as any).file.buffer, 
     });
 
     const data = await response.json();

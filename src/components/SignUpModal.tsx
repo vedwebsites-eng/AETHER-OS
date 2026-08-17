@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Eye, EyeOff, Sparkles, User, Lock, Mail, ArrowRight } from 'lucide-react';
-import { registerWithEmail, signInWithGoogle, db, auth, signInWithEmailAndPassword } from '../lib/firebase';
+import { registerWithEmail, signInWithGoogle, db, auth, loginWithEmail } from '../lib/firebase';
 import { suggestPassword } from '../services/geminiService';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -38,8 +38,11 @@ export function SignUpModal({ isOpen, onClose, onSuccess }: SignUpModalProps) {
     try {
       if (isSignIn) {
         // Sign In Logic
-        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await loginWithEmail(email, password);
         
+        // Small delay for Auth token propagation
+        await new Promise(resolve => setTimeout(resolve, 500));
+
         // Verify user exists in database
         const userStatsRef = doc(db, 'user_stats', userCredential.user.uid);
         const userStatsSnap = await getDoc(userStatsRef);

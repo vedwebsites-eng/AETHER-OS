@@ -32,6 +32,8 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSam
 import { ResponsiveContainer, BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip as ReTooltip, CartesianGrid, Cell, PieChart as RePieChart, Pie } from 'recharts';
 import { cn } from './lib/utils';
 import { EmptyState } from './components/EmptyState';
+import { AethosFaq } from './components/AethosFaq';
+import { HowAethosWorks } from './components/HowAethosWorks';
 import { WheelOfLifeVisualization } from './components/WheelOfLife';
 import { OnboardingModal } from './components/OnboardingModal';
 import { DashboardLanding } from './components/DashboardLanding';
@@ -3020,6 +3022,10 @@ export default function App() {
           }
         }
 
+        const now = new Date();
+        const expiresAt = new Date(task.expiresAt);
+        const msLeft = expiresAt.getTime() - now.getTime();
+        
         // 1 hour warning
         if (msLeft > 0 && msLeft <= 60 * 60 * 1000 && !task.warnedAt) {
           try {
@@ -5657,7 +5663,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   useEffect(() => {
     const checkDb = async () => {
       try {
-        const testDoc = doc(db, 'system', 'health');
+        const testDoc = doc(db, 'test', 'connectivity-check');
         await getDocFromServer(testDoc);
         setDbStatus('online');
       } catch (err: any) {
@@ -5738,389 +5744,94 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       <div className="flex flex-col md:flex-row min-h-[calc(100vh-4rem)] flex-grow w-full items-center">
         {/* Left Side */}
         <div className="w-full md:w-1/2 flex flex-col justify-center px-8 md:px-16 py-16 text-left">
-          <p className="text-[10px] font-mono text-[#C8651B] uppercase tracking-[0.5em] mb-6">OUR VERSION</p>
-          <h1 className="font-serif font-black uppercase leading-[0.85] text-[5rem] md:text-[8rem] lg:text-[10rem]">
-            <motion.span
-              initial={{ opacity: 0, x: -40 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3, duration: 0.8 }}
-              className="block text-white"
-            >AETHER</motion.span>
-            <motion.span
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
-              className="block text-[#C8651B] italic"
-            >OS</motion.span>
-          </h1>
           <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="text-sm text-white/40 font-mono max-w-xs mt-8 leading-relaxed"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-[10px] font-mono text-cyan uppercase tracking-[0.5em] mb-6"
           >
-            The operating system for your self-improvement.<br/>
-            Habits. Tasks. AI Coach. One dashboard.
+            AETHOS
           </motion.p>
-          <motion.button
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1 }}
-            onClick={handleEnter}
-            disabled={dbStatus === 'checking'}
-            className="flex items-center gap-4 mt-10 group w-fit disabled:opacity-50 text-left"
+          <motion.h1
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="font-serif font-black uppercase leading-[0.9] text-[3.5rem] md:text-[5rem] lg:text-[6rem] text-white"
           >
-            <div className="w-12 h-12 rounded-full border border-[#C8651B] flex items-center justify-center group-hover:bg-[#C8651B] transition-all duration-500">
-              <ChevronRight className="w-5 h-5 text-[#C8651B] group-hover:text-white transition-colors duration-500" />
-            </div>
-            <span className="text-sm font-mono text-white/50 group-hover:text-white transition-colors uppercase tracking-widest">
-              Initialize Boot Sequence
-            </span>
-          </motion.button>
+            A personal operating system<br/>
+            for becoming<br/>
+            better every day.
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="text-sm text-white/50 font-mono max-w-md mt-8 leading-relaxed"
+          >
+            AETHOS connects your daily actions, reflection, goals, and AI coaching inside one system.
+          </motion.p>
+          <div className="flex flex-col sm:flex-row gap-4 mt-10">
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              onClick={handleEnter}
+              disabled={dbStatus === 'checking'}
+              className="px-8 py-4 bg-white text-black hover:bg-white/90 transition-colors uppercase font-mono text-sm tracking-widest rounded-full"
+            >
+              ENTER AETHOS →
+            </motion.button>
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.7 }}
+              onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
+              className="px-8 py-4 border border-white/20 text-white hover:border-white/50 transition-colors uppercase font-mono text-sm tracking-widest rounded-full flex items-center gap-2"
+            >
+              SEE HOW IT WORKS ↓
+            </motion.button>
+          </div>
         </div>
 
         {/* Right Side */}
         <div className="w-full md:w-1/2 relative flex items-center justify-center overflow-hidden h-[380px] md:h-full min-h-[380px]">
           {/* Background glow circle */}
           <div className="absolute w-[500px] h-[500px] rounded-full pointer-events-none"
-            style={{ background: 'radial-gradient(circle, rgba(200,101,27,0.12), rgba(46,107,158,0.08), transparent 70%)' }}
+            style={{ background: 'radial-gradient(circle, rgba(0, 217, 255, 0.12), rgba(46, 107, 158, 0.08), transparent 70%)' }}
           />
 
-          {/* Rotating polygon SVG (Wheel of Life shape) */}
+          {/* Rotating polygon SVG */}
           <motion.svg
             animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 25, ease: 'linear' }}
+            transition={{ repeat: Infinity, duration: 40, ease: 'linear' }}
             width="340" height="340" viewBox="0 0 340 340"
+            preserveAspectRatio="xMidYMid meet"
             className="pointer-events-none z-10"
+            aria-hidden="true"
+            focusable="false"
           >
             <polygon
               points="170,30 290,105 290,235 170,310 50,235 50,105"
-              fill="rgba(46,107,158,0.08)"
-              stroke="#C8651B"
-              strokeWidth="0.5"
-              strokeOpacity="0.4"
-            />
-            <polygon
-              points="170,70 255,122 255,218 170,270 85,218 85,122"
               fill="none"
-              stroke="#2E6B9E"
+              stroke="#00D9FF"
               strokeWidth="0.5"
               strokeOpacity="0.3"
             />
-            <polygon
-              points="170,100 230,138 230,202 170,240 110,202 110,138"
-              fill="none"
-              stroke="#C9A84C"
-              strokeWidth="0.5"
-              strokeOpacity="0.2"
-            />
             {/* Center dot */}
-            <circle cx="170" cy="170" r="4" fill="#C8651B" opacity="0.8" />
+            <circle cx="170" cy="170" r="4" fill="#00D9FF" opacity="0.8" />
           </motion.svg>
-
-          {/* Three floating metric cards */}
-          <motion.div
-            animate={{ y: [0, -8, 0] }}
-            transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
-            className="absolute top-[20%] left-[5%] bg-white/5 border border-white/10 backdrop-blur-md rounded-xl px-4 py-3 z-20"
-          >
-            <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">Streak</p>
-            <p className="text-lg font-serif font-black text-[#C9A84C]">14 DAYS</p>
-          </motion.div>
-
-          <motion.div
-            animate={{ y: [0, -8, 0] }}
-            transition={{ repeat: Infinity, duration: 3.5, ease: 'easeInOut', delay: 0.5 }}
-            className="absolute top-[40%] right-[10%] bg-white/5 border border-white/10 backdrop-blur-md rounded-xl px-4 py-3 z-20"
-          >
-            <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">Level</p>
-            <p className="text-lg font-serif font-black text-[#2E6B9E]">LVL 12 ↑</p>
-          </motion.div>
-
-          <motion.div
-            animate={{ y: [0, -8, 0] }}
-            transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut', delay: 1 }}
-            className="absolute bottom-[20%] left-[10%] bg-white/5 border border-white/10 backdrop-blur-md rounded-xl px-4 py-3 z-20"
-          >
-            <p className="text-[9px] font-mono text-white/30 uppercase tracking-widest">XP Today</p>
-            <p className="text-lg font-serif font-black text-[#C8651B]">+450 XP</p>
-          </motion.div>
+          
+          {/* System Labels */}
+          <div className="absolute text-[8px] font-mono text-white/30 uppercase tracking-widest flex flex-col gap-8 z-20">
+              <span className="absolute -top-32">SYSTEM: AETHOS</span>
+              <span className="absolute top-32 -left-20">CHRONOS</span>
+              <span className="absolute top-32 -right-20">REFLECT</span>
+              <span className="absolute bottom-32 -left-20">GROW</span>
+              <span className="absolute bottom-32 -right-20">COACH</span>
+          </div>
         </div>
       </div>
 
-      {/* HOW IT WORKS SECTION */}
-      <section
-        id="how-it-works"
-        style={{ background: '#060606' }}
-        className="px-8 md:px-16 py-32 relative overflow-hidden shrink-0 border-t border-b border-white/5"
-      >
-        {/* Decorative backdrop glow */}
-        <div style={{
-          position: 'absolute',
-          width: '500px',
-          height: '500px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(200,101,27,0.03), transparent 70%)',
-          top: '20%',
-          left: '10%',
-          pointerEvents: 'none',
-        }} />
-        <div style={{
-          position: 'absolute',
-          width: '500px',
-          height: '500px',
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(46,107,158,0.03), transparent 70%)',
-          bottom: '10%',
-          right: '10%',
-          pointerEvents: 'none',
-        }} />
-
-        <div className="max-w-7xl mx-auto relative z-10">
-          {/* Section header */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-            className="mb-20 text-center md:text-left"
-          >
-            <p className="text-[10px] font-mono text-[#2E6B9E] uppercase tracking-[0.5em] mb-4">
-              THE_WORKFLOW
-            </p>
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-              <h2 className="text-5xl md:text-7xl font-serif font-black uppercase italic text-white leading-none">
-                How It<br/>
-                <span className="text-[#2E6B9E]">Works.</span>
-              </h2>
-              <p className="text-sm font-mono text-white/30 max-w-sm leading-relaxed md:text-right">
-                A streamlined, self-reinforcing productivity cycle designed to build consistency and accelerate personal evolution.
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Steps Timeline Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 relative">
-            {[
-              {
-                step: '01',
-                title: 'PLAN',
-                heading: 'Plan',
-                description: 'Set goals, habits, and tasks. Let AETHOS organize your day.',
-                color: '#C8651B',
-                icon: '🎯',
-                badge: 'DECIDE_QUEUE'
-              },
-              {
-                step: '02',
-                title: 'FOCUS',
-                heading: 'Focus',
-                description: 'Use the timetable and Pomodoro timer to stay productive.',
-                color: '#2E6B9E',
-                icon: '⚡',
-                badge: 'DEEP_WORK'
-              },
-              {
-                step: '03',
-                title: 'TRACK',
-                heading: 'Track',
-                description: 'Mark habits, review heatmaps, and log progress.',
-                color: '#00D9FF',
-                icon: '🔥',
-                badge: 'MONITOR_METRIC'
-              },
-              {
-                step: '04',
-                title: 'REFLECT',
-                heading: 'Reflect',
-                description: 'Check weekly progress, mood patterns, and AI insights.',
-                color: '#7f77dd',
-                icon: '🧠',
-                badge: 'NEURAL_INTELLIGENCE'
-              }
-            ].map((stepObj, i) => (
-              <motion.div
-                key={stepObj.step}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: i * 0.1 }}
-                className="group relative border border-white/5 rounded-2xl p-6 bg-white/[0.01] hover:border-white/15 transition-all duration-300 flex flex-col justify-between min-h-[220px]"
-              >
-                {/* Accent Hover Glow */}
-                <div
-                  className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                  style={{
-                    background: `radial-gradient(circle at top left, ${stepObj.color}10, transparent 65%)`,
-                  }}
-                />
-
-                <div>
-                  {/* Step ID row */}
-                  <div className="flex items-center justify-between mb-6">
-                    <span
-                      className="text-xs font-mono font-bold"
-                      style={{ color: stepObj.color }}
-                    >
-                      STEP_{stepObj.step}
-                    </span>
-                    <span className="text-2xl">{stepObj.icon}</span>
-                  </div>
-
-                  {/* Title & Badge */}
-                  <p className="text-[8px] font-mono tracking-widest text-white/30 uppercase mb-1">
-                    {stepObj.badge}
-                  </p>
-                  <h3 className="text-xl font-serif font-black uppercase italic text-white mb-2">
-                    {stepObj.heading}
-                  </h3>
-
-                  {/* Description */}
-                  <p className="text-xs font-mono text-white/40 leading-relaxed group-hover:text-white/60 transition-colors">
-                    {stepObj.description}
-                  </p>
-                </div>
-
-                {/* Subtle bottom indicator */}
-                <div className="mt-6 flex items-center justify-between">
-                  <div className="w-10 h-[1px] bg-white/10 group-hover:w-16 transition-all duration-300" style={{ backgroundColor: `${stepObj.color}40` }} />
-                  {i < 3 && (
-                    <span className="hidden lg:inline text-white/10 group-hover:text-white/30 transition-colors font-mono text-xs">
-                      →
-                    </span>
-                  )}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          {/* Sequence Loop & Call-to-action */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="mt-16 border border-white/5 rounded-2xl p-8 text-center relative overflow-hidden"
-            style={{ background: 'rgba(46,107,158,0.02)' }}
-          >
-            {/* Loop indicator */}
-            <p className="text-[10px] font-mono text-white/30 uppercase tracking-[0.3em] mb-4">
-              THE_INFINITE_LOOP
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-sm font-mono uppercase tracking-widest font-bold text-white mb-8">
-              <span className="text-[#C8651B]">Plan</span>
-              <span className="text-white/20">→</span>
-              <span className="text-[#2E6B9E]">Focus</span>
-              <span className="text-white/20">→</span>
-              <span className="text-[#00D9FF]">Track</span>
-              <span className="text-white/20">→</span>
-              <span className="text-[#7f77dd]">Reflect</span>
-              <span className="text-white/20">→</span>
-              <span className="text-[#C8651B] animate-pulse">Repeat</span>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <button
-                onClick={handleEnter}
-                className="w-full sm:w-auto px-8 py-3 bg-[#C8651B] hover:bg-[#b05412] text-white text-xs font-mono font-bold uppercase tracking-widest rounded-full transition-all duration-300 shadow-[0_0_20px_rgba(200,101,27,0.2)]"
-              >
-                Get Started
-              </button>
-              <button
-                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-                className="w-full sm:w-auto px-8 py-3 border border-white/10 hover:border-white/20 hover:bg-white/5 text-white/70 hover:text-white text-xs font-mono uppercase tracking-widest rounded-full transition-all duration-300"
-              >
-                Explore Features
-              </button>
-            </div>
-          </motion.div>
-
-          {/* FAQ SUB-SECTION */}
-          <div className="mt-24 border-t border-white/5 pt-16">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8 }}
-              className="mb-12 text-center"
-            >
-              <p className="text-[10px] font-mono text-[#2E6B9E] uppercase tracking-[0.5em] mb-3">
-                SYSTEM_FAQ
-              </p>
-              <h3 className="text-3xl md:text-4xl font-serif font-black uppercase italic text-white leading-tight">
-                Frequently Asked <span className="text-[#2E6B9E]">Questions.</span>
-              </h3>
-            </motion.div>
-
-            <div className="max-w-3xl mx-auto space-y-4">
-              {[
-                {
-                  q: "How can I track my deep work sessions?",
-                  a: "Use our new Flow State Logger. AETHOS will automatically detect deep work sessions based on your task estimate and prompt you to log your flow state, providing valuable insights into your productivity patterns.",
-                },
-                {
-                  q: "How is global time synchronized?",
-                  a: "Our Chronos Clock feature ensures your tasks and productivity metrics are synced to global time, providing a consistent timeline across all your devices.",
-                },
-                {
-                  q: "How is my data stored?",
-                  a: "Your data is stored securely in Firebase Firestore. We use encrypted transport layers and strict client-side verification to ensure that only you can ever view or modify your habits, journals, and tasks.",
-                },
-                {
-                  q: "Is it truly free?",
-                  a: "Yes, absolutely. AETHOS has no hidden fees, paywalls, or premium tiers for core features. All tracking tools, habit heatmaps, and stats are accessible to everyone, completely free.",
-                },
-                {
-                  q: "How does Aether Coach AI work?",
-                  a: "The coach processes your task completion rates, habit streak patterns, mood scores, and Wheel of Life balances dynamically. It operates within strict security boundaries to deliver hyper-personalized coaching without exposing your details.",
-                },
-                {
-                  q: "Can I use AETHOS on multiple devices?",
-                  a: "Yes. All your achievements, stats, routines, and progress levels sync in real-time to your Google Account or registered email across any desktop, tablet, or smartphone.",
-                },
-              ].map((faq, idx) => {
-                const isOpen = activeFaqIndex === idx;
-                return (
-                  <motion.div
-                    key={`onboarding-${idx}`}
-                    initial={{ opacity: 0, y: 15 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ duration: 0.5, delay: idx * 0.05 }}
-                    className="border border-white/5 rounded-xl bg-white/[0.01] hover:bg-white/[0.02] hover:border-white/10 transition-all duration-300 overflow-hidden"
-                  >
-                    <button
-                      onClick={() => setActiveFaqIndex(isOpen ? null : idx)}
-                      className="w-full flex items-center justify-between p-5 text-left font-mono text-sm text-white hover:text-[#2E6B9E] transition-colors"
-                    >
-                      <span className="font-bold tracking-tight">{faq.q}</span>
-                      <ChevronDown
-                        className={`w-4 h-4 text-white/30 transition-transform duration-300 ${isOpen ? 'rotate-180 text-[#2E6B9E]' : ''}`}
-                      />
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {isOpen && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.3, ease: 'easeInOut' }}
-                          className="border-t border-white/5 bg-white/[0.005]"
-                        >
-                          <p className="p-5 text-xs font-mono text-white/40 leading-relaxed">
-                            {faq.a}
-                          </p>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </section>
+      <HowAethosWorks />
 
       {/* FEATURES SECTION */}
       <section
@@ -6322,6 +6033,8 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </div>
         </motion.div>
       </section>
+
+      <AethosFaq />
 
       {/* ABOUT SECTION */}
       <section
