@@ -234,7 +234,7 @@ const StreakShareCard = ({
           letterSpacing: '0.3em',
           textTransform: 'uppercase',
         }}>
-          AETHEROS
+          AETHOS
         </p>
       </div>
 
@@ -563,7 +563,7 @@ const AchievementShareCard = ({
           letterSpacing: '0.35em',
           textTransform: 'uppercase',
         }}>
-          AETHEROS
+          AETHOS
         </p>
       </div>
 
@@ -936,7 +936,7 @@ const WheelOfLifeShareCard = ({
         letterSpacing: '0.35em',
         textTransform: 'uppercase',
       }}>
-        AETHEROS
+        AETHOS
       </p>
 
       {/* Date */}
@@ -1333,7 +1333,7 @@ const HabitHeatmapShareCard = ({
         letterSpacing: '0.4em',
         textTransform: 'uppercase',
       }}>
-        AETHEROS
+        AETHOS
       </p>
 
       {/* Date */}
@@ -3592,7 +3592,7 @@ export default function App() {
             setTimeout(() => {
               openShare(
                 'streak-share-card',
-                `AETHEROS_STREAK_${newStreak}D`,
+                `AETHOS_STREAK_${newStreak}D`,
                 `${newStreak} DAY STREAK`
               );
             }, 2000);
@@ -4296,7 +4296,7 @@ export default function App() {
             setTimeout(() => {
               openShare(
                 'streak-share-card',
-                `AETHEROS_STREAK_${newStreak}D`,
+                `AETHOS_STREAK_${newStreak}D`,
                 `${newStreak} DAY STREAK`
               );
             }, 2000);
@@ -4773,7 +4773,7 @@ export default function App() {
         <NavButton active={activeTab === 'dailyWork'} onClick={() => handleTabChange('dailyWork')} icon={<CheckCircle2 size={18} className="lg:w-5 lg:h-5" />} label="DAILY_WORK" />
         <NavButton active={activeTab === 'reflect'} onClick={() => handleTabChange('reflect')} icon={<Book size={18} className="lg:w-5 lg:h-5" />} label="REFLECT" />
         <NavButton active={activeTab === 'grow'} onClick={() => handleTabChange('grow')} icon={<TrendingUp size={18} className="lg:w-5 lg:h-5" />} label="GROW" />
-        <NavButton active={activeTab === 'aetherCoach'} onClick={() => handleTabChange('aetherCoach')} icon={<Sparkles size={18} className="lg:w-5 lg:h-5 text-cyan" />} label="AETHOS_COACH" />
+        <NavButton active={activeTab === 'aetherCoach'} onClick={() => handleTabChange('aetherCoach')} icon={<Sparkles size={18} className="lg:w-5 lg:h-5 text-cyan" />} label="AETHOS COACH" />
         <NavButton active={activeTab === 'configOs'} onClick={() => handleTabChange('configOs')} icon={<Settings size={18} className="lg:w-5 lg:h-5" />} label="CONFIG_OS" />
         
         <button 
@@ -5051,7 +5051,7 @@ export default function App() {
               setTimeout(() => {
                 openShare(
                   'achievement-share-card',
-                  `AETHEROS_${ach.title}`,
+                  `AETHOS_${ach.title}`,
                   'ACHIEVEMENT CARD'
                 );
               }, 100);
@@ -5710,7 +5710,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
     <div className="min-h-screen overflow-y-auto overflow-x-hidden selection:bg-[#C8651B]/30 relative bg-[#080808] text-white flex flex-col justify-between">
       {/* Top Nav */}
       <header className="h-16 px-8 md:px-16 flex items-center justify-between border-b border-white/5 bg-[#080808] z-30 shrink-0 w-full animate-fade-in">
-        <div className="font-serif font-black text-xl text-[#C8651B]">AETHEROS</div>
+        <div className="font-serif font-black text-xl text-[#C8651B]">AETHOS</div>
         <div className="flex items-center gap-6">
           <button
             onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
@@ -6332,7 +6332,7 @@ function CommandPalette({ isOpen, onClose, onNavigate, activeTab }: { isOpen: bo
     { id: 'dailyWork', label: 'GO_TO_DAILY_WORK', icon: <CheckCircle2 size={18} />, tab: 'dailyWork' },
     { id: 'reflect', label: 'GO_TO_REFLECT_JOURNAL', icon: <Book size={18} />, tab: 'reflect' },
     { id: 'grow', label: 'GO_TO_GROW_SYSTEMS', icon: <TrendingUp size={18} />, tab: 'grow' },
-    { id: 'coach', label: 'GO_TO_AETHOS_COACH', icon: <Sparkles size={18} />, tab: 'aetherCoach' },
+    { id: 'coach', label: 'GO_TO_AETHOS COACH', icon: <Sparkles size={18} />, tab: 'aetherCoach' },
     { id: 'settings', label: 'GO_TO_CONFIG_OS', icon: <Settings size={18} />, tab: 'configOs' },
   ];
 
@@ -12403,7 +12403,7 @@ function StatsView({
                         if (openShare) {
                           openShare(
                             'achievement-share-card',
-                            `AETHEROS_${ach.title}`,
+                            `AETHOS_${ach.title}`,
                             'ACHIEVEMENT CARD'
                           );
                         }
@@ -13996,7 +13996,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
               </button>
               <div className="w-2.5 h-2.5 rounded-full bg-cyan animate-pulse" />
               <div>
-                 <h3 className="text-xs font-mono font-black uppercase text-white tracking-widest">{coachProfile?.coachName?.toUpperCase() || 'AETHOS_COACH'}</h3>
+                 <h3 className="text-xs font-mono font-black uppercase text-white tracking-widest">{coachProfile?.coachName?.toUpperCase() || 'AETHOS COACH'}</h3>
                  <p className="text-[8px] font-mono text-cyan uppercase tracking-tighter">{coachProfile ? `CALIBRATED_TO_${coachProfile.userName?.toUpperCase()}` : 'INITIALIZING_PROFILE...'}</p>
               </div>
            </div>
