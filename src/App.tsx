@@ -5664,6 +5664,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
   const [dbStatus, setDbStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [isInitializing, setIsInitializing] = useState(false);
   const [activeFaqIndex, setActiveFaqIndex] = useState<number | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     const checkDb = async () => {
@@ -5682,6 +5683,29 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       }
     };
     checkDb();
+  }, []);
+
+  useEffect(() => {
+    const hero = document.getElementById('hero-section');
+    const cta = document.getElementById('sticky-cta');
+    
+    if (!hero || !cta) return;
+    
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          cta.classList.add('opacity-0', 'translate-y-4', 'pointer-events-none');
+          cta.classList.remove('opacity-100', 'translate-y-0', 'pointer-events-auto');
+        } else {
+          cta.classList.remove('opacity-0', 'translate-y-4', 'pointer-events-none');
+          cta.classList.add('opacity-100', 'translate-y-0', 'pointer-events-auto');
+        }
+      },
+      { threshold: 0.1 }
+    );
+    
+    observer.observe(hero);
+    return () => observer.disconnect();
   }, []);
 
   const handleEnter = () => {
@@ -5716,7 +5740,17 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       {/* Top Nav */}
       <header className="h-16 px-8 md:px-16 flex items-center justify-between border-b border-white/5 bg-[#080808] z-30 shrink-0 w-full animate-fade-in">
         <a href="/" className="font-serif font-black text-xl text-[#C8651B]">AETHOS</a>
-        <div className="flex items-center gap-6">
+        
+        {/* Mobile menu trigger */}
+        <button 
+          className="md:hidden text-white/50"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        >
+          <Menu size={24} />
+        </button>
+
+        {/* Desktop Nav */}
+        <div className="hidden md:flex items-center gap-6">
           <button
             onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
             className="text-[10px] font-mono text-white/50 uppercase tracking-widest hover:text-white transition-colors"
@@ -5739,14 +5773,69 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
         <button 
           onClick={handleEnter}
           disabled={dbStatus === 'checking'}
-          className="border border-[#C8651B] text-white text-[10px] font-mono px-5 py-2 rounded-full hover:bg-[#C8651B] transition-all duration-300 disabled:opacity-50"
+          className="hidden md:block border border-[#C8651B] text-white text-[10px] font-mono px-5 py-2 rounded-full hover:bg-[#C8651B] transition-all duration-300 disabled:opacity-50"
         >
           ENTER AETHOS →
         </button>
       </header>
+      
+      {/* Mobile Menu */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 bg-[#080808] z-40 flex flex-col items-center justify-center gap-8 md:hidden">
+          <button 
+            className="absolute top-6 right-8 text-white"
+            onClick={() => setIsMobileMenuOpen(false)}
+          >
+            <X size={24} />
+          </button>
+          <button
+            onClick={() => { document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' }); setIsMobileMenuOpen(false); }}
+            className="text-xl font-mono text-white uppercase tracking-widest"
+          >
+            How It Works
+          </button>
+          <button
+            onClick={() => { document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); setIsMobileMenuOpen(false); }}
+            className="text-xl font-mono text-white uppercase tracking-widest"
+          >
+            Features
+          </button>
+          <button
+            onClick={() => { document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' }); setIsMobileMenuOpen(false); }}
+            className="text-xl font-mono text-white uppercase tracking-widest"
+          >
+            About
+          </button>
+          <button 
+            onClick={handleEnter}
+            disabled={dbStatus === 'checking'}
+            className="border border-[#C8651B] text-white text-sm font-mono px-8 py-3 rounded-full hover:bg-[#C8651B] transition-all duration-300 disabled:opacity-50"
+          >
+            ENTER AETHOS →
+          </button>
+        </div>
+      )}
+
+
+      {/* Sticky Mobile CTA */}
+      <div 
+        id="sticky-cta"
+        className={cn(
+          "fixed bottom-4 left-4 right-4 z-50 md:hidden transition-all duration-300",
+          "opacity-0 translate-y-4 pointer-events-none"
+        )}
+      >
+        <button 
+          onClick={handleEnter}
+          disabled={dbStatus === 'checking'}
+          className="w-full bg-[#C8651B] text-white text-[12px] font-mono py-4 rounded-full shadow-lg hover:bg-[#b05412] transition-all duration-300"
+        >
+          ENTER AETHOS →
+        </button>
+      </div>
 
       {/* Hero Section */}
-      <div className="flex flex-col md:flex-row min-h-[calc(100vh-4rem)] flex-grow w-full items-center">
+      <div id="hero-section" className="flex flex-col md:flex-row min-h-[calc(100vh-4rem)] flex-grow w-full items-center">
         {/* Left Side */}
         <div className="w-full md:w-1/2 flex flex-col justify-center px-8 md:px-16 py-16 text-left">
           <motion.p
