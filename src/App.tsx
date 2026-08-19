@@ -33,6 +33,7 @@ import { ResponsiveContainer, BarChart as ReBarChart, Bar, XAxis, YAxis, Tooltip
 import { cn } from './lib/utils';
 import { EmptyState } from './components/EmptyState';
 import { AethosFaq } from './components/AethosFaq';
+import { PrivacyPolicy } from './components/PrivacyPolicy';
 import { HowAethosWorks } from './components/HowAethosWorks';
 import { WheelOfLifeVisualization } from './components/WheelOfLife';
 import { OnboardingModal } from './components/OnboardingModal';
@@ -4634,6 +4635,10 @@ export default function App() {
     );
   }
 
+  if (window.location.pathname === '/privacy') {
+    return <PrivacyPolicy />;
+  }
+
   if (!user) {
     if (!authChoice) {
       return <LandingPage onEnter={() => setAuthChoice(true)} />;
@@ -5710,23 +5715,23 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
     <div className="min-h-screen overflow-y-auto overflow-x-hidden selection:bg-[#C8651B]/30 relative bg-[#080808] text-white flex flex-col justify-between">
       {/* Top Nav */}
       <header className="h-16 px-8 md:px-16 flex items-center justify-between border-b border-white/5 bg-[#080808] z-30 shrink-0 w-full animate-fade-in">
-        <div className="font-serif font-black text-xl text-[#C8651B]">AETHOS</div>
+        <a href="/" className="font-serif font-black text-xl text-[#C8651B]">AETHOS</a>
         <div className="flex items-center gap-6">
           <button
             onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })}
-            className="text-[10px] font-mono text-white/30 uppercase tracking-widest hover:text-white transition-colors"
+            className="text-[10px] font-mono text-white/50 uppercase tracking-widest hover:text-white transition-colors"
           >
             How It Works
           </button>
           <button
             onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-            className="text-[10px] font-mono text-white/30 uppercase tracking-widest hover:text-white transition-colors"
+            className="text-[10px] font-mono text-white/50 uppercase tracking-widest hover:text-white transition-colors"
           >
             Features
           </button>
           <button
             onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })}
-            className="text-[10px] font-mono text-white/30 uppercase tracking-widest hover:text-white transition-colors"
+            className="text-[10px] font-mono text-white/50 uppercase tracking-widest hover:text-white transition-colors"
           >
             About
           </button>
@@ -5736,7 +5741,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           disabled={dbStatus === 'checking'}
           className="border border-[#C8651B] text-white text-[10px] font-mono px-5 py-2 rounded-full hover:bg-[#C8651B] transition-all duration-300 disabled:opacity-50"
         >
-          INITIALIZE →
+          ENTER AETHOS →
         </button>
       </header>
 
@@ -6260,23 +6265,37 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
       </section>
 
       {/* Bottom Strip */}
-      <footer className="h-auto sm:h-16 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between px-8 md:px-16 z-30 bg-[#080808] shrink-0 w-full py-4 gap-4">
-        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 text-[10px] font-mono text-white/30">
-          <span className="font-bold text-[#C8651B] tracking-wider">AETHER @2026</span>
-          <span className="text-white/10 hidden sm:inline">|</span>
-          <span>BUILD_v1.0.4_RELEASE</span>
-          <span className="text-white/10 hidden sm:inline">|</span>
-          <span className="text-white/30">SELF_SYNC_OK</span>
-        </div>
-        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-4 text-[10px] font-mono text-white/30">
-          <div className="flex items-center gap-2">
-            <div className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
-            <span>AETHER_NET_OK</span>
+      <footer className="h-auto border-t border-white/5 bg-[#080808] z-30 shrink-0 w-full py-12 px-8 md:px-16 flex flex-col gap-8">
+        <div className="flex flex-col md:flex-row justify-between gap-8">
+          <div className="flex flex-col gap-2">
+            <span className="font-serif font-black text-xl text-[#C8651B]">AETHOS</span>
+            <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest">Personal Operating System</span>
           </div>
-          <span className="text-white/10">|</span>
-          <span>LATENCY_12MS</span>
-          <span className="text-white/10">|</span>
-          <span>AES-512_SECURED</span>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-8 text-[10px] font-mono">
+            <div className="flex flex-col gap-2">
+              <span className="text-white/50 uppercase tracking-widest">Product</span>
+              <button onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })} className="text-white/30 hover:text-white transition-colors">How It Works</button>
+              <button onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })} className="text-white/30 hover:text-white transition-colors">Features</button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-white/50 uppercase tracking-widest">Company</span>
+              <button onClick={() => document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' })} className="text-white/30 hover:text-white transition-colors">About</button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className="text-white/50 uppercase tracking-widest">Support</span>
+              <button onClick={() => document.getElementById('faq')?.scrollIntoView({ behavior: 'smooth' })} className="text-white/30 hover:text-white transition-colors">FAQ</button>
+              <a href="/privacy" className="text-white/30 hover:text-white transition-colors">Privacy Policy</a>
+            </div>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-4 text-[10px] font-mono text-white/30 border-t border-white/5 pt-8">
+          <span className="font-bold text-[#C8651B] tracking-wider">AETHOS @2026</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <div className={`w-1.5 h-1.5 rounded-full ${dbStatus === 'online' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`} />
+              <span>AETHER_NET_OK</span>
+            </div>
+          </div>
         </div>
       </footer>
     </div>
