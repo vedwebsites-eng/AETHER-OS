@@ -13135,6 +13135,7 @@ function DailyWorkView({
   onAddHabit,
   onToggleHabit,
   onDeleteHabit,
+  woopPlans,
   subTab = 'tasks',
   setSubTab,
   addToTerminal,
@@ -13551,6 +13552,9 @@ function DailyWorkView({
                    onUpdateSettings={onUpdateSettings}
                     addToTerminal={addToTerminal}
                  />
+               )}
+               {activeTab === 'woop' && (
+                 <WOOPView woopPlans={woopPlans || []} user={user} />
                )}
             </motion.div>
          </AnimatePresence>
