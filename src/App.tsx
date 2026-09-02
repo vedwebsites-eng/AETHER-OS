@@ -3565,6 +3565,7 @@ export default function App() {
         let newStreak = stats.currentStreak;
         let newExperience = stats.experience;
         let challengeUpdate = stats.dailyChallenge;
+        let shieldUsed = false;
         
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
@@ -3612,11 +3613,9 @@ export default function App() {
           // Streak broken — check for shield
           const hasShield = (stats.streakShields || 0) > 0;
           if (hasShield) {
-            // Shield absorbs the break — streak continues, shield consumed
+            // Shield absorbs the break — streak continues, shield consumed in main updateDoc below
             newStreak = stats.currentStreak;
-            await updateDoc(doc(db, 'user_stats', user.uid), {
-              streakShields: (stats.streakShields || 1) - 1,
-            });
+            shieldUsed = true;
             const shieldId = `shield-${Date.now()}`;
             setXpNotifications(prev => [...prev, {
               id: shieldId,
@@ -3646,7 +3645,7 @@ export default function App() {
           experience: newExperience,
           dailyChallenge: challengeUpdate,
           pomodoroToday: 0,
-          streakShields: (stats.streakShields || 0) + shieldsEarned,
+          streakShields: (stats.streakShields || 0) + shieldsEarned - (shieldUsed ? 1 : 0),
           streakHistory: [...(stats.streakHistory || []), today]
         });
       } catch (e) {
@@ -5989,7 +5988,7 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
             },
             {
               number: '03',
-              title: 'AETHER_COACH',
+              title: 'AETHOS_COACH',
               label: 'AI Life Coach',
               description: 'An AI that reads your mood, tasks, habits, and life balance — then gives advice specific to YOU. Not generic. Personal.',
               color: '#7f77dd',
@@ -6387,6 +6386,21 @@ function LandingPage({ onEnter }: { onEnter: () => void }) {
           </div>
         </div>
       </footer>
+
+      {/* Sticky mobile CTA */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-black/90 backdrop-blur-xl border-t border-white/10 px-4 py-3 flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] font-mono font-black text-white uppercase tracking-widest truncate">AETHOS — Live Life Gamified</p>
+          <p className="text-[9px] font-mono text-white/40 truncate">Free · No credit card needed</p>
+        </div>
+        <button
+          onClick={handleEnter}
+          className="shrink-0 px-5 py-2.5 bg-[#C8651B] hover:bg-[#C8651B]/90 text-white font-mono font-black text-[10px] uppercase tracking-widest rounded-xl transition-all active:scale-95"
+        >
+          START FREE →
+        </button>
+      </div>
+
     </div>
   );
 }
@@ -6496,7 +6510,7 @@ function CommandPalette({ isOpen, onClose, onNavigate, activeTab }: { isOpen: bo
               )}
             </div>
             <div className="p-3 bg-black/40 border-t border-white/5 flex justify-between items-center px-6">
-              <span className="text-[8px] font-mono text-text-m uppercase opacity-40 italic">AETHER_RECALIBRATION_OS v2.1.0</span>
+              <span className="text-[8px] font-mono text-text-m uppercase opacity-40 italic">AETHOS_RECALIBRATION v2.1.0</span>
               <div className="flex gap-4">
                 <span className="text-[8px] font-mono text-text-m uppercase">↑↓ NAVIGATE</span>
                 <span className="text-[8px] font-mono text-text-m uppercase">↵ EXECUTE</span>
@@ -8797,7 +8811,7 @@ function ManualModal({
           redirect: () => onRedirect('reflect')
         },
         {
-          title: "AETHER_COACH",
+          title: "AETHOS_COACH",
           description: "Your localized AI cognitive advisor powered by Gemini. Discuss balance, bottlenecks, or strategies directly in an interactive dialogue.",
           icon: <Sparkles size={18} className="text-cyan" />,
           redirect: () => onRedirect('aetherCoach')
@@ -8900,7 +8914,7 @@ function ManualModal({
         },
         {
           title: "SYSTEM_THEMES",
-          description: "Real-time environment recalibration. Unlock unique aesthetic skins for AetherOS.",
+          description: "Real-time environment recalibration. Unlock unique aesthetic skins for AETHOS.",
           icon: <Palette size={18} className="text-accent" />,
           redirect: () => onRedirect('configOs')
         }
@@ -9181,7 +9195,7 @@ function FocusProtocol({ stats, user, onAddXP, setCompleteToast, addToTerminal }
              <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
              <span className="text-[10px] font-mono text-accent uppercase tracking-[0.4em] font-black">Focus_Protocol_Active</span>
           </div>
-          <h3 className="text-3xl font-serif font-black text-white uppercase italic tracking-wider">AETHER_POMODORO</h3>
+          <h3 className="text-3xl font-serif font-black text-white uppercase italic tracking-wider">AETHOS_POMODORO</h3>
           
           <div className="flex bg-white/5 p-1 rounded-xl border border-white/10 w-fit">
             <button 
@@ -14174,7 +14188,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 <input
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder={`PROMPT_${coachProfile.coachName?.toUpperCase() || 'AETHER_COACH'}...`}
+                  placeholder={`PROMPT_${coachProfile.coachName?.toUpperCase() || 'AETHOS_COACH'}...`}
                   disabled={isGenerating}
                   autoFocus
                   className="flex-1 bg-black/40 border border-white/10 rounded-xl px-5 py-4 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
@@ -14391,7 +14405,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
               <input
                 value={!coachProfile ? onboardingInput : inputText}
                 onChange={(e) => !coachProfile ? setOnboardingInput(e.target.value) : setInputText(e.target.value)}
-                placeholder={!coachProfile ? "TYPE_YOUR_RESPONSE..." : "PROMPT_AETHER_COACH..."}
+                placeholder={!coachProfile ? "TYPE_YOUR_RESPONSE..." : "PROMPT_AETHOS_COACH..."}
                 disabled={isGenerating}
                 className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
               />
@@ -14826,7 +14840,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
           userId: user.uid,
           chatId: activeChatId,
           sender: 'coach',
-          text: `Aether_OS Error: ${errMsg}`,
+          text: `AETHOS Error: ${errMsg}`,
           createdAt: new Date().toISOString()
         });
         await addDoc(collection(db, 'coach_messages'), errorMsgData);

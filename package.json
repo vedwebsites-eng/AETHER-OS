@@ -12,7 +12,6 @@
     "lint": "eslint . && tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^1.50.1",
     "@tailwindcss/vite": "^4.1.14",
     "@tiptap/extension-color": "^3.22.4",
     "@tiptap/extension-link": "^3.22.4",
