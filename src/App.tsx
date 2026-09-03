@@ -13589,7 +13589,7 @@ function ReflectView({ journals, user, onAddXP, stats, setActiveTab, tasks, habi
            className="px-6 py-3.5 bg-cyan hover:bg-cyan-hover text-black font-mono text-xs font-black uppercase rounded-xl hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(34,211,238,0.2)] flex items-center gap-2 border border-cyan/30"
          >
            <Sparkles size={14} className="animate-pulse" />
-           PROMPT_AETHER_COACH
+           PROMPT_AETHOS_COACH
          </button>
       </div>
 
@@ -14162,7 +14162,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 )}
               >
                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
-                  {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
+                  {m.sender === 'user' ? 'YOU' : 'AETHOS_COACH'}
                 </span>
                 <p className="whitespace-pre-wrap">{m.text}</p>
               </div>
@@ -14238,7 +14238,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 )}
               >
                 <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">
-                  {m.sender === 'user' ? 'YOU' : 'AETHER_COACH'}
+                  {m.sender === 'user' ? 'YOU' : 'AETHOS_COACH'}
                 </span>
                 {m.sender === 'user' ? (
                   <p className="whitespace-pre-wrap">{m.text}</p>
@@ -14344,7 +14344,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
             ))}
             {isGenerating && !streamingText && (
               <div className="flex flex-col items-start">
-                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHER_COACH</span>
+                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHOS_COACH</span>
                 <div className="glass rounded-2xl px-4 py-3 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan/60 animate-bounce" style={{ animationDelay: '0ms' }} />
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan/60 animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -14354,7 +14354,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
             )}
             {isGenerating && streamingText && (
               <div className="flex flex-col items-start group">
-                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHER_COACH</span>
+                <span className="text-[8px] opacity-40 uppercase tracking-widest font-black mb-1">AETHOS_COACH</span>
                 <div className="max-w-[85%] glass rounded-2xl px-4 py-3">
                   <ReactMarkdown components={coachMarkdownComponents}>
                     {streamingText}
