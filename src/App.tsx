@@ -39,6 +39,8 @@ import { WheelOfLifeVisualization } from './components/WheelOfLife';
 import { OnboardingModal } from './components/OnboardingModal';
 import { DashboardLanding } from './components/DashboardLanding';
 import { WOOPView } from './components/WOOPView';
+import { GoalsTab } from './components/GoalsTab';
+import { HabitSpreadsheet } from './components/HabitSpreadsheet';
 import { WOOPPlan } from './types';
 import { chronos } from './services/chronos';
 import { ChronosClock } from './components/ChronosClock';
@@ -2940,7 +2942,10 @@ export default function App() {
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [syncFailed, setSyncFailed] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
-  const [dailyWorkSubTab, setDailyWorkSubTab] = useState<'tasks' | 'habits' | 'timetable' | 'woop'>('tasks');
+  const [dailyWorkSubTab, setDailyWorkSubTab] = useState<'goals' | 'habits' | 'timetable' | 'woop' | 'tasks'>('goals');
+  const [yearlyGoals, setYearlyGoals] = useState<any[]>([]);
+  const [dailyGoals, setDailyGoals] = useState<any[]>([]);
+  const [dailyGoalStreak, setDailyGoalStreak] = useState(0);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [showAICheckinPrompt, setShowAICheckinPrompt] = useState(false);
 
@@ -2958,6 +2963,46 @@ export default function App() {
     });
     return unsubscribe;
   }, [user]);
+  useEffect(() => {
+    if (!user) return;
+    const q = query(collection(db, 'yearly_goals'), where('userId', '==', user.uid));
+    const unsub = onSnapshot(q, snap => {
+      setYearlyGoals(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+    });
+    return unsub;
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, 'daily_goals'),
+      where('userId', '==', user.uid),
+      orderBy('date', 'desc'),
+      limit(60)
+    );
+    const unsub = onSnapshot(q, snap => {
+      const docs = snap.docs.map(d => ({ ...(d.data() as any), id: d.id }));
+      setDailyGoals(docs);
+      let streak = 0;
+      let checkDate = new Date();
+      while (true) {
+        const dateStr = format(checkDate, 'yyyy-MM-dd');
+        const today = format(new Date(), 'yyyy-MM-dd');
+        if (dateStr === today) {
+          checkDate = subDays(checkDate, 1);
+          const doc = docs.find((d: any) => d.date === today);
+          if (doc?.dayCompleted) streak++;
+          continue;
+        }
+        const doc = docs.find((d: any) => d.date === dateStr);
+        if (doc?.dayCompleted) { streak++; checkDate = subDays(checkDate, 1); }
+        else break;
+      }
+      setDailyGoalStreak(streak);
+    });
+    return unsub;
+  }, [user]);
+
   const [xpNotifications, setXpNotifications] = useState<XPNotification[]>([]);
   const [levelUpLevel, setLevelUpLevel] = useState<number | null>(null);
   const [celebratingAchievement, setCelebratingAchievement] = useState<Achievement | null>(null);
@@ -4936,6 +4981,9 @@ export default function App() {
                     addToTerminal={addToTerminal}
                     openShare={openShare}
                     woopPlans={woopPlans}
+                    yearlyGoals={yearlyGoals}
+                    dailyGoals={dailyGoals}
+                    dailyGoalStreak={dailyGoalStreak}
                   />
                 </ErrorBoundary>
               )}
@@ -13150,430 +13198,91 @@ function DailyWorkView({
   onToggleHabit,
   onDeleteHabit,
   woopPlans,
-  subTab = 'tasks',
+  yearlyGoals = [],
+  dailyGoals = [],
+  dailyGoalStreak = 0,
+  subTab = 'goals',
   setSubTab,
   addToTerminal,
   openShare,
 }: any) {
   const activeTab = subTab;
   const setActiveTab = setSubTab || (() => {});
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [quickTaskTitle, setQuickTaskTitle] = useState('');
-  const [quickHabitName, setQuickHabitName] = useState('');
 
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const pendingTasks = tasks.filter((t: any) => t.status === 'pending');
-  const activeHabits = habits.filter((h: any) => !h.isArchived);
-
-  const isHabitCompletedToday = (habitId: string) => {
-    return habitLogs.some((l: any) => l.habitId === habitId && l.date === todayStr && l.completed);
-  };
-
-  const handleQuickTaskAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quickTaskTitle.trim()) return;
-    try {
-      const newTask = {
-        title: quickTaskTitle.trim(),
-        status: 'pending' as const,
-        priority: 'medium' as const,
-        category: 'work' as const,
-        estimate: 30,
-        subTasks: [],
-        userId: user.uid,
-        createdAt: new Date().toISOString(),
-        expiresAt: chronos.getCycleEnd().toISOString(),
-        isExpired: false
-      };
-      await addDoc(collection(db, 'tasks'), newTask);
-      onAddXP(8, 'TASK_CREATED');
-      setQuickTaskTitle('');
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleQuickHabitAdd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!quickHabitName.trim()) return;
-    try {
-      const newH = {
-        name: quickHabitName.trim(),
-        category: 'routine',
-        frequency: 'daily',
-        targetStreak: 30,
-        color: '#00D9FF',
-        userId: user.uid,
-        createdAt: new Date().toISOString(),
-        isArchived: false
-      };
-      await onAddHabit(newH);
-      setQuickHabitName('');
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const getHabitStreak = (habitId: string) => {
-    const logs = habitLogs
-      .filter((l: any) => l.habitId === habitId && l.completed)
-      .map((l: any) => l.date)
-      .sort((a, b) => b.localeCompare(a));
-    if (logs.length === 0) return 0;
-    let streak = 0;
-    let checkDate = new Date();
-    const today = format(checkDate, 'yyyy-MM-dd');
-    const yesterday = format(subDays(checkDate, 1), 'yyyy-MM-dd');
-    if (logs[0] !== today && logs[0] !== yesterday) return 0;
-    while (true) {
-      const expected = format(subDays(new Date(logs[0]), streak), 'yyyy-MM-dd');
-      if (logs.find((l: any) => l === expected)) {
-        streak++;
-      } else {
-        break;
-      }
-    }
-    return streak;
-  };
+  const TABS = [
+    { id: 'goals', label: 'GOALS', color: 'bg-accent' },
+    { id: 'habits', label: 'HABITS', color: 'bg-cyan' },
+    { id: 'timetable', label: 'TIMETABLE', color: 'bg-indigo-500' },
+    { id: 'woop', label: 'WOOP', color: 'bg-purple-600' },
+  ];
 
   return (
-    <div className="max-w-[1600px] mx-auto min-h-[80vh] flex flex-col md:flex-row gap-4 sm:gap-6 md:gap-8 pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      
-      {/* Top Tab Switcher on Mobile (sm and below) */}
-      <div className="flex md:hidden items-center justify-between p-1 bg-white/5 border border-white/10 rounded-xl mb-4 gap-1 w-full shrink-0 select-none">
-        <button 
-          onClick={() => setActiveTab('tasks')} 
-          className={cn(
-            "flex-1 py-2 text-xs font-mono font-black uppercase text-center rounded-lg transition-all min-h-[44px] flex items-center justify-center",
-            activeTab === 'tasks' ? "bg-accent text-white" : "text-text-m hover:text-white"
-          )}
-        >
-          Tasks
-        </button>
-        <button 
-          onClick={() => setActiveTab('habits')} 
-          className={cn(
-            "flex-1 py-2 text-xs font-mono font-black uppercase text-center rounded-lg transition-all min-h-[44px] flex items-center justify-center",
-            activeTab === 'habits' ? "bg-cyan text-black font-extrabold" : "text-text-m hover:text-white"
-          )}
-        >
-          Habits
-        </button>
-        <button 
-          onClick={() => setActiveTab('timetable')} 
-          className={cn(
-            "flex-1 py-2 text-xs font-mono font-black uppercase text-center rounded-lg transition-all min-h-[44px] flex items-center justify-center",
-            activeTab === 'timetable' ? "bg-indigo-500 text-white" : "text-text-m hover:text-white"
-          )}
-        >
-          Timetable
-        </button>
-        <button 
-          onClick={() => setActiveTab('woop')} 
-          className={cn(
-            "flex-1 py-2 text-xs font-mono font-black uppercase text-center rounded-lg transition-all min-h-[44px] flex items-center justify-center",
-            activeTab === 'woop' ? "bg-purple-600 text-white" : "text-text-m hover:text-white"
-          )}
-        >
-          WOOP
-        </button>
+    <div className="max-w-[1400px] mx-auto flex flex-col pb-32 animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+
+      {/* Tab bar */}
+      <div className="flex items-center gap-1 p-1 bg-white/5 border border-white/10 rounded-2xl w-full">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              "flex-1 py-3 text-[11px] font-mono font-black uppercase tracking-widest rounded-xl transition-all",
+              activeTab === tab.id
+                ? `${tab.color} text-white shadow-lg`
+                : "text-text-m hover:text-white hover:bg-white/5"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
-      {/* LEFT SIDEBAR PANEL (Collapsible, Hidden on Mobile) */}
-      <div 
-        className={cn(
-          "hidden md:flex glass border border-white/5 rounded-[2rem] p-4 lg:p-6 flex-col gap-6 transition-all duration-500 relative shrink-0",
-          isSidebarCollapsed 
-            ? "md:w-16 md:min-w-[64px] md:p-2" 
-            : "md:w-48 md:min-w-[192px] lg:w-64 lg:min-w-[200px]"
+      {/* Content */}
+      <div className="flex-1">
+        {activeTab === 'goals' && (
+          <GoalsTab
+            user={user}
+            yearlyGoals={yearlyGoals}
+            dailyGoals={dailyGoals}
+            dailyGoalStreak={dailyGoalStreak}
+            onAddXP={onAddXP}
+          />
         )}
-      >
-        <button 
-          onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-          className="absolute -right-3 top-8 w-6 h-6 rounded-full bg-accent border border-white/20 flex items-center justify-center text-white text-xs hover:scale-110 active:scale-95 transition-all hidden lg:flex shadow-md z-10"
-        >
-          {isSidebarCollapsed ? "→" : "←"}
-        </button>
-
-        {isSidebarCollapsed ? (
-          <div className="flex flex-col items-center gap-8 py-4">
-             <button onClick={() => { setActiveTab('tasks'); setIsSidebarCollapsed(false); }} className={cn("p-3 rounded-xl transition-all", activeTab === 'tasks' ? "bg-accent/20 text-accent" : "text-text-m hover:text-white")} title="Tasks Section">
-                <CheckCircle2 size={22} />
-             </button>
-             <button onClick={() => { setActiveTab('habits'); setIsSidebarCollapsed(false); }} className={cn("p-3 rounded-xl transition-all", activeTab === 'habits' ? "bg-accent/20 text-accent" : "text-text-m hover:text-white")} title="Habits System">
-                <Cpu size={22} />
-             </button>
-             <button onClick={() => { setActiveTab('timetable'); setIsSidebarCollapsed(false); }} className={cn("p-3 rounded-xl transition-all", activeTab === 'timetable' ? "bg-accent/20 text-accent" : "text-text-m hover:text-white")} title="Temporal Grid">
-                <Calendar size={22} />
-             </button>
-          </div>
-        ) : (
-          <div className="space-y-6 w-full">
-             <div className="flex items-center justify-between border-b border-white/5 pb-4">
-                <div>
-                   <h3 className="text-sm font-mono font-black uppercase text-text-p tracking-wider">DAILY_WORK_CTRL</h3>
-                   <p className="text-[9px] font-mono text-text-m opacity-50 uppercase tracking-tight">Active tasks / routines / timeline</p>
-                </div>
-                <div className="flex gap-1 bg-white/5 p-1.5 rounded-xl border border-white/5">
-                   <button onClick={() => setActiveTab('tasks')} className={cn("px-3 py-1.5 rounded-lg text-[9px] font-mono font-black uppercase tracking-wider transition-all", activeTab === 'tasks' ? "bg-accent text-white" : "text-text-m hover:text-white")}>T</button>
-                   <button onClick={() => setActiveTab('habits')} className={cn("px-3 py-1.5 rounded-lg text-[9px] font-mono font-black uppercase tracking-wider transition-all", activeTab === 'habits' ? "bg-accent text-white" : "text-text-m hover:text-white")}>H</button>
-                   <button onClick={() => setActiveTab('timetable')} className={cn("px-3 py-1.5 rounded-lg text-[9px] font-mono font-black uppercase tracking-wider transition-all", activeTab === 'timetable' ? "bg-accent text-white" : "text-text-m hover:text-white")}>G</button>
-                </div>
-             </div>
-
-             {/* Dynamic Sub-sections inside left sidebar */}
-             {/* 1. TASKS SECTION */}
-             <div className={cn("space-y-4 border-b border-white/5 pb-6 last:border-0", activeTab === 'tasks' ? "ring-1 ring-accent/30 p-6 rounded-2xl bg-accent/5" : "p-4 opacity-80")}>
-                <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveTab('tasks')}>
-                   <div className="flex items-center gap-2">
-                      <CheckCircle2 size={16} className={activeTab === 'tasks' ? "text-accent" : "text-text-m"} />
-                      <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">ACTIVE_TASKS</span>
-                   </div>
-
-                </div>
-
-                <form onSubmit={handleQuickTaskAdd} className="flex gap-3 p-1">
-                   <input 
-                     value={quickTaskTitle}
-                     onChange={(e) => setQuickTaskTitle(e.target.value)}
-                     placeholder="FAST_TASK_ADD..."
-                     className="flex-1 w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-accent/50 transition-all"
-                   />
-                   <button type="submit" className="p-2 bg-accent text-white rounded-xl hover:scale-105 active:scale-95 transition-all"><Plus size={16} /></button>
-                </form>
-
-                <div className="space-y-2">
-                   {pendingTasks.slice(0, 5).map((t: any, i: number) => (
-                      <div key={`pending-${t.id || 'task'}-${i}`} className="py-2 px-1 border-b border-white/5 flex items-center justify-between gap-2 group transition-all hover:bg-white/2">
-                         <span onClick={() => setActiveTab('tasks')} className="text-[11px] font-mono text-text-m truncate cursor-pointer hover:text-white flex-1">{t.title}</span>
-                         <button 
-                           onClick={() => onComplete(t)}
-                           className="text-[10px] text-accent font-black hover:scale-110 active:scale-95 transition-transform"
-                           title="Complete Task"
-                         >
-                           ✓
-                         </button>
-                      </div>
-                   ))}
-                   {/* Sidebar Habits Sync Checklist */}
-                   <div className="border-t border-white/5 pt-3 mt-3 space-y-2">
-                      <div className="flex items-center gap-1.5 opacity-60">
-                         <Cpu size={10} className="text-cyan animate-pulse" />
-                         <span className="text-[8px] font-mono font-bold uppercase tracking-wider text-text-p">HABITS_SYNC_BOARD</span>
-                      </div>
-                      <div className="space-y-1 max-h-[140px] overflow-y-auto no-scrollbar font-mono text-[10px] mb-4">
-                         {activeHabits.map((h: any, i: number) => {
-                            const todayStr = format(new Date(), 'yyyy-MM-dd');
-                            const alreadyHasTask = tasks.some((t: any) => 
-                               t.userId === user?.uid && 
-                               t.createdAt.startsWith(todayStr) && 
-                               (((t.title || "").trim().toLowerCase() === h.name.trim().toLowerCase()) || t.habitId === h.id)
-                            );
-                            return (
-                               <label key={`sidebar-habit-sync-${h.id || 'habit'}-${i}`} className="flex items-center gap-2 cursor-pointer group p-1.5 rounded hover:bg-white/5 transition-all text-text-m hover:text-white">
-                                  <input 
-                                     type="checkbox"
-                                     checked={alreadyHasTask}
-                                     onChange={async (e) => {
-                                        if (!user) return;
-                                        const isChecked = e.target.checked;
-                                        if (isChecked) {
-                                           try {
-                                              const newTask = {
-                                                 userId: user.uid,
-                                                 title: h.name,
-                                                 priority: 'medium' as const,
-                                                 status: 'pending' as const,
-                                                 category: h.category || 'routine',
-                                                 estimate: 30,
-                                                 isChallenging: false,
-                                                 isBoss: false,
-                                                 habitId: h.id,
-                                                 createdAt: new Date().toISOString(),
-                                                 expiresAt: chronos.getCycleEnd().toISOString(),
-                                                 isExpired: false
-                                              };
-                                              await addDoc(collection(db, 'tasks'), newTask);
-                                              if (typeof setCompleteToast === 'function') {
-                                                 setCompleteToast(`Synced ${h.name} to Today's Tasks!`);
-                                                 setTimeout(() => setCompleteToast(null), 3000);
-                                              }
-                                           } catch (err) {
-                                              console.error(err);
-                                           }
-                                        } else {
-                                           try {
-                                              const todayStr = format(new Date(), 'yyyy-MM-dd');
-                                              const pendingLinkedTask = tasks.find((t: any) => 
-                                                 t.userId === user.uid &&
-                                                 t.createdAt.startsWith(todayStr) && 
-                                                 (((t.title || "").trim().toLowerCase() === h.name.trim().toLowerCase()) || t.habitId === h.id) &&
-                                                 t.status === 'pending'
-                                              );
-                                              if (pendingLinkedTask) {
-                                                 await deleteDoc(doc(db, 'tasks', pendingLinkedTask.id));
-                                                 if (typeof setCompleteToast === 'function') {
-                                                    setCompleteToast(`Removed Synced Habit Task`);
-                                                    setTimeout(() => setCompleteToast(null), 3000);
-                                                 }
-                                              }
-                                           } catch (err) {
-                                              console.error(err);
-                                           }
-                                        }
-                                     }}
-                                     className="w-3 h-3 rounded border-white/20 bg-black/40 text-cyan focus:ring-0 cursor-pointer animate-none bg-none"
-                                  />
-                                  <span className="truncate flex-1 uppercase text-text-m group-hover:text-white text-[10px]">{h.name}</span>
-                                  {alreadyHasTask && <span className="text-[10px] font-mono bg-cyan/10 text-cyan px-1.5 py-0.5 rounded font-black uppercase tracking-widest animate-pulse">ACTIVE</span>}
-                                </label>
-                             );
-                          })}
-                          {activeHabits.length === 0 && (
-                             <p className="text-[10px] font-mono text-text-m opacity-30 uppercase italic text-center py-2">No active habits</p>
-                          )}
-                      </div>
-                   </div>
-
-                   {pendingTasks.length === 0 && (
-                      <p className="text-[9px] font-mono text-text-m opacity-40 uppercase italic text-center">No active tasks today</p>
-                   )}
-                </div>
-             </div>
-
-             {/* 2. HABITS SECTION */}
-             <div className={cn("space-y-4 border-b border-white/5 pb-6 last:border-0", activeTab === 'habits' ? "ring-1 ring-cyan/30 p-6 rounded-2xl bg-cyan/5" : "p-4 opacity-80")}>
-                <div className="flex justify-between items-center cursor-pointer" onClick={() => setActiveTab('habits')}>
-                   <div className="flex items-center gap-2">
-                      <Cpu size={16} className={activeTab === 'habits' ? "text-cyan" : "text-text-m"} />
-                      <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">ACTIVE_HABITS</span>
-                   </div>
-                </div>
-
-                <form onSubmit={handleQuickHabitAdd} className="flex gap-3 p-1">
-                   <input 
-                     value={quickHabitName}
-                     onChange={(e) => setQuickHabitName(e.target.value)}
-                     placeholder="FAST_HABIT_ADD..."
-                     className="flex-1 w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all"
-                   />
-                   <button type="submit" className="p-2 bg-cyan text-white rounded-xl hover:scale-105 active:scale-95 transition-all"><Plus size={16} /></button>
-                </form>
-
-                <div className="space-y-2">
-                   {activeHabits.slice(0, 5).map((h: any, i: number) => (
-                      <div key={`habit-${h.id || 'habit'}-${i}`} className="py-2 px-1 border-b border-white/5 flex items-center justify-between gap-2 group transition-all hover:bg-white/2">
-                         <div className="flex items-center gap-2 truncate flex-1 cursor-pointer" onClick={() => setActiveTab('habits')}>
-                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: h.color || '#00D9FF' }} />
-                            <span className="text-[11px] font-mono text-text-m hover:text-white truncate">{h.name}</span>
-                         </div>
-                         <div className="flex items-center gap-3">
-                            <span className="text-[9px] font-mono text-text-s flex items-center gap-1"><Flame size={10} className="text-orange-500 fill-orange-500" /> {h.currentStreak || 0}</span>
-                            <input 
-                              type="checkbox"
-                              checked={isHabitCompletedToday(h.id)}
-                              onChange={() => onToggleHabit(h, todayStr)}
-                              className="accent-cyan w-3.5 h-3.5 cursor-pointer rounded bg-white/10"
-                            />
-                         </div>
-                      </div>
-                   ))}
-                   {activeHabits.length === 0 && (
-                      <p className="text-[9px] font-mono text-text-m opacity-40 uppercase italic text-center">No habits logged</p>
-                   )}
-                </div>
-             </div>
-
-             {/* 3. TIMETABLE CALENDAR GRID SECTION */}
-             <div className={cn("space-y-4 border-b border-white/0 pb-4 last:border-0 cursor-pointer", activeTab === 'timetable' ? "ring-1 ring-indigo-500/30 p-4 rounded-2xl bg-indigo-500/5" : "opacity-80")} onClick={() => setActiveTab('timetable')}>
-                <div className="flex items-center gap-2">
-                   <Calendar size={16} className={activeTab === 'timetable' ? "text-indigo-400" : "text-text-m"} />
-                   <span className="text-[10px] font-mono font-black uppercase tracking-widest text-text-p">TEMPORAL_GRID_MINI</span>
-                </div>
-                
-                {/* 7x5 MINI MONTH GRID */}
-                <div className="grid grid-cols-7 gap-1 text-center text-[8px] font-mono opacity-60">
-                   {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, idx) => (
-                     <div key={`mini-day-name-${idx}`} className="font-black text-text-s">{d}</div>
-                   ))}
-                   {Array.from({ length: 28 }).map((_, idx) => (
-                     <div 
-                       key={`mini-day-num-${idx}`} 
-                       className={cn(
-                         "p-1 rounded bg-white/5 border border-white/5 hover:border-indigo-400/50 transition-all",
-                         idx % 7 === 1 && "bg-indigo-500/10 text-white font-black"
-                       )}
-                     >
-                       {((idx + 1) % 28) + 1}
-                     </div>
-                   ))}
-                </div>
-                <p className="text-[8px] font-mono text-text-m opacity-40 text-center uppercase tracking-wider">CLICK_TO_EXPAND_TEMPORAL_HUB</p>
-             </div>
-
-          </div>
+        {activeTab === 'habits' && (
+          <HabitSpreadsheet
+            habits={habits}
+            habitLogs={habitLogs}
+            onToggleHabit={onToggleHabit}
+            onAddHabit={onAddHabit}
+            onDeleteHabit={onDeleteHabit}
+            stats={stats}
+          />
+        )}
+        {activeTab === 'timetable' && (
+          <TemporalHub
+            tasks={tasks}
+            timeBlocks={timeBlocks}
+            journals={journals}
+            user={user}
+            stats={stats}
+            onAddXP={onAddXP}
+            onFocus={onFocus}
+            onComplete={onComplete}
+            addTimeBlock={addTimeBlock}
+            deleteTimeBlock={deleteTimeBlock}
+            updateTimeBlock={updateTimeBlock}
+            updateTask={updateTask}
+            applyTemplate={applyTemplate}
+            setCompleteToast={setCompleteToast}
+            settings={settings}
+            onUpdateSettings={onUpdateSettings}
+            addToTerminal={addToTerminal}
+          />
+        )}
+        {activeTab === 'woop' && (
+          <WOOPView woopPlans={woopPlans || []} user={user} />
         )}
       </div>
-
-      {/* RIGHT MAIN POWER MODULE */}
-      <div className="flex-1 w-full min-w-0">
-         <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, scale: 0.99, filter: 'blur(4px)' }}
-              animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-              exit={{ opacity: 0, scale: 1.01, filter: 'blur(4px)' }}
-              transition={{ duration: 0.3 }}
-            >
-               {activeTab === 'tasks' && (
-                 <TasksView 
-                   tasks={tasks} 
-                   user={user} 
-                   onComplete={onComplete} 
-                   settings={settings} 
-                   setCompleteToast={setCompleteToast} 
-                   habits={habits}
-                 />
-               )}
-               {activeTab === 'habits' && (
-                 <RoutineMatrixView 
-                   habits={habits}
-                   habitLogs={habitLogs}
-                   user={user}
-                   onAddHabit={onAddHabit}
-                   onToggleHabit={onToggleHabit}
-                   onDeleteHabit={onDeleteHabit}
-                    openShare={openShare}
-                 />
-               )}
-               {activeTab === 'timetable' && (
-                 <TemporalHub 
-                   tasks={tasks} 
-                   timeBlocks={timeBlocks}
-                   journals={journals}
-                   user={user}
-                   stats={stats}
-                   onAddXP={onAddXP}
-                   onFocus={onFocus}
-                   onComplete={onComplete}
-                   addTimeBlock={addTimeBlock}
-                   deleteTimeBlock={deleteTimeBlock}
-                   updateTimeBlock={updateTimeBlock}
-                   updateTask={updateTask}
-                   applyTemplate={applyTemplate}
-                   setCompleteToast={setCompleteToast}
-                   settings={settings}
-                   onUpdateSettings={onUpdateSettings}
-                    addToTerminal={addToTerminal}
-                 />
-               )}
-               {activeTab === 'woop' && (
-                 <WOOPView woopPlans={woopPlans || []} user={user} />
-               )}
-            </motion.div>
-         </AnimatePresence>
-      </div>
-
     </div>
   );
 }
