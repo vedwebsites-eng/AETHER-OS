@@ -1,10 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { format, subDays } from 'date-fns';
-import { addDoc, collection, doc, updateDoc, deleteDoc, getFirestore, setDoc } from 'firebase/firestore';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Flame, Check } from 'lucide-react';
+import { addDoc, collection, doc, updateDoc, getFirestore } from 'firebase/firestore';
+import { ChevronLeft, ChevronRight, Trash2, Flame, Check, Plus } from 'lucide-react';
 
 const db = getFirestore();
-
 const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
 
 export function GoalsTab({ user, yearlyGoals, dailyGoals, dailyGoalStreak, onAddXP }: any) {
@@ -13,101 +12,105 @@ export function GoalsTab({ user, yearlyGoals, dailyGoals, dailyGoalStreak, onAdd
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [newGoalText, setNewGoalText] = useState('');
   const [newDailyText, setNewDailyText] = useState('');
+  const [addingYearly, setAddingYearly] = useState(false);
+  const [addingDaily, setAddingDaily] = useState(false);
+  const [liveTime, setLiveTime] = useState(format(new Date(), 'HH:mm:ss'));
   const monthScrollRef = useRef<HTMLDivElement>(null);
   const todayStr = format(new Date(), 'yyyy-MM-dd');
 
-  // Get unique years from data + current
-  const years = Array.from(new Set([currentYear, ...yearlyGoals.map((g: any) => g.year)])).sort();
+  // Live clock
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLiveTime(format(new Date(), 'HH:mm:ss'));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // Goals for selected year + month
+  const years = Array.from(new Set([currentYear, ...yearlyGoals.map((g: any) => g.year)])).sort() as number[];
   const monthDoc = yearlyGoals.find((g: any) => g.year === selectedYear && g.month === selectedMonth);
   const monthGoals: any[] = monthDoc?.goals || [];
-
-  // Today's daily goals doc
   const todayDoc = dailyGoals.find((d: any) => d.date === todayStr);
   const todayGoals: any[] = todayDoc?.goals || [];
   const allDone = todayGoals.length > 0 && todayGoals.every((g: any) => g.completed);
 
-  const getDocId = (year: number, month: number) => `${user.uid}_${year}_${month}`;
-
   async function addYearlyGoal() {
-    if (!newGoalText.trim()) return;
-    const docId = getDocId(selectedYear, selectedMonth);
-    const newGoal = { id: Date.now().toString(), text: newGoalText.trim(), completed: false, createdAt: new Date().toISOString() };
-    const existing = monthDoc;
-    if (existing) {
-      await updateDoc(doc(db, 'yearly_goals', existing.id), {
-        goals: [...monthGoals, newGoal]
-      });
-    } else {
-      await addDoc(collection(db, 'yearly_goals'), {
-        userId: user.uid, year: selectedYear, month: selectedMonth,
-        goals: [newGoal], createdAt: new Date().toISOString()
-      });
+    if (!newGoalText.trim() || addingYearly) return;
+    setAddingYearly(true);
+    try {
+      const newGoal = { id: Date.now().toString(), text: newGoalText.trim(), completed: false, createdAt: new Date().toISOString() };
+      if (monthDoc) {
+        await updateDoc(doc(db, 'yearly_goals', monthDoc.id), { goals: [...monthGoals, newGoal] });
+      } else {
+        await addDoc(collection(db, 'yearly_goals'), {
+          userId: user.uid, year: selectedYear, month: selectedMonth,
+          goals: [newGoal], createdAt: new Date().toISOString()
+        });
+      }
+      setNewGoalText('');
+    } catch (e) {
+      console.error('Failed to add yearly goal:', e);
+    } finally {
+      setAddingYearly(false);
     }
-    setNewGoalText('');
   }
 
   async function toggleYearlyGoal(goalId: string) {
     if (!monthDoc) return;
-    const updated = monthGoals.map((g: any) =>
-      g.id === goalId ? { ...g, completed: !g.completed } : g
-    );
-    await updateDoc(doc(db, 'yearly_goals', monthDoc.id), { goals: updated });
-    const wasCompleted = monthGoals.find((g: any) => g.id === goalId)?.completed;
-    if (!wasCompleted) onAddXP(50, 'YEARLY_GOAL_COMPLETE');
+    const updated = monthGoals.map((g: any) => g.id === goalId ? { ...g, completed: !g.completed } : g);
+    try {
+      await updateDoc(doc(db, 'yearly_goals', monthDoc.id), { goals: updated });
+      const wasCompleted = monthGoals.find((g: any) => g.id === goalId)?.completed;
+      if (!wasCompleted) onAddXP(50, 'YEARLY_GOAL_COMPLETE');
+    } catch (e) { console.error('Toggle yearly goal error:', e); }
   }
 
   async function deleteYearlyGoal(goalId: string) {
     if (!monthDoc) return;
-    await updateDoc(doc(db, 'yearly_goals', monthDoc.id), {
-      goals: monthGoals.filter((g: any) => g.id !== goalId)
-    });
+    try {
+      await updateDoc(doc(db, 'yearly_goals', monthDoc.id), { goals: monthGoals.filter((g: any) => g.id !== goalId) });
+    } catch (e) { console.error('Delete yearly goal error:', e); }
   }
 
   async function addDailyGoal() {
-    if (!newDailyText.trim()) return;
-    const newGoal = { id: Date.now().toString(), text: newDailyText.trim(), completed: false };
-    if (todayDoc) {
-      await updateDoc(doc(db, 'daily_goals', todayDoc.id), {
-        goals: [...todayGoals, newGoal]
-      });
-    } else {
-      await addDoc(collection(db, 'daily_goals'), {
-        userId: user.uid, date: todayStr,
-        goals: [newGoal], dayCompleted: false, createdAt: new Date().toISOString()
-      });
+    if (!newDailyText.trim() || addingDaily) return;
+    setAddingDaily(true);
+    try {
+      const newGoal = { id: Date.now().toString(), text: newDailyText.trim(), completed: false };
+      if (todayDoc) {
+        await updateDoc(doc(db, 'daily_goals', todayDoc.id), { goals: [...todayGoals, newGoal] });
+      } else {
+        await addDoc(collection(db, 'daily_goals'), {
+          userId: user.uid, date: todayStr,
+          goals: [newGoal], dayCompleted: false, createdAt: new Date().toISOString()
+        });
+      }
+      setNewDailyText('');
+    } catch (e) {
+      console.error('Failed to add daily goal:', e);
+    } finally {
+      setAddingDaily(false);
     }
-    setNewDailyText('');
   }
 
   async function toggleDailyGoal(goalId: string) {
     if (!todayDoc) return;
-    const updated = todayGoals.map((g: any) =>
-      g.id === goalId ? { ...g, completed: !g.completed } : g
-    );
-    const allComplete = updated.every((g: any) => g.completed);
-    await updateDoc(doc(db, 'daily_goals', todayDoc.id), {
-      goals: updated,
-      dayCompleted: allComplete
-    });
-    const wasCompleted = todayGoals.find((g: any) => g.id === goalId)?.completed;
-    if (!wasCompleted) {
-      onAddXP(20, 'DAILY_GOAL_COMPLETE');
-      if (allComplete) onAddXP(30, 'ALL_DAILY_GOALS_COMPLETE');
-    }
+    try {
+      const updated = todayGoals.map((g: any) => g.id === goalId ? { ...g, completed: !g.completed } : g);
+      const allComplete = updated.every((g: any) => g.completed);
+      await updateDoc(doc(db, 'daily_goals', todayDoc.id), { goals: updated, dayCompleted: allComplete });
+      const wasCompleted = todayGoals.find((g: any) => g.id === goalId)?.completed;
+      if (!wasCompleted) {
+        onAddXP(20, 'DAILY_GOAL_COMPLETE');
+        if (allComplete) onAddXP(30, 'ALL_DAILY_GOALS_COMPLETE');
+      }
+    } catch (e) { console.error('Toggle daily goal error:', e); }
   }
 
   async function deleteDailyGoal(goalId: string) {
     if (!todayDoc) return;
-    await updateDoc(doc(db, 'daily_goals', todayDoc.id), {
-      goals: todayGoals.filter((g: any) => g.id !== goalId)
-    });
-  }
-
-  async function addYear() {
-    const next = Math.max(...years) + 1;
-    setSelectedYear(next);
+    try {
+      await updateDoc(doc(db, 'daily_goals', todayDoc.id), { goals: todayGoals.filter((g: any) => g.id !== goalId) });
+    } catch (e) { console.error('Delete daily goal error:', e); }
   }
 
   return (
@@ -115,14 +118,12 @@ export function GoalsTab({ user, yearlyGoals, dailyGoals, dailyGoalStreak, onAdd
 
       {/* SECTION 1 — YEARLY GOALS */}
       <div className="glass border border-white/10 rounded-3xl p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[9px] font-mono text-accent uppercase tracking-[0.4em] font-black">SECTION_01</p>
-            <h2 className="text-2xl font-serif font-black text-white italic uppercase">YEARLY_GOALS</h2>
-          </div>
+        <div>
+          <p className="text-[9px] font-mono text-accent uppercase tracking-[0.4em] font-black">SECTION_01</p>
+          <h2 className="text-2xl font-serif font-black text-white italic uppercase">YEARLY_GOALS</h2>
         </div>
 
-        {/* Year tabs */}
+        {/* Year tabs — auto-generated, no manual add */}
         <div className="flex items-center gap-2 flex-wrap">
           {years.map(yr => (
             <button key={yr} onClick={() => setSelectedYear(yr)}
@@ -130,15 +131,11 @@ export function GoalsTab({ user, yearlyGoals, dailyGoals, dailyGoalStreak, onAdd
               {yr}
             </button>
           ))}
-          <button onClick={addYear}
-            className="px-4 py-2 rounded-xl text-[11px] font-mono font-black uppercase bg-white/5 text-text-m hover:bg-white/10 transition-all flex items-center gap-1">
-            <Plus size={12} /> ADD_YEAR
-          </button>
         </div>
 
         {/* Month carousel */}
         <div className="relative">
-          <button onClick={() => { if (selectedMonth > 0) setSelectedMonth(selectedMonth - 1); }}
+          <button onClick={() => setSelectedMonth(m => Math.max(0, m - 1))}
             className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-1 bg-black/60 rounded-lg">
             <ChevronLeft size={16} className="text-text-m" />
           </button>
@@ -150,7 +147,7 @@ export function GoalsTab({ user, yearlyGoals, dailyGoals, dailyGoalStreak, onAdd
               </button>
             ))}
           </div>
-          <button onClick={() => { if (selectedMonth < 11) setSelectedMonth(selectedMonth + 1); }}
+          <button onClick={() => setSelectedMonth(m => Math.min(11, m + 1))}
             className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-1 bg-black/60 rounded-lg">
             <ChevronRight size={16} className="text-text-m" />
           </button>
@@ -175,7 +172,6 @@ export function GoalsTab({ user, yearlyGoals, dailyGoals, dailyGoalStreak, onAdd
               </button>
             </div>
           ))}
-          {/* Add goal */}
           <div className="flex gap-2 mt-3">
             <input
               value={newGoalText}
@@ -184,9 +180,11 @@ export function GoalsTab({ user, yearlyGoals, dailyGoals, dailyGoalStreak, onAdd
               placeholder="Add a goal for this month..."
               className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-mono text-white placeholder-white/20 outline-none focus:border-accent/50 transition-all"
             />
-            <button onClick={addYearlyGoal}
-              className="px-4 py-3 bg-accent text-white font-mono font-black text-xs uppercase rounded-xl hover:bg-accent/80 transition-all">
-              ADD
+            <button
+              onClick={addYearlyGoal}
+              disabled={addingYearly || !newGoalText.trim()}
+              className="px-4 py-3 bg-accent text-white font-mono font-black text-xs uppercase rounded-xl hover:bg-accent/80 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+              {addingYearly ? '...' : 'ADD'}
             </button>
           </div>
         </div>
@@ -199,7 +197,7 @@ export function GoalsTab({ user, yearlyGoals, dailyGoals, dailyGoalStreak, onAdd
             <p className="text-[9px] font-mono text-cyan uppercase tracking-[0.4em] font-black">SECTION_02</p>
             <h2 className="text-2xl font-serif font-black text-white italic uppercase">TODAY_GOALS</h2>
             <p className="text-[11px] font-mono text-text-s opacity-60 mt-1">
-              {format(new Date(), 'EEEE, MMM d')} · {format(new Date(), 'HH:mm')}
+              {format(new Date(), 'EEEE, MMM d')} · <span className="text-cyan font-black">{liveTime}</span>
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -209,15 +207,15 @@ export function GoalsTab({ user, yearlyGoals, dailyGoals, dailyGoalStreak, onAdd
           </div>
         </div>
 
-        {/* Past day indicators — last 7 days */}
+        {/* Last 7 days indicators */}
         <div className="flex gap-2">
           {Array.from({ length: 7 }).map((_, i) => {
             const d = subDays(new Date(), 6 - i);
             const dStr = format(d, 'yyyy-MM-dd');
             const isToday = dStr === todayStr;
-            const doc = dailyGoals.find((g: any) => g.date === dStr);
-            const completed = doc?.dayCompleted;
-            const isPast = d < new Date() && !isToday;
+            const entry = dailyGoals.find((g: any) => g.date === dStr);
+            const completed = entry?.dayCompleted;
+            const isPast = dStr < todayStr;
             return (
               <div key={dStr} className="flex-1 flex flex-col items-center gap-1">
                 <div className={`w-full h-2 rounded-full ${isToday ? 'bg-cyan/40' : completed ? 'bg-success' : isPast ? 'bg-danger/60' : 'bg-white/10'}`} />
@@ -259,9 +257,11 @@ export function GoalsTab({ user, yearlyGoals, dailyGoals, dailyGoalStreak, onAdd
               placeholder="Add today's goal..."
               className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-sm font-mono text-white placeholder-white/20 outline-none focus:border-cyan/50 transition-all"
             />
-            <button onClick={addDailyGoal}
-              className="px-4 py-3 bg-cyan text-black font-mono font-black text-xs uppercase rounded-xl hover:bg-cyan/80 transition-all">
-              ADD
+            <button
+              onClick={addDailyGoal}
+              disabled={addingDaily || !newDailyText.trim()}
+              className="px-4 py-3 bg-cyan text-black font-mono font-black text-xs uppercase rounded-xl hover:bg-cyan/80 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+              {addingDaily ? '...' : 'ADD'}
             </button>
           </div>
         </div>

@@ -34,19 +34,25 @@ export function HabitSpreadsheet({ habits, habitLogs, onToggleHabit, onAddHabit,
     return dateStr === today;
   };
 
-  const handleCellTap = (habit: any, day: number) => {
+  const handleCellTap = async (habit: any, day: number) => {
     if (isFuture(day)) return;
     const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    onToggleHabit(habit, dateStr);
+    try {
+      await onToggleHabit(habit, dateStr);
+    } catch (e) {
+      console.error('Habit toggle error:', e);
+    }
   };
 
   const getStreak = (habitId: string) => {
     let streak = 0;
-    let checkDate = new Date();
-    while (true) {
-      const dateStr = format(checkDate, 'yyyy-MM-dd');
+    const today = new Date();
+    for (let i = 0; i < 365; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const dateStr = format(d, 'yyyy-MM-dd');
       const done = (habitLogs || []).some((l: any) => l.habitId === habitId && l.date === dateStr && l.completed);
-      if (done) { streak++; checkDate = new Date(checkDate.setDate(checkDate.getDate() - 1)); }
+      if (done) streak++;
       else break;
     }
     return streak;
