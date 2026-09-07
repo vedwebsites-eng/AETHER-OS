@@ -14563,7 +14563,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
  
    async function handleClearConversation() {
      if (!user) return;
-     const confirmClear = window.confirm("Are you sure you want to completely erase your neural log with the Aether Coach? This cannot be undone.");
+     const confirmClear = window.confirm("Are you sure you want to completely erase your neural log with AETHOS Coach? This cannot be undone.");
      if (!confirmClear) return;
  
      try {
