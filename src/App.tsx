@@ -3113,7 +3113,7 @@ export default function App() {
         lastActiveDate: new Date().toISOString(),
       });
       await addXP(25, 'REACTIVATE_PROTOCOL');
-      setCompleteToast('SYSTEM_REACTIVATED_PROTOCOL_READY');
+      setCompleteToast('System ready');
       setIsMotivationPortalOpen(true);
     } catch (e) {
       console.error(e);
@@ -3155,7 +3155,7 @@ export default function App() {
       });
 
       setIsOnboardingOpen(false);
-      setCompleteToast('ONBOARDING_COMPLETE_PROTOCOL_SYNCHRONIZED');
+      setCompleteToast('Setup complete — welcome to AETHOS');
     } catch (e) {
       console.error(e);
     }
@@ -3259,7 +3259,7 @@ export default function App() {
         isExpired: false
       });
       saveNotepadLines(notepadLines.filter(l => l.id !== line.id));
-      setCompleteToast('LINE_CONVERTED_TO_TASK');
+      setCompleteToast('Converted to task');
       setTimeout(() => setCompleteToast(null), 2000);
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'tasks');
@@ -3572,7 +3572,7 @@ export default function App() {
       setWeeklyReviews((snap.docs || []).map(doc => ({ ...doc.data(), id: doc.id } as WeeklyReview)));
       if (syncFailed) {
         setSyncFailed(false);
-        setCompleteToast('DATA_SYNC_RESTORED');
+        setCompleteToast('Streak shield used — streak protected 🛡');
       }
     } catch (err: any) {
       console.error('FIRESTORE_FETCH_FAILED: ' + err.message);
@@ -3708,7 +3708,7 @@ export default function App() {
     const settingsRef = doc(db, 'user_settings', user.uid);
     try {
       await setDoc(settingsRef, updated);
-      setCompleteToast('SETTINGS_SYNC_COMPLETE');
+      setCompleteToast('Settings saved');
       setTimeout(() => setCompleteToast(null), 3000);
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, settingsRef.path);
@@ -3733,7 +3733,7 @@ export default function App() {
       await updateDoc(doc(db, 'user_stats', user.uid), updates);
       setStats({ ...stats, ...updates });
       
-      setCompleteToast(`ITEM_DECRYPTED: ${item.label || item.name}`);
+      setCompleteToast(`Unlocked: ${item.label || item.name}`);
       setTimeout(() => setCompleteToast(null), 3000);
       playLevelUpSound(); // Nice sound for purchase
     } catch (e) {
@@ -4215,7 +4215,7 @@ export default function App() {
       });
 
       await batch.commit();
-      await addXP(50, 'TEMPLATE_SYNC_COMPLETE');
+      await addXP(50, 'Template applied');
     } catch (e) {
       handleFirestoreError(e, OperationType.WRITE, 'apply_template');
     }
@@ -4452,7 +4452,7 @@ export default function App() {
         createdAt: new Date().toISOString(),
         isArchived: false
       });
-      setCompleteToast('HABIT_PROTOCOL_INITIALIZED');
+      setCompleteToast('Habit created');
       setTimeout(() => setCompleteToast(null), 3000);
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'habits');
@@ -4462,7 +4462,7 @@ export default function App() {
   const deleteHabit = async (id: string) => {
     try {
       await updateDoc(doc(db, 'habits', id), { isArchived: true });
-      setCompleteToast('HABIT_ARCHIVED');
+      setCompleteToast('Habit archived');
       setTimeout(() => setCompleteToast(null), 3000);
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `habits/${id}`);
@@ -4497,7 +4497,7 @@ export default function App() {
             completedAt: null
           });
         }
-        setCompleteToast('HABIT_UNCOMPLETED');
+        setCompleteToast('Habit unchecked');
         setTimeout(() => setCompleteToast(null), 3000);
       } else {
         if (existingLog) {
@@ -4527,7 +4527,7 @@ export default function App() {
                 completedAt: new Date().toISOString()
               });
             }
-            setCompleteToast('HABIT_RECOMPLETED');
+            setCompleteToast('Habit rechecked');
             setTimeout(() => setCompleteToast(null), 3000);
             return;
           }
@@ -9607,7 +9607,7 @@ function TemporalHub({
                <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="glass max-w-2xl w-full p-8 rounded-3xl border border-white/10 space-y-6" onClick={e => e.stopPropagation()}>
                  <h3 className="text-2xl font-serif font-black text-white italic uppercase tracking-widest">Initialize Time Block</h3>
                  <div className="space-y-4">
-                    <div className="space-y-2"><label className="text-[10px] font-mono text-text-m uppercase">Block Title</label><input type="text" value={blockForm.title || ''} onChange={e => setBlockForm({...blockForm, title: e.target.value})} className="w-full bg-background-nested p-3 rounded-lg border border-white/10 text-white font-mono outline-none focus:border-accent" placeholder="Deep work session..." /></div>
+                    <div className="space-y-2"><label className="text-[10px] font-mono text-text-m uppercase">Block Title</label><input type="text" value={blockForm.title || ''} onChange={e => setBlockForm({...blockForm, title: e.target.value})} className="w-full bg-background-nested p-3 rounded-lg border border-white/10 text-white font-mono outline-none focus:border-accent" placeholder="What's this block for?" /></div>
                     <div className="grid grid-cols-2 gap-4">
                        <div className="space-y-2"><label className="text-[10px] font-mono text-text-m uppercase">Start Time</label><input type="datetime-local" value={blockForm.startTime || ''} onChange={e => setBlockForm({...blockForm, startTime: e.target.value})} className="w-full bg-background-nested p-3 rounded-lg border border-white/10 text-white font-mono outline-none" /></div>
                        <div className="space-y-2"><label className="text-[10px] font-mono text-text-m uppercase">End Time</label><input type="datetime-local" value={blockForm.endTime || ''} onChange={e => setBlockForm({...blockForm, endTime: e.target.value})} className="w-full bg-background-nested p-3 rounded-lg border border-white/10 text-white font-mono outline-none" /></div>
@@ -11213,7 +11213,7 @@ function JournalView({
                         updated[i] = e.target.value;
                         setGratitudeEntries(updated);
                       }}
-                      placeholder="Type here..."
+                      placeholder="Write what's on your mind..."
                       className="w-full px-5 py-4 bg-white/5 border border-emerald-500/20 rounded-xl focus:border-emerald-500/50 text-white font-mono text-sm outline-none placeholder-white/20 transition-all"
                     />
                   </div>
@@ -11676,7 +11676,7 @@ function NotepadView({ lines, onUpdateLines, onConvertToTask }: {
                 if (e.key === 'Enter') { e.preventDefault(); addLineAfter(line.id); }
                 if (e.key === 'Backspace' && line.text === '') { e.preventDefault(); deleteLine(line.id); }
               }}
-              placeholder="Type a thought, a to-do, anything..."
+              placeholder="Quick note, idea, or task..."
               className="flex-1 bg-transparent border-none outline-none text-sm text-white/80 placeholder-white/20 py-1.5 font-mono"
             />
             {line.text.trim() && (
@@ -12791,10 +12791,10 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
   };
 
   const coachMarkdownComponents = {
-    p: ({children}: any) => <p className="whitespace-pre-wrap leading-loose mb-6 text-lg text-text-p">{children}</p>,
+    p: ({children}: any) => <p className="whitespace-pre-wrap leading-relaxed mb-3 text-sm text-white/90 font-sans">{children}</p>,
     strong: ({children}: any) => <strong className="text-cyan font-semibold">{children}</strong>,
-    ul: ({children}: any) => <ul className="list-disc list-outside ml-4 space-y-3 my-4 text-lg text-text-p">{children}</ul>,
-    ol: ({children}: any) => <ol className="list-decimal list-outside ml-4 space-y-3 my-4 text-lg text-text-p">{children}</ol>,
+    ul: ({children}: any) => <ul className="list-disc list-outside ml-4 space-y-2 my-3 text-sm text-white/90 font-sans">{children}</ul>,
+    ol: ({children}: any) => <ol className="list-decimal list-outside ml-4 space-y-2 my-3 text-sm text-white/90 font-sans">{children}</ol>,
     li: ({children}: any) => <li className="leading-relaxed pl-2">{children}</li>,
     code: ({children}: any) => <code className="bg-background-nested px-2 py-0.5 rounded font-mono text-sm text-cyan">{children}</code>,
     h1: ({children}: any) => <h1 className="text-2xl font-black text-white mt-8 mb-4 tracking-tight">{children}</h1>,
@@ -13295,7 +13295,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
                 <input
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder={`PROMPT_${coachProfile.coachName?.toUpperCase() || 'AETHOS_COACH'}...`}
+                  placeholder={`Message ${coachProfile?.coachName || 'Ace'}...`}
                   disabled={isGenerating}
                   autoFocus
                   className="flex-1 bg-black/40 border border-white/10 rounded-xl px-5 py-4 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
@@ -13338,7 +13338,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
               <div 
                 key={m.id || `fallback-msg-${idx}`} 
                 className={cn(
-                  "group flex flex-col max-w-[90%] rounded-2xl p-5 font-mono text-sm leading-relaxed",
+                  "group flex flex-col max-w-[90%] rounded-2xl p-5 text-sm leading-relaxed",
                   m.sender === 'user' 
                     ? "bg-accent/15 border border-accent/25 text-white ml-auto rounded-tr-none" 
                     : "bg-white/5 border border-white/10 text-white/90 font-medium mr-auto rounded-tl-none border-l-2 border-l-cyan"
@@ -13512,7 +13512,7 @@ function AetherCoachTabView({ stats, user, journals, tasks = [], habits = [], ha
               <input
                 value={!coachProfile ? onboardingInput : inputText}
                 onChange={(e) => !coachProfile ? setOnboardingInput(e.target.value) : setInputText(e.target.value)}
-                placeholder={!coachProfile ? "TYPE_YOUR_RESPONSE..." : "PROMPT_AETHOS_COACH..."}
+                placeholder={!coachProfile ? "Type your message..." : `Message ${coachProfile?.coachName || 'Ace'}...`}
                 disabled={isGenerating}
                 className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-xs text-white placeholder-text-s/30 font-mono outline-none focus:border-cyan/50 transition-all disabled:opacity-50"
               />
